@@ -773,7 +773,9 @@ function getSpaceItems(space) {
     ].map(normalizeText).join(' ');
 
     if (normalizeText(item.space) && spaceName.includes(normalizeText(item.space))) return true;
-    if (space.id === 'design-inspiration' && item.type === 'image') return true;
+    // "Cảm hứng" space shows both uploaded images AND cropped screenshots
+    // so users see all visual captures together, not split across tabs.
+    if (space.id === 'design-inspiration' && (item.type === 'image' || item.type === 'screenshot')) return true;
     if (space.id === 'tech-notes' && item.type === 'code') return true;
     return keywords.some(function(keyword) { return keyword && fields.includes(keyword); });
   });
