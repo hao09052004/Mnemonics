@@ -105,6 +105,10 @@ export async function imageProxyHandler(request: Request, response: Response) {
     const buffer = Buffer.from(arrayBuffer);
     response.setHeader('Content-Type', mimeType);
     response.setHeader('Cache-Control', 'private, max-age=300');
+    // Allow the extension's dashboard (and any browser tab in the future)
+    // to embed the proxied image via <img src>. Without this the browser
+    // blocks the response as cross-origin and the card renders blank.
+    response.setHeader('Access-Control-Allow-Origin', '*');
     response.setHeader('X-Mnemonics-Proxy', 'image');
     response.status(200).send(buffer);
   } catch (error) {

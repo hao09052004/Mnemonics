@@ -638,7 +638,7 @@ function renderCards(data) {
       body = `<div class="card-quote">${item.quote || item.note || item.excerpt || ''}</div>`;
     } else if ((item.type === 'image' || item.type === 'screenshot') && item.imageUrl) {
       const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Ảnh chụp màn hình' : 'Ảnh đã lưu'));
-      const imageSrc = escapeHtml(item.imageUrl);
+      const imageSrc = escapeHtml(imageSrcForRender(item.imageUrl));
       const pageSrc = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
       body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="Bấm để xem ảnh">
         <img src="${imageSrc}" alt="${imageTitle}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;">
@@ -947,7 +947,7 @@ function renderSpaceItems(space, query) {
     const title = item.title || item.quote || item.note || 'Ký ức đã lưu';
     const body = item.excerpt || item.note || item.quote || item.url || (item.checks || []).map(function(c) { return c.text; }).join(' · ') || '';
     const url = normalizeExternalUrl(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
-    const image = item.type === 'image' && item.imageUrl ? `<img class="space-item-thumb" src="${escapeHtml(item.imageUrl)}" data-image-preview="${escapeHtml(item.imageUrl)}" data-image-title="${escapeHtml(title)}" data-page-url="${escapeHtml(url)}" alt="${escapeHtml(title)}">` : `<div class="space-item-type-icon">${typeLabel.slice(0,1)}</div>`;
+    const image = item.type === 'image' && item.imageUrl ? `<img class="space-item-thumb" src="${escapeHtml(imageSrcForRender(item.imageUrl))}" data-image-preview="${escapeHtml(imageSrcForRender(item.imageUrl))}" data-image-title="${escapeHtml(title)}" data-page-url="${escapeHtml(url)}" alt="${escapeHtml(title)}">` : `<div class="space-item-type-icon">${typeLabel.slice(0,1)}</div>`;
     return `<div class="space-item">
       ${image}
       <div class="space-item-body">
@@ -1196,6 +1196,20 @@ function normalizeExternalUrl(url) {
   if (/^(https?:|data:|blob:|chrome-extension:)/i.test(url)) return url;
   if (/^[\w.-]+\.[a-z]{2,}/i.test(url)) return 'https://' + url;
   return '';
+}
+
+// Render-time helper: when an item's imageUrl is a remote http(s) URL we
+// can't display it directly because the browser blocks cross-origin
+// <img> requests. Rewrite it through the API image proxy which sets
+// Access-Control-Allow-Origin: *. Data URLs and blob: pass through.
+function imageSrcForRender(imageUrl) {
+  if (!imageUrl) return '';
+  if (/^(data:|blob:|chrome-extension:)/i.test(imageUrl)) return imageUrl;
+  if (/^https?:\/\//i.test(imageUrl)) {
+    var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : (window.MNEMONICS_API_URL || 'http://localhost:4000'));
+    return apiBase + '/api/v1/proxy/image?url=' + encodeURIComponent(imageUrl);
+  }
+  return imageUrl;
 }
 
 function openImagePreview(imageUrl, title, pageUrl) {
