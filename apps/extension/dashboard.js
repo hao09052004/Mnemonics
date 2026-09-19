@@ -1,13 +1,6 @@
 // ===== DATA =====
-const SAMPLE_ITEMS = [
-  { id: 1, type: 'article', title: 'Nguyên lý cơ bản về Tính toán Không gian', excerpt: 'Khám phá cách tính toán không gian đang định nghĩa lại ranh giới giữa thế giới vật lý và kỹ thuật số, tập trung vào các mô hình tương...', tags: ['tech', 'spatial', 'hci'], date: '2 ngày trước', space: 'Ghi chú Công nghệ' },
-  { id: 2, type: 'image', title: 'Cảm hứng: Trạng thái Dòng chảy', excerpt: 'Đã lưu từ Designspiration. Thích động lực học chất lỏng và cách pha trộn màu sắc này cho dự án thương hiệu mới.', tags: ['design', 'inspiration'], date: '5 ngày trước', space: 'Dự án Alpha' },
-  { id: 3, type: 'note', title: 'Chuẩn bị họp: Kiến trúc hệ thống', checks: [{text:'Xem lại chiến lược bộ nhớ đệm cho chế độ ngoại tuyến', done:false},{text:'Thảo luận về WebSockets so với SSE', done:true},{text:'Kiểm tra giới hạn tần suất API trên các endpoint mới', done:false}], date: 'Hôm qua', space: 'Công việc' },
-  { id: 4, type: 'quote', quote: '"Tâm trí trực giác là một món quà thiêng liêng và tâm trí lý trí là một người đầy tớ trung thành. Chúng ta đã tạo ra một xã hội tôn vinh người đầy tớ và đã quên đi món quà."', tags: ['quote', 'einstein'], date: '1 tuần trước', space: 'Cảm hứng' },
-  { id: 5, type: 'code', title: 'Triển khai CSS Subgrid', excerpt: 'Kỹ thuật layout nâng cao sử dụng subgrid để căn chỉnh các phần tử con', tags: ['css', 'frontend'], date: 'Hôm nay', space: 'Ghi chú Công nghệ' },
-  { id: 6, type: 'article', title: 'Tại sao các sản phẩm tốt nhất cảm thấy không thể thiếu', excerpt: 'Tâm lý học về sản phẩm dính - tại sao một số ứng dụng trở thành thói quen trong khi những ứng dụng khác bị bỏ quên...', tags: ['product', 'psychology', 'ux'], date: '3 ngày trước', space: 'Nghiên cứu' },
-];
-
+// (Sample/demo data was removed in task 19 — it confused users into thinking
+// their items leaked across accounts.)
 const SPACES_DATA = [
   {
     id: 'design-inspiration',
@@ -325,8 +318,8 @@ async function silentRefresh(refreshToken) {
 }
 
 
-let baseMemoryItems = [...SAMPLE_ITEMS];
-let items = [...SAMPLE_ITEMS];
+let baseMemoryItems = [];
+let items = [];
 
 // ===== SORT / FILTER / TIME STATE =====
 let currentSortBy = 'newest';
@@ -555,19 +548,11 @@ function refreshDashboardItems() {
 // ===== SYNC VỚI EXTENSION =====
 function loadFromExtension(cb) {
   const itemsKey = userItemsKey();
-  const isGuest = !currentUser || !currentUser.id;
 
   function finish(ext) {
-    const extIds = new Set((ext || []).map(i => i.id));
-    if (isGuest) {
-      // Guest users see bundled sample data so the empty state isn't barren.
-      baseMemoryItems = ext.length > 0
-        ? [...ext, ...SAMPLE_ITEMS.filter(i => !extIds.has(i.id))]
-        : [...SAMPLE_ITEMS];
-    } else {
-      // Logged-in users only see their own items — never the shared demo set.
-      baseMemoryItems = ext || [];
-    }
+    // Show only the user's own items. Demo data was removed in task 19
+    // because it confused new users into thinking their items leaked.
+    baseMemoryItems = ext || [];
     refreshDashboardItems();
     if (cb) cb();
   }
@@ -1649,7 +1634,7 @@ function clearAllData() {
   values[userItemsKey()] = [];
   values[userRemindersKey()] = [];
   setStorageValues(values, function() {
-    baseMemoryItems = [...SAMPLE_ITEMS];
+    baseMemoryItems = [];
     reminders = [];
     items = composeDashboardItems();
     renderDashboard();
