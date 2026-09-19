@@ -120,6 +120,19 @@ function setStorageValues(values, cb) {
   }
 }
 
+// Per-user storage namespace. Falls back to the shared key when no user is
+// logged in so first-time visitors still see the demo dashboard without
+// crashing.
+function userItemsKey() {
+  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+  return 'mnemonics_items_' + uid;
+}
+
+function userRemindersKey() {
+  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+  return 'mnemonics_reminders_' + uid;
+}
+
 function setAuthError(id, message) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -529,10 +542,11 @@ function refreshDashboardItems() {
 
 // ===== SYNC VỚI EXTENSION =====
 function loadFromExtension(cb) {
+  const itemsKey = userItemsKey();
   // Dashboard chạy như extension tab → dùng chrome.storage trực tiếp
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get('mnemonics_items', function(r) {
-      const ext = r.mnemonics_items || [];
+    chrome.storage.local.get(itemsKey, function(r) {
+      const ext = r[itemsKey] || [];
       const extIds = new Set(ext.map(i => i.id));
       // Merge: item từ extension ưu tiên, sample chỉ hiện nếu chưa có
       baseMemoryItems = ext.length > 0
@@ -543,7 +557,7 @@ function loadFromExtension(cb) {
     });
   } else {
     // Fallback khi chạy ngoài extension (dev mode)
-    const ext = JSON.parse(localStorage.getItem('mnemonics_items') || '[]');
+    const ext = JSON.parse(localStorage.getItem(itemsKey) || '[]');
     const extIds = new Set(ext.map(i => i.id));
     baseMemoryItems = ext.length > 0
       ? [...ext, ...SAMPLE_ITEMS.filter(i => !extIds.has(i.id))]
@@ -950,16 +964,17 @@ function renderSpaceItems(space, query) {
 
 // ===== REMINDERS / TODO / MEETING MINUTES =====
 function loadReminders(cb) {
+  const rKey = userRemindersKey();
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get('mnemonics_reminders', function(r) {
-      if (Array.isArray(r.mnemonics_reminders)) {
-        reminders = r.mnemonics_reminders;
+    chrome.storage.local.get(rKey, function(r) {
+      if (Array.isArray(r[rKey])) {
+        reminders = r[rKey];
         renderReminders();
         refreshDashboardItems();
         if (cb) cb();
       } else {
         reminders = DEFAULT_REMINDERS.map(cloneReminder);
-        chrome.storage.local.set({ mnemonics_reminders: reminders }, function() {
+        chrome.storage.local.set({ [rKey]: reminders }, function() {
           renderReminders();
           refreshDashboardItems();
           if (cb) cb();
@@ -967,12 +982,12 @@ function loadReminders(cb) {
       }
     });
   } else {
-    const raw = localStorage.getItem('mnemonics_reminders');
+    const raw = localStorage.getItem(rKey);
     if (raw) {
       try { reminders = JSON.parse(raw); } catch(e) { reminders = []; }
     } else {
       reminders = DEFAULT_REMINDERS.map(cloneReminder);
-      localStorage.setItem('mnemonics_reminders', JSON.stringify(reminders));
+      localStorage.setItem(rKey, JSON.stringify(reminders));
     }
     renderReminders();
     refreshDashboardItems();
@@ -993,13 +1008,14 @@ function cloneReminder(item) {
 }
 
 function saveReminders(cb) {
+  const rKey = userRemindersKey();
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ mnemonics_reminders: reminders }, function() {
+    chrome.storage.local.set({ [rKey]: reminders }, function() {
       refreshDashboardItems();
       if (cb) cb();
     });
   } else {
-    localStorage.setItem('mnemonics_reminders', JSON.stringify(reminders));
+    localStorage.setItem(rKey, JSON.stringify(reminders));
     refreshDashboardItems();
     if (cb) cb();
   }
@@ -1417,10 +1433,32 @@ function saveItem() {
     };
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ mnemonics_items: toStore }, done);
+      chrome.storage.local.set({ [userItemsKey()]: toStore }, done);
     } else {
-      localStorage.setItem('mnemonics_items', JSON.stringify(toStore));
+      localStorage.setItem(userItemsKey(), JSON.stringify(toStore));
       done();
+    }
+
+    // Fire-and-forget: also persist to the server so items survive across
+    // devices. For images we use the multipart upload endpoint.
+    const accessToken = readAccessToken();
+    if (accessToken) {
+      if (newItem.type === 'image' || newItem.type === 'screenshot') {
+        if (newItem.imageUrl) {
+          uploadImageCapture(newItem.imageUrl, {
+            title: newItem.title,
+            note: newItem.note,
+            sourceUrl: newItem.sourceUrl,
+            capturedAt: newItem.savedAt
+          }, accessToken).catch(function(err) {
+            console.warn('[mnemonics] image upload failed', err);
+          });
+        }
+      } else {
+        sendCaptureToApi(newItem, accessToken).catch(function(err) {
+          console.warn('[mnemonics] capture upload failed', err);
+        });
+      }
     }
   } catch(err) {
     showToast('Lỗi khi lưu: ' + err.message);
@@ -1535,8 +1573,8 @@ function syncAccountSettings() {
 
 // ---- Data export / import / clear ----
 function exportData() {
-  getStorageValue('mnemonics_items', [], function(savedItems) {
-    getStorageValue('mnemonics_reminders', [], function(rem) {
+  getStorageValue(userItemsKey(), [], function(savedItems) {
+    getStorageValue(userRemindersKey(), [], function(rem) {
       var payload = {
         exportedAt: new Date().toISOString(),
         version: '1.0',
@@ -1566,8 +1604,9 @@ function importData(file) {
       var data = JSON.parse(e.target.result);
       var newItems = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : null);
       if (!newItems) { showToast('Tệp không hợp lệ!'); return; }
-      var values = { mnemonics_items: newItems.slice(0, 200) };
-      if (Array.isArray(data.reminders)) values.mnemonics_reminders = data.reminders;
+      var values = {};
+      values[userItemsKey()] = newItems.slice(0, 200);
+      if (Array.isArray(data.reminders)) values[userRemindersKey()] = data.reminders;
       if (data.settings) values.mnemonics_settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
       setStorageValues(values, function() {
         loadSettings(function() {
@@ -1589,7 +1628,10 @@ function importData(file) {
 function clearAllData() {
   var ok = window.confirm('Xóa TOÀN BỘ ký ức và nhắc nhở? Hành động này không thể hoàn tác.\n\nGợi ý: hãy Xuất dữ liệu trước để sao lưu.');
   if (!ok) return;
-  setStorageValues({ mnemonics_items: [], mnemonics_reminders: [] }, function() {
+  var values = {};
+  values[userItemsKey()] = [];
+  values[userRemindersKey()] = [];
+  setStorageValues(values, function() {
     baseMemoryItems = [...SAMPLE_ITEMS];
     reminders = [];
     items = composeDashboardItems();
@@ -2039,12 +2081,12 @@ function deleteItem(id) {
   items = composeDashboardItems();
   var toStore = baseMemoryItems.filter(function(i) { return i.savedAt; });
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ mnemonics_items: toStore }, function() {
+    chrome.storage.local.set({ [userItemsKey()]: toStore }, function() {
       renderDashboard();
       showToast('🗑 Đã xóa ký ức');
     });
   } else {
-    localStorage.setItem('mnemonics_items', JSON.stringify(toStore));
+    localStorage.setItem(userItemsKey(), JSON.stringify(toStore));
     renderDashboard();
     showToast('🗑 Đã xóa ký ức');
   }

@@ -41,6 +41,7 @@ const app = createApp(
 	process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
 	imageStorage,
 	supabase,
-	authDeps
+	authDeps,
+	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true' }
 );
 app.listen(port, () => console.log(`Mnemonics API listening on port ${port}`));

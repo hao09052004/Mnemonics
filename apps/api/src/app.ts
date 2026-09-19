@@ -33,7 +33,8 @@ export function createApp(
   developmentUserId = '00000000-0000-4000-8000-000000000001',
   imageStorage?: ImageStorage,
   supabase?: SupabaseClient,
-  authDeps?: AuthDeps
+  authDeps?: AuthDeps,
+  options?: { autoConfirmRegistration?: boolean }
 ): Application {
   const app = express();
   const imageUpload = multer({
@@ -58,7 +59,8 @@ export function createApp(
       users: authDeps.users,
       throttle: authDeps.throttle,
       audit: authDeps.audit,
-      supabase
+      supabase,
+      autoConfirm: options?.autoConfirmRegistration === true
     }));
   }
 

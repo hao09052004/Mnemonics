@@ -1,0 +1,9 @@
+const svc = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0bW93d3RtanRtY2VpaHp2cmV1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTY5OTU1NSwiZXhwIjoyMTA1Mjc1NTU1fQ.qR4sYBGCorwywXdfXgxMUSjpAIs4ELnirhgwpB63FPQ';
+const key = '70e43667-aa41-4e90-ba4b-a343e41e4b30/9892afb2-a4df-4452-9c0d-71620f15ad9a/pixel.png';
+const url = `https://jtmowwtmjtmceihzvreu.supabase.co/storage/v1/object/authenticated/mnemonics-assets/${encodeURIComponent(key)}`;
+const r = await fetch(url, { method: 'GET', headers: { apikey: svc, Authorization: `Bearer ${svc}` } });
+const body = await r.text();
+console.log('GET status =', r.status);
+console.log('Content-Length =', r.headers.get('content-length'));
+console.log('Content-Type   =', r.headers.get('content-type'));
+console.log('Body           =', body.slice(0, 300));

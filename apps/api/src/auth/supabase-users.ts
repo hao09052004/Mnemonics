@@ -47,6 +47,13 @@ export interface SupabaseUsersFacade {
   signOut(accessToken: string): Promise<{ error: { message: string } | null }>;
   resendVerification(accessToken: string): Promise<{ error: { message: string } | null }>;
   me(accessToken: string): Promise<AuthResponseLike>;
+  /**
+   * Service-role only. Looks up (or creates) the user via admin and signs
+   * them in. The user is auto-confirmed — does not require a verification
+   * email. Used by the dev-only auto-confirm path to bypass the IP-level
+   * Supabase email rate limit.
+   */
+  confirmAndSignIn?(email: string, password: string, name?: string): Promise<AuthResponseLike>;
   /** Service-role only. Used by forgot-password to generate a recovery link. */
   generateRecoveryLink?(email: string): Promise<LinkResponseLike>;
   /** Service-role only. Exchanges recovery tokens for a usable session. */
@@ -80,6 +87,41 @@ export function createSupabaseUsers(client: SupabaseClient, serviceClient?: Supa
       });
       return toLike(result);
     },
+    confirmAndSignIn: serviceClient
+      ? async (email, password, name) => {
+          // Find existing user (admin.listUsers is paginated; page=1 covers
+          // typical test data).
+          let target = null;
+          try {
+            const list = await serviceClient.auth.admin.listUsers({ page: 1, perPage: 200 });
+            target = list.data?.users?.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase()) ?? null;
+          } catch (e) {
+            // ignore — we'll fall through to createUser.
+          }
+
+          if (target && !target.email_confirmed_at) {
+            const update = await serviceClient.auth.admin.updateUserById(target.id, { email_confirm: true });
+            if (update.error) {
+              return { data: { user: null, session: null }, error: { message: update.error.message } };
+            }
+          }
+          if (!target) {
+            // Admin create with email_confirm=true — does not require sending
+            // a verification email, so it bypasses the IP rate limit.
+            const created = await serviceClient.auth.admin.createUser({
+              email,
+              password,
+              email_confirm: true,
+              user_metadata: name ? { name } : undefined
+            });
+            if (created.error || !created.data?.user) {
+              return { data: { user: null, session: null }, error: { message: created.error?.message ?? 'createUser failed' } };
+            }
+          }
+          const signIn = await client.auth.signInWithPassword({ email, password });
+          return toLike(signIn);
+        }
+      : undefined,
     async signIn({ email, password }) {
       const result = await client.auth.signInWithPassword({ email, password });
       return toLike(result);

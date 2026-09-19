@@ -14,11 +14,20 @@ import type { Throttle } from './throttle.js';
 import { bearerFromHeader, toAuthSessionDto, toAuthUserDto } from './sessions.js';
 import type { SupabaseUsersFacade } from './supabase-users.js';
 
+type SessionDto = NonNullable<Awaited<ReturnType<SupabaseUsersFacade['signUp']>>['data']['session']>;
+
 export interface AuthRouterDeps {
   users: SupabaseUsersFacade;
   throttle: Throttle;
   audit: Audit;
   supabase: SupabaseClient; // for /me
+  /**
+   * Dev-only escape hatch: when true and the facade exposes `confirmAndSignIn`,
+   * register will bypass email verification by marking the new user as
+   * confirmed via the service-role client. Use this only when Supabase's
+   * email rate limit is blocking test sign-ups.
+   */
+  autoConfirm?: boolean;
 }
 
 function envelope(user: ReturnType<typeof toAuthUserDto> | null, session: { access_token: string; refresh_token: string; expires_at: number | null } | { accessToken: string; refreshToken: string; expiresAt: number; tokenType: 'bearer' } | null): AuthEnvelope {
@@ -61,7 +70,7 @@ function logEvent(audit: Audit, kind: string, email: string | null, request: Req
 
 export function createAuthRouter(deps: AuthRouterDeps): Router {
   const router = Router();
-  const { users, throttle, audit, supabase } = deps;
+  const { users, throttle, audit, supabase, autoConfirm = false } = deps;
 
   // POST /api/v1/auth/register
   router.post('/register', async (request: Request, response: Response, next: NextFunction) => {
@@ -83,22 +92,44 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         return;
       }
 
-      const result = await users.signUp({ email, password, name });
-      if (result.error) {
+      // Dev-only auto-confirm path: bypass GoTrue's email verification (which
+      // is rate-limited per IP) by creating the user via the service-role
+      // admin client with `email_confirm = true`, then mint a session with
+      // anon signInWithPassword.
+      let user: NonNullable<Awaited<ReturnType<SupabaseUsersFacade['signUp']>>['data']['user']> | null = null;
+      let session: SessionDto | null = null;
+      let resultError: { message: string } | null = null;
+      if (autoConfirm && users.confirmAndSignIn) {
+        const ensured = await users.confirmAndSignIn(email, password, name);
+        if (!ensured.error && ensured.data?.user) {
+          user = ensured.data.user;
+          session = ensured.data.session ?? null;
+        } else if (ensured.error) {
+          resultError = ensured.error;
+        }
+      } else {
+        const result = await users.signUp({ email, password, name });
+        resultError = result.error;
+        user = result.data?.user ?? null;
+        session = result.data?.session ?? null;
+      }
+
+      if (resultError) {
         // Anti-enumeration: pretend success when the email is already used.
-        if (/already.*registered|already.*exists|user.*exists/i.test(result.error.message)) {
+        if (/already.*registered|already.*exists|user.*exists/i.test(resultError.message)) {
           response.status(200).json({ data: { user: null, session: null } });
           await logEvent(audit, 'register_duplicate_email', email, request);
           return;
         }
         await logEvent(audit, 'register_failed', email, request);
         await throttle.recordFailure(email);
-        response.status(400).json({ error: { code: 'AUTH_SIGNUP_FAILED', message: 'Không thể đăng ký', requestId: request.id } });
+        const debugMessage = process.env.NODE_ENV === 'development'
+          ? `Không thể đăng ký: ${resultError.message}`
+          : 'Không thể đăng ký';
+        response.status(400).json({ error: { code: 'AUTH_SIGNUP_FAILED', message: debugMessage, requestId: request.id } });
         return;
       }
 
-      const user = result.data?.user ?? null;
-      const session = result.data?.session ?? null;
       await throttle.reset(email);
       // Note: when email verification is required, session is null.
       response.status(user ? 201 : 200).json(envelopeOrNull(user ? toAuthUserDto(user) : null, session));
