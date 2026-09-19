@@ -20,6 +20,11 @@ Thumbs.db
 quality-gates/.logs/
 quality-gates/.coverage/
 
+# Vitest coverage output (apps/api/coverage etc.)
+apps/*/coverage/
+packages/*/coverage/
+coverage/
+
 # Knowledge regression artefacts
 quality-gates/.knowledge-regression/golden.jsonl
 

@@ -12,7 +12,8 @@
     "gates:skills": "node quality-gates/runners/check-skills.mjs",
     "gates:spec-sync": "node quality-gates/runners/check-spec-sync.mjs",
     "gates:knowledge": "node quality-gates/runners/knowledge-regression.mjs",
-    "gates:all": "pnpm gates:agents && pnpm gates:skills && pnpm gates:spec-sync",
+    "gates:coverage": "node quality-gates/runners/coverage.mjs",
+    "gates:all": "pnpm gates:agents && pnpm gates:skills && pnpm gates:spec-sync && pnpm gates:coverage",
     "seed:skills": "node scripts/seed-skill-metas.mjs"
   }
 }

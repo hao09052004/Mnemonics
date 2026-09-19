@@ -77,6 +77,8 @@ The current state:
 * `pnpm gates:agents` — 12/12 agents ✓
 * `pnpm gates:skills` — 51/51 skills ✓
 * `pnpm gates:spec-sync` — all referenced paths resolve ✓
+* `pnpm gates:coverage` — `apps/api/src/auth/` ≥ 80 % lines/functions ✓
+* `pnpm test` — 78 tests (10 shared + 68 API) ✓
 
 ## 4. Where to start (by role)
 
@@ -96,6 +98,44 @@ The current state:
 | A file under `workflows/` | Declare states/skills/gates used; reference real files. Gate `07-spec-sync.md` enforces it.          |
 | A file under `specs/`     | Reference existing code path; if you break the contract, file an ADR first.                         |
 | A new gate                | Add it to the relevant workflow's `gates_used` list.                                                 |
+
+## 5.1 Authentication surface
+
+The login / register pipeline is implemented as a **backend facade** —
+the API owns every Supabase call and the extension/web clients only see
+`/api/v1/auth/*`. The facade is the single point that knows about the
+`SERVICE_ROLE_KEY`; the client side is key-less.
+
+Endpoints (see [`specs/api/auth.md`](specs/api/auth.md) for the full contract):
+
+| Method | Path                          | Purpose                                      |
+|--------|-------------------------------|----------------------------------------------|
+| POST   | `/api/v1/auth/register`       | Email + password signup (anti-enumeration)   |
+| POST   | `/api/v1/auth/login`          | Returns a session on a verified email        |
+| POST   | `/api/v1/auth/refresh`        | Rotate the session via `refresh_token`       |
+| POST   | `/api/v1/auth/logout`         | Idempotent server-side revocation            |
+| POST   | `/api/v1/auth/forgot-password`| Always 200 — no email-existence probe        |
+| POST   | `/api/v1/auth/reset-password` | Recovery link → new password                 |
+| POST   | `/api/v1/auth/resend-verification` | Re-trigger the email verification      |
+| GET    | `/api/v1/auth/me`             | Resolve the bearer token to a user           |
+
+Hardening rules enforced by tests:
+
+* **Anti-enumeration** — register, login, and forgot-password never
+  reveal whether the email exists.
+* **Throttling** — 5 failed attempts lock the email for 15 minutes
+  (`apps/api/src/auth/throttle.ts` + SQL function `is_email_locked`).
+* **Audit log** — every event lands in `auth_events` with the request id
+  (`apps/api/src/auth/audit.ts`).
+* **Idempotent logout** — always 204.
+* **No service-role key** in the client bundle
+  (`apps/extension/auth-client.js`, enforced by
+  `apps/api/src/auth/__tests__/auth-client.contract.test.ts`).
+
+Database migration: [`packages/database/migrations/003_auth_hardening.sql`](packages/database/migrations/003_auth_hardening.sql).
+Architecture decision: [`specs/adr/0005-auth-architecture.md`](specs/adr/0005-auth-architecture.md).
+Workflow run record: [`workflows/runs/2026-09-19-auth-login-register.md`](workflows/runs/2026-09-19-auth-login-register.md).
+
 
 ## 6. Upstream / vendor policy
 
@@ -148,6 +188,7 @@ Full machine: [`workflows/state-machine.md`](workflows/state-machine.md).
 * [x] 12 agents, 51 skills, 5 core + 2 product workflows
 * [x] 4 system specs + 3 API specs + 2 data specs + 1 ADR
 * [x] 8 gates, 5 runners, 2 hooks, sha256 vendor-drift detection
+* [x] Auth facade (`/api/v1/auth/*`), hardening migration, e2e route test
 * [ ] bootstrap a git repository and a first commit
 * [ ] CI workflow running `pnpm gates:all` on every PR
 * [ ] Knowledge-regression golden set (`quality-gates/.knowledge-regression/golden.jsonl`)

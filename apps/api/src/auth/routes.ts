@@ -241,12 +241,12 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         response.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Xác thực không hợp lệ', requestId: request.id } });
         return;
       }
-      const { data, error } = await supabase.auth.getUser(token);
-      if (error || !data.user) {
+      const result = await users.me(token);
+      if (result.error || !result.data.user) {
         response.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Xác thực không hợp lệ', requestId: request.id } });
         return;
       }
-      response.json({ data: { user: toAuthUserDto(data.user) } });
+      response.json({ data: { user: toAuthUserDto(result.data.user) } });
     } catch (error) { next(error); }
   });
 

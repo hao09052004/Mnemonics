@@ -20,6 +20,7 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
   signIns: Array<unknown>;
   refreshes: Array<unknown>;
   signOuts: Array<unknown>;
+  meEmails: string[];
 } {
   const signUps: Array<unknown> = [];
   const signIns: Array<unknown> = [];
@@ -77,6 +78,7 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
     };
   }
 
+  const meEmails: string[] = [];
   const users: SupabaseUsersFacade = {
     async signUp({ email }: { email: string; password: string; name?: string }): Promise<AuthResponseLike> {
       signUps.push({ email });
@@ -122,7 +124,11 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
       if (!accessToken) {
         return toLike({ data: { user: null, session: null }, error: { message: 'no token' } });
       }
-      return toLike({ data: { user: makeUser('a@b.co', true), session: null }, error: null });
+      // Reflect the most recent login/refresh email so e2e flows are realistic.
+      const lastSignIn = signIns[signIns.length - 1] as { email?: string } | undefined;
+      const email = lastSignIn?.email ?? 'a@b.co';
+      meEmails.push(email);
+      return toLike({ data: { user: makeUser(email, true), session: null }, error: null });
     },
     async generateRecoveryLink(_email: string): Promise<LinkResponseLike> {
       return {
@@ -141,5 +147,5 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
     }
   };
 
-  return { users, signUps, signIns, refreshes, signOuts };
+  return { users, signUps, signIns, refreshes, signOuts, meEmails };
 }

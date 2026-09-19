@@ -11,16 +11,16 @@ const VALID_PASSWORD = 'Password1!ok';
 function buildApp(opts: Parameters<typeof createFakeUsers>[0] = {}) {
   const throttle = createMemoryThrottle();
   const audit = createMemoryAudit();
-  const { users } = createFakeUsers(opts);
+  const fake = createFakeUsers(opts);
   const app = createApp(
     fakeRepo(),
     'dev-token',
     '00000000-0000-4000-8000-000000000001',
     undefined,
     fakeSupabase(),
-    { users, throttle, audit }
+    { users: fake.users, throttle, audit }
   );
-  return { app, throttle, audit, users };
+  return { app, throttle, audit, ...fake };
 }
 
 function fakeSupabase() {
@@ -235,5 +235,39 @@ describe('createAuthRouter at root', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'a@b.co', password: VALID_PASSWORD });
     expect(r.status).toBe(200);
+  });
+});
+
+describe('end-to-end: register verified user → /me → logout', () => {
+  it('walks the full happy path with the same Express app', async () => {
+    // Pre-seed an existing verified user so login yields a session.
+    const { app, audit, signOuts } = buildApp({
+      existingEmail: 'happy@example.com',
+      emailConfirmed: true
+    });
+
+    // 1. Login returns a bearer session.
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'happy@example.com', password: VALID_PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body.data.session.accessToken).toBeTruthy();
+    const access = login.body.data.session.accessToken;
+
+    // 2. /me with the same token returns the same email.
+    const me = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${access}`);
+    expect(me.status).toBe(200);
+    expect(me.body.data.user.email).toBe('happy@example.com');
+
+    // 3. Logout is idempotent and clears the server-side session via the facade.
+    const logout = await request(app).post('/api/v1/auth/logout').set('Authorization', `Bearer ${access}`);
+    expect(logout.status).toBe(204);
+    expect(signOuts).toContain(access);
+
+    // 4. Audit trail records login + logout (no register event for this path).
+    const kinds = audit.events.map((e) => e.kind);
+    expect(kinds).toContain('login');
+    expect(kinds).toContain('logout');
+    expect(kinds).not.toContain('register');
   });
 });
