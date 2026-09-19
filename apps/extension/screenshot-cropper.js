@@ -149,8 +149,17 @@ function getOutputData(useCrop) {
   out.width = Math.max(1, Math.round(sw));
   out.height = Math.max(1, Math.round(sh));
   var ctx = out.getContext('2d');
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, out.width, out.height);
-  return out.toDataURL('image/jpeg', 0.92);
+  try {
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, out.width, out.height);
+    return out.toDataURL('image/jpeg', 0.92);
+  } catch (canvasError) {
+    // Cross-origin image with no CORS header → canvas is tainted.
+    // Fall back to the original image URL so the user can still save
+    // something. The capture pipeline accepts both data: and http(s)
+    // URLs (background fetches with credentials: 'omit').
+    console.warn('Canvas tainted, saving original image instead:', canvasError);
+    return pending.imageUrl;
+  }
 }
 function notifyDashboard() {
   if (chrome && chrome.tabs) {
@@ -173,7 +182,7 @@ function showLoadError(message) {
 
 function setPendingPayload(payload) {
   pending = payload;
-  if (!pending || !pending.imageUrl || !/^data:image\//.test(pending.imageUrl)) {
+  if (!pending || !pending.imageUrl) {
     showLoadError('Ảnh chụp bị rỗng hoặc sai định dạng. Hãy chụp lại một lần nữa.');
     return;
   }
@@ -191,7 +200,7 @@ function setPendingPayload(payload) {
     updateMeta();
   };
   img.onerror = function() {
-    showLoadError('Ảnh chụp đã được tạo nhưng trình duyệt đang chặn/không đọc được data ảnh. Bản này đã thêm cơ chế truyền ảnh mới, hãy reload extension rồi chụp lại.');
+    showLoadError('Trình duyệt không tải được ảnh từ URL này. Trang nguồn có thể chặn CORS — hãy thử ảnh khác hoặc tải về rồi kéo vào extension.');
   };
 
   if (screenshotObjectUrl) {
@@ -199,17 +208,35 @@ function setPendingPayload(payload) {
     screenshotObjectUrl = null;
   }
 
-  // Dùng blob URL để ảnh lớn load ổn hơn dataURL trực tiếp.
-  try {
-    fetch(pending.imageUrl)
+  var sourceUrl = pending.imageUrl;
+  // Remote (http/https) URLs from context-menu fallback: try to fetch as
+  // blob so canvas stays untainted. If CORS fails, fall back to direct
+  // <img src> — display works (browser already loaded it on the page)
+  // but cropping/canvas may be blocked. The user sees a clear error
+  // message either way.
+  if (/^https?:\/\//i.test(sourceUrl)) {
+    fetch(sourceUrl, { credentials: 'omit', mode: 'cors' })
       .then(function(res) { return res.blob(); })
       .then(function(blob) {
         screenshotObjectUrl = URL.createObjectURL(blob);
         img.src = screenshotObjectUrl;
       })
-      .catch(function() { img.src = pending.imageUrl; });
+      .catch(function() { img.src = sourceUrl; });
+    return;
+  }
+
+  // data:image/... URL (screenshot path). Use blob URL when possible for
+  // large images so the page stays responsive.
+  try {
+    fetch(sourceUrl)
+      .then(function(res) { return res.blob(); })
+      .then(function(blob) {
+        screenshotObjectUrl = URL.createObjectURL(blob);
+        img.src = screenshotObjectUrl;
+      })
+      .catch(function() { img.src = sourceUrl; });
   } catch (e) {
-    img.src = pending.imageUrl;
+    img.src = sourceUrl;
   }
 }
 
@@ -245,14 +272,22 @@ async function saveScreenshot(useCrop) {
   var storageKey = 'mnemonics_items_' + userId;
 
   try {
-    // Try server-side upload (requires login).
-    if (session && session.accessToken) {
-      await uploadImageCapture(item.imageUrl, {
+    var imageUrl = item.imageUrl || '';
+    var isDataUrl = /^data:image\//.test(imageUrl);
+    // Try server-side upload (requires login AND a data: URL — http(s) URLs
+    // cannot be POSTed directly because the API expects a Blob/File part).
+    if (session && session.accessToken && isDataUrl) {
+      await uploadImageCapture(imageUrl, {
         title: item.title,
         note: item.note,
         sourceUrl: item.sourceUrl,
         capturedAt: item.savedAt
       }, session.accessToken);
+    } else if (session && session.accessToken && !isDataUrl) {
+      // Cross-origin image that couldn't be re-encoded via canvas
+      // (tainted). We keep the http(s) URL locally — the API would
+      // need to fetch it server-side to upload, which isn't supported.
+      console.warn('[mnemonics] skipping server upload: imageUrl is remote http(s), not a data URL');
     } else {
       // No login — still save locally so the user doesn't lose the screenshot.
       showToast('Chưa đăng nhập — ảnh chỉ được lưu cục bộ.');
@@ -288,6 +323,22 @@ function cancelCropper() {
   chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function(){ window.close(); });
 }
 function loadPending() {
+  // 1. If the page was opened via context-menu fallback, the background
+  // passes the image URL through `?src=`. Prefer that because the cropper
+  // needs the URL to fetch directly.
+  var params = new URLSearchParams(window.location.search);
+  var srcParam = params.get('src');
+  if (srcParam) {
+    setPendingPayload({
+      imageUrl: srcParam,
+      sourceUrl: params.get('sourceUrl') || '',
+      displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
+      title: params.get('title') || 'Ảnh đã lưu',
+      tags: ['ảnh', 'context-menu']
+    });
+    return;
+  }
+
   function fallbackToStorage() {
     chrome.storage.local.get('mnemonics_pending_screenshot', function(r) {
       setPendingPayload(r.mnemonics_pending_screenshot);

@@ -39,12 +39,27 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle) {
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
 
-  // Use the background service worker — fetch here is NOT subject to the
-  // page's CSP. We still need to handle CORS failures gracefully: if the
-  // remote server returns no Access-Control-Allow-Origin, fall back to
-  // fetching the URL with credentials omitted (most CDNs do this OK).
-  const response = await fetch(imageUrl, { credentials: 'omit' });
+  // Background SW fetch respects CORS even with <all_urls> host permission
+  // because the remote server controls Access-Control-Allow-Origin. If the
+  // fetch rejects (CORS block, network error, opaque redirect) we throw a
+  // tagged error so the click handler can fall back to opening the cropper.
+  let response;
+  try {
+    response = await fetch(imageUrl, { credentials: 'omit', redirect: 'follow' });
+  } catch (networkError) {
+    const wrapped = new Error('CORS_BLOCKED: ' + (networkError && networkError.message ? networkError.message : 'fetch failed'));
+    wrapped.code = 'CORS_BLOCKED';
+    throw wrapped;
+  }
   if (!response.ok) throw new Error('Không tải được ảnh từ trang nguồn (' + response.status + ').');
+
+  // Some servers return `opaque` (type === 'opaque') when CORS preflight fails
+  // mid-flight; treat that as CORS blocked too.
+  if (response.type === 'opaque') {
+    const wrapped = new Error('CORS_BLOCKED: opaque response');
+    wrapped.code = 'CORS_BLOCKED';
+    throw wrapped;
+  }
 
   const blob = await response.blob();
   const mimeType = blob.type || 'image/jpeg';
@@ -69,6 +84,19 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được ảnh.');
   }
   return body;
+}
+
+// Open the cropper extension page pre-loaded with the remote image URL. The
+// cropper will fetch the image itself (in page context) — if that also fails,
+// the user still sees a clear error and can try a different image.
+function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
+  const params = new URLSearchParams({
+    src: imageUrl,
+    sourceUrl: pageUrl || '',
+    title: pageTitle || 'Ảnh đã lưu'
+  });
+  const cropperUrl = chrome.runtime.getURL('screenshot-cropper.html') + '?' + params.toString();
+  chrome.tabs.create({ url: cropperUrl });
 }
 
 
@@ -151,7 +179,18 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         notifyCapture('Mnemonics', 'Đã lưu ảnh vào database!', '', '#22c55e');
       })
       .catch((error) => {
-        console.error('Mnemonics image upload failed:', error);
+        console.warn('Mnemonics image upload failed:', error);
+        // If the remote server blocked CORS or the fetch failed for any
+        // reason we can't bypass from the background worker, open the
+        // extension cropper so the user can still save the image.
+        if (error && error.code === 'CORS_BLOCKED') {
+          notifyCapture('Mnemonics', 'Trang nguồn chặn CORS — mở cropper để bạn xử lý thủ công.', '!', '#f59e0b');
+          try { openCropperWithImage(imageUrl, pageUrl, pageTitle); } catch (openErr) {
+            console.error('Mnemonics cropper fallback failed:', openErr);
+            notifyCapture('Mnemonics - Lỗi', 'Không mở được cropper.', '!', '#ef4444');
+          }
+          return;
+        }
         notifyCapture('Mnemonics - Lỗi lưu ảnh', error.message || 'Không lưu được ảnh vào database.', '!', '#ef4444');
       });
   }
