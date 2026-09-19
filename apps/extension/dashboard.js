@@ -259,6 +259,14 @@ function logoutUser() {
   });
 }
 
+// Demo login helper used by the optional "auth-demo-login" button.
+// In production we don't ship demo credentials — this is a no-op fallback so
+// the listener at `DOMContentLoaded` doesn't throw `ReferenceError`.
+async function loginDemoUser() {
+  showToast('Tài khoản demo đã bị tắt — hãy đăng ký hoặc đăng nhập.');
+  showPage('login');
+}
+
 function readAccessToken() {
   try {
     const raw = localStorage.getItem('mnemonics_session');
@@ -1595,6 +1603,7 @@ function clearAllData() {
 
 // ===== BIND ALL EVENT LISTENERS (no inline onclick) =====
 document.addEventListener('DOMContentLoaded', function() {
+  try {
   // Nav
   var navLogo = document.getElementById('nav-logo');
   if (navLogo) navLogo.addEventListener('click', function() { showPage('landing'); });
@@ -1965,6 +1974,9 @@ document.addEventListener('DOMContentLoaded', function() {
   renderSpaces();
   renderReminders();
   renderBookRail();
+  } catch (err) {
+    console.error('[mnemonics] bind error', err);
+  }
 });
 
 // ===== DROPDOWN MENU - event delegation, no inline onclick =====
