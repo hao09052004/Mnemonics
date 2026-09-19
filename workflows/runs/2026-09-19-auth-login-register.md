@@ -1,3 +1,35 @@
+---
+name: auth-login-register-run-2026-09-19
+version: 0.1.0
+source: hand-authored
+status: completed
+layer: workflows
+maturity: stable
+role: core
+entry_state: intake
+exit_state: closed
+allowed_states: [intake, plan, implement, review, verify, release, closed]
+gates_used:
+  - quality-gates/gates/05-agent-contract.md
+  - quality-gates/gates/06-skill-frontmatter.md
+  - quality-gates/gates/07-spec-sync.md
+agents_used:
+  - agents/core/orchestrator.md
+  - agents/core/planner.md
+  - agents/core/implementer.md
+  - agents/core/code-reviewer.md
+  - agents/core/security-reviewer.md
+skills_used:
+  - skills/core/brainstorming/SKILL.md
+  - skills/core/writing-plans/SKILL.md
+  - skills/core/test-driven-development/SKILL.md
+related_specs:
+  - specs/api/auth.md
+  - specs/0001-system-overview.md
+  - specs/0004-workflow-state-machine.md
+  - specs/adr/0005-auth-architecture.md
+---
+
 # Workflow run — Login + Register (2026-09-19)
 
 > State machine: `workflows/state-machine.md` (lightweight, full=8-state)
