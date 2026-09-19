@@ -10,6 +10,7 @@ import type { Audit } from './auth/audit.js';
 import type { Throttle } from './auth/throttle.js';
 import type { SupabaseUsersFacade } from './auth/supabase-users.js';
 import { createAuthRouter } from './auth/routes.js';
+import { imageProxyHandler } from './routes/image-proxy.js';
 
 export interface AuthDeps {
   users: SupabaseUsersFacade;
@@ -74,6 +75,14 @@ export function createApp(
   }));
 
   app.get('/api/v1/health', (_request, response) => response.json({ data: { status: 'ok' } }));
+
+  // Image proxy for the browser extension. Extension background fetch gets
+  // blocked by CORS for cross-origin images (Facebook CDN, Instagram, etc.),
+  // so the extension sends the image URL here and we fetch server-to-server
+  // (no CORS) and stream the bytes back. Allow-listed by hostname to avoid
+  // SSRF. Intentionally NOT auth-gated because the extension only proxies
+  // images already visible on the user's current page.
+  app.get('/api/v1/proxy/image', imageProxyHandler);
 
   const authMiddleware = supabase
     ? requireSupabaseAuth(supabase)

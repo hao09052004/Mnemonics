@@ -34,34 +34,57 @@ function notifyCapture(title, message, badgeText, badgeColor) {
   });
 }
 
+// Browser extension background fetch is blocked by CORS for most CDN images
+// (Facebook, Instagram, etc. don't return Access-Control-Allow-Origin). The
+// local Node API runs a /api/v1/proxy/image endpoint that fetches the image
+// server-to-server and streams it back. We try that first; if the proxy is
+// down or the host isn't allow-listed we fall back to direct fetch — which
+// only succeeds for CORS-friendly CDNs — and finally fall back to the
+// cropper extension page.
+async function fetchImageViaLocalProxy(imageUrl) {
+  const proxyUrl = MNEMONICS_API_URL + '/api/v1/proxy/image?url=' + encodeURIComponent(imageUrl);
+  const response = await fetch(proxyUrl);
+  if (!response.ok) {
+    const wrapped = new Error('PROXY_FAILED:' + response.status);
+    wrapped.code = 'PROXY_FAILED';
+    wrapped.status = response.status;
+    throw wrapped;
+  }
+  return response.blob();
+}
+
 async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle) {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
 
-  // Background SW fetch respects CORS even with <all_urls> host permission
-  // because the remote server controls Access-Control-Allow-Origin. If the
-  // fetch rejects (CORS block, network error, opaque redirect) we throw a
-  // tagged error so the click handler can fall back to opening the cropper.
-  let response;
+  // 1. Try the local proxy first — it bypasses CORS by fetching
+  //    server-to-server. Most modern CDNs (Facebook, Instagram, Twitter)
+  //    require this path.
+  let blob;
   try {
-    response = await fetch(imageUrl, { credentials: 'omit', redirect: 'follow' });
-  } catch (networkError) {
-    const wrapped = new Error('CORS_BLOCKED: ' + (networkError && networkError.message ? networkError.message : 'fetch failed'));
-    wrapped.code = 'CORS_BLOCKED';
-    throw wrapped;
+    blob = await fetchImageViaLocalProxy(imageUrl);
+  } catch (proxyError) {
+    console.warn('[mnemonics] proxy fetch failed, trying direct:', proxyError && proxyError.message);
+    // 2. Fall back to a direct background fetch — works for CORS-friendly
+    //    hosts (Unsplash, Wikimedia, etc.).
+    let directResponse;
+    try {
+      directResponse = await fetch(imageUrl, { credentials: 'omit', redirect: 'follow' });
+    } catch (networkError) {
+      const wrapped = new Error('CORS_BLOCKED: ' + (networkError && networkError.message ? networkError.message : 'fetch failed'));
+      wrapped.code = 'CORS_BLOCKED';
+      throw wrapped;
+    }
+    if (!directResponse.ok) throw new Error('Không tải được ảnh từ trang nguồn (' + directResponse.status + ').');
+    if (directResponse.type === 'opaque') {
+      const wrapped = new Error('CORS_BLOCKED: opaque response');
+      wrapped.code = 'CORS_BLOCKED';
+      throw wrapped;
+    }
+    blob = await directResponse.blob();
   }
-  if (!response.ok) throw new Error('Không tải được ảnh từ trang nguồn (' + response.status + ').');
 
-  // Some servers return `opaque` (type === 'opaque') when CORS preflight fails
-  // mid-flight; treat that as CORS blocked too.
-  if (response.type === 'opaque') {
-    const wrapped = new Error('CORS_BLOCKED: opaque response');
-    wrapped.code = 'CORS_BLOCKED';
-    throw wrapped;
-  }
-
-  const blob = await response.blob();
   const mimeType = blob.type || 'image/jpeg';
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
     throw new Error('Định dạng ảnh không được hỗ trợ.');
