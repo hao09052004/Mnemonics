@@ -36,6 +36,7 @@
         "screenshot-cropper.html",
         "screenshot-cropper.js",
         "api-client.js",
+        "auth-client.js",
         "original-image.html",
         "original-image.js"
       ],
