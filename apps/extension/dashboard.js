@@ -555,27 +555,32 @@ function refreshDashboardItems() {
 // ===== SYNC VỚI EXTENSION =====
 function loadFromExtension(cb) {
   const itemsKey = userItemsKey();
-  // Dashboard chạy như extension tab → dùng chrome.storage trực tiếp
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(itemsKey, function(r) {
-      const ext = r[itemsKey] || [];
-      const extIds = new Set(ext.map(i => i.id));
-      // Merge: item từ extension ưu tiên, sample chỉ hiện nếu chưa có
+  const isGuest = !currentUser || !currentUser.id;
+
+  function finish(ext) {
+    const extIds = new Set((ext || []).map(i => i.id));
+    if (isGuest) {
+      // Guest users see bundled sample data so the empty state isn't barren.
       baseMemoryItems = ext.length > 0
         ? [...ext, ...SAMPLE_ITEMS.filter(i => !extIds.has(i.id))]
         : [...SAMPLE_ITEMS];
-      refreshDashboardItems();
-      if (cb) cb();
+    } else {
+      // Logged-in users only see their own items — never the shared demo set.
+      baseMemoryItems = ext || [];
+    }
+    refreshDashboardItems();
+    if (cb) cb();
+  }
+
+  // Dashboard chạy như extension tab → dùng chrome.storage trực tiếp
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(itemsKey, function(r) {
+      finish(r[itemsKey] || []);
     });
   } else {
     // Fallback khi chạy ngoài extension (dev mode)
     const ext = JSON.parse(localStorage.getItem(itemsKey) || '[]');
-    const extIds = new Set(ext.map(i => i.id));
-    baseMemoryItems = ext.length > 0
-      ? [...ext, ...SAMPLE_ITEMS.filter(i => !extIds.has(i.id))]
-      : [...SAMPLE_ITEMS];
-    refreshDashboardItems();
-    if (cb) cb();
+    finish(ext);
   }
 }
 
