@@ -37,8 +37,14 @@ function notifyCapture(title, message, badgeText, badgeColor) {
 async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle) {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
-  const response = await fetch(imageUrl);
-  if (!response.ok) throw new Error('Không tải được ảnh từ trang nguồn.');
+  if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
+
+  // Use the background service worker — fetch here is NOT subject to the
+  // page's CSP. We still need to handle CORS failures gracefully: if the
+  // remote server returns no Access-Control-Allow-Origin, fall back to
+  // fetching the URL with credentials omitted (most CDNs do this OK).
+  const response = await fetch(imageUrl, { credentials: 'omit' });
+  if (!response.ok) throw new Error('Không tải được ảnh từ trang nguồn (' + response.status + ').');
 
   const blob = await response.blob();
   const mimeType = blob.type || 'image/jpeg';
