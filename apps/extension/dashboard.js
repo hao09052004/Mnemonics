@@ -184,7 +184,13 @@ async function authRequest(path, body) {
     body: JSON.stringify(body)
   });
   const payload = await response.json().catch(function() { return {}; });
-  if (!response.ok) throw new Error(payload.error && payload.error.message ? payload.error.message : 'Không thể xác thực.');
+  if (!response.ok) {
+    // If the API rejected our access token, force the session to clear.
+    if (path === 'refresh' && response.status === 401) {
+      saveSession(null);
+    }
+    throw new Error(payload.error && payload.error.message ? payload.error.message : 'Không thể xác thực.');
+  }
   return payload.data;
 }
 
@@ -240,10 +246,49 @@ async function handleLogin() {
 }
 
 function logoutUser() {
+  // Best-effort backend revocation; ignore failures (idempotent on server).
+  const token = (typeof currentUser === 'object' && currentUser) ? readAccessToken() : null;
+  fetch('http://localhost:4000/api/v1/auth/logout', {
+    method: 'POST',
+    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    body: ''
+  }).catch(() => undefined);
   saveSession(null, function() {
     showToast('Đã đăng xuất');
     showPage('landing');
   });
+}
+
+function readAccessToken() {
+  try {
+    const raw = localStorage.getItem('mnemonics_session');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.accessToken) return s.accessToken;
+    }
+  } catch (e) { /* ignore */ }
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    let captured;
+    chrome.storage.local.get('mnemonics_session', function(r) {
+      captured = r && r.mnemonics_session ? r.mnemonics_session.accessToken : null;
+    });
+    return captured;
+  }
+  return null;
+}
+
+async function silentRefresh(refreshToken) {
+  try {
+    const data = await authRequest('refresh', { refreshToken });
+    if (data && data.session) {
+      saveSession({ ...data.session, user: data.user || currentUser }, function() {
+        showToast('Đã tự động gia hạn phiên');
+      });
+    }
+  } catch (e) {
+    // Refresh failed; drop the stale session silently so we don't reuse it.
+    saveSession(null);
+  }
 }
 
 
@@ -1896,6 +1941,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Load data
   loadAuthState(function() { syncAccountSettings(); });
+  // Schedule silent refresh after the user logs in (no-op until session exists).
+  setTimeout(function() {
+    try {
+      const raw = (typeof chrome !== 'undefined' && chrome.storage)
+        ? null
+        : localStorage.getItem('mnemonics_session');
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      if (session && session.accessToken && session.expiresAt) {
+        const remaining = session.expiresAt * 1000 - Date.now();
+        if (remaining < 5 * 60_000 && session.refreshToken) {
+          silentRefresh(session.refreshToken);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }, 1500);
   loadSettings(function() { syncSettingsUI(); });
   loadFromExtension();
   loadSpacePrefs();
