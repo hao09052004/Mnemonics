@@ -222,8 +222,14 @@ async function handleSignup() {
     setAuthError('signup-error', 'Email chưa đúng định dạng.');
     return;
   }
-  if (password.length < 6) {
-    setAuthError('signup-error', 'Mật khẩu cần tối thiểu 6 ký tự.');
+  if (
+    password.length < 10 ||
+    !/[a-z]/.test(password) ||
+    !/[A-Z]/.test(password) ||
+    !/\d/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    setAuthError('signup-error', 'Mật khẩu cần tối thiểu 10 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.');
     return;
   }
   if (password !== confirm) {
