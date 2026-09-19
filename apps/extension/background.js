@@ -8,6 +8,12 @@ function getAccessToken() {
   }));
 }
 
+// Returns the chrome.storage.local key for the current user's items.
+function getUserItemsKey(session) {
+  const uid = session && session.user && session.user.id ? session.user.id : 'guest';
+  return 'mnemonics_items_' + uid;
+}
+
 function setCaptureBadge(text, color) {
   chrome.action.setBadgeText({ text });
   chrome.action.setBadgeBackgroundColor({ color });
@@ -85,32 +91,37 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const linkUrl = info.linkUrl || '';
     const pageTitle = tab.title || '';
     const linkText = info.selectionText || '';
-    chrome.storage.local.get('mnemonics_items', function(r) {
-      const items = r.mnemonics_items || [];
-      const newItem = {
-        id: Date.now(),
-        title: (linkText || pageTitle || linkUrl).slice(0, 80) || 'Link đã lưu',
-        note: '',
-        excerpt: '',
-        sourceUrl: linkUrl,
-        url: linkUrl.replace(/^https?:\/\//, '').slice(0, 80),
-        type: 'link',
-        tags: ['link'],
-        savedAt: new Date().toISOString(),
-        date: 'Vừa xong'
-      };
-      items.unshift(newItem);
-      chrome.storage.local.set({ mnemonics_items: items.slice(0, 80) }, () => {
-        chrome.tabs.query({}, (tabs) => {
-          tabs.forEach(t => {
-            if (t.url && t.url.includes('mnemonics-dashboard.html')) {
-              chrome.tabs.sendMessage(t.id, { type: 'RELOAD_ITEMS' }).catch(() => {});
-            }
+    getAccessToken().then(function(session) {
+      const itemsKey = getUserItemsKey(session);
+      chrome.storage.local.get(itemsKey, function(r) {
+        const items = r[itemsKey] || [];
+        const newItem = {
+          id: Date.now(),
+          title: (linkText || pageTitle || linkUrl).slice(0, 80) || 'Link đã lưu',
+          note: '',
+          excerpt: '',
+          sourceUrl: linkUrl,
+          url: linkUrl.replace(/^https?:\/\//, '').slice(0, 80),
+          type: 'link',
+          tags: ['link'],
+          savedAt: new Date().toISOString(),
+          date: 'Vừa xong'
+        };
+        items.unshift(newItem);
+        const payload = {};
+        payload[itemsKey] = items.slice(0, 80);
+        chrome.storage.local.set(payload, function() {
+          chrome.tabs.query({}, function(tabs) {
+            tabs.forEach(function(t) {
+              if (t.url && t.url.includes('mnemonics-dashboard.html')) {
+                chrome.tabs.sendMessage(t.id, { type: 'RELOAD_ITEMS' }).catch(function() {});
+              }
+            });
           });
-        });
-        chrome.notifications.create({
-          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
-          message: '🔗 Đã lưu link thành công!'
+          chrome.notifications.create({
+            type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
+            message: '🔗 Đã lưu link thành công!'
+          });
         });
       });
     });
@@ -144,53 +155,58 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const pageUrl = tab.url || '';
     const pageTitle = tab.title || '';
 
-    // Lấy items hiện tại rồi thêm item mới
-    chrome.storage.local.get('mnemonics_items', function(r) {
-      const items = r.mnemonics_items || [];
+    getAccessToken().then(function(session) {
+      const itemsKey = getUserItemsKey(session);
 
-      // Auto tags từ text được chọn
-      const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','was','were',
-        'this','that','with','from','have','will','your','page','home','có','của','và','với','từ',
-        'này','đó','cho','một','các','được','không','thì','đã','đang','sẽ'];
-      const words = selectedText.toLowerCase()
-        .replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ')
-        .split(/\s+/)
-        .filter(w => w.length > 3 && !stopwords.includes(w));
-      const freq = {};
-      words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-      const tags = Object.keys(freq).sort((a,b) => freq[b]-freq[a]).slice(0, 4);
+      chrome.storage.local.get(itemsKey, function(r) {
+        const items = r[itemsKey] || [];
 
-      const newItem = {
-        id: Date.now(),
-        title: pageTitle.slice(0, 80),
-        note: selectedText.slice(0, 500),
-        sourceUrl: pageUrl,
-        url: pageUrl.replace(/^https?:\/\//, '').slice(0, 80),
-        type: 'quote',
-        tags: tags.length > 0 ? tags : ['trích dẫn'],
-        savedAt: new Date().toISOString(),
-        date: 'Vừa xong'
-      };
+        // Auto tags từ text được chọn
+        const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','was','were',
+          'this','that','with','from','have','will','your','page','home','có','của','và','với','từ',
+          'này','đó','cho','một','các','được','không','thì','đã','đang','sẽ'];
+        const words = selectedText.toLowerCase()
+          .replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ')
+          .split(/\s+/)
+          .filter(w => w.length > 3 && !stopwords.includes(w));
+        const freq = {};
+        words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+        const tags = Object.keys(freq).sort((a,b) => freq[b]-freq[a]).slice(0, 4);
 
-      items.unshift(newItem);
-      const toStore = items.slice(0, 50);
+        const newItem = {
+          id: Date.now(),
+          title: pageTitle.slice(0, 80),
+          note: selectedText.slice(0, 500),
+          sourceUrl: pageUrl,
+          url: pageUrl.replace(/^https?:\/\//, '').slice(0, 80),
+          type: 'quote',
+          tags: tags.length > 0 ? tags : ['trích dẫn'],
+          savedAt: new Date().toISOString(),
+          date: 'Vừa xong'
+        };
 
-      chrome.storage.local.set({ mnemonics_items: toStore }, () => {
-        // Notify dashboard nếu đang mở
-        chrome.tabs.query({}, (tabs) => {
-          tabs.forEach(tab => {
-            if (tab.url && tab.url.includes('mnemonics-dashboard.html')) {
-              chrome.tabs.sendMessage(tab.id, { type: 'RELOAD_ITEMS' }).catch(() => {});
-            }
+        items.unshift(newItem);
+        const toStore = items.slice(0, 50);
+
+        const payload = {};
+        payload[itemsKey] = toStore;
+        chrome.storage.local.set(payload, function() {
+          // Notify dashboard nếu đang mở
+          chrome.tabs.query({}, function(tabs) {
+            tabs.forEach(function(t) {
+              if (t.url && t.url.includes('mnemonics-dashboard.html')) {
+                chrome.tabs.sendMessage(t.id, { type: 'RELOAD_ITEMS' }).catch(function() {});
+              }
+            });
           });
-        });
 
-        // Hiện thông báo nhỏ
-        chrome.notifications.create({
-          type: 'basic',
-          iconUrl: 'icon48.png',
-          title: 'Mnemonics',
-          message: '★ Đã lưu trích dẫn thành công!'
+          // Hiện thông báo nhỏ
+          chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icon48.png',
+            title: 'Mnemonics',
+            message: '★ Đã lưu trích dẫn thành công!'
+          });
         });
       });
     });

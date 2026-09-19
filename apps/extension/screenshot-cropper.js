@@ -219,7 +219,7 @@ async function saveScreenshot(useCrop) {
   var note = document.getElementById('note-input').value.trim();
   var tags = Array.isArray(pending.tags) && pending.tags.length ? pending.tags : ['ảnh chụp', 'screenshot'];
   var item = {
-    id: Date.now(),
+    id: crypto.randomUUID(),
     title: useCrop ? (title + ' · vùng cắt') : title,
     note: note,
     excerpt: note,
@@ -235,22 +235,47 @@ async function saveScreenshot(useCrop) {
   var saveButtons = [document.getElementById('save-crop-btn'), document.getElementById('save-full-btn')];
   saveButtons.forEach(function(button) { if (button) button.disabled = true; });
 
+  var session = await new Promise(function(resolve) {
+    chrome.storage.local.get('mnemonics_session', function(result) { resolve(result.mnemonics_session || null); });
+  });
+
+  // Always save to local storage first so the dashboard can display the item
+  // immediately, even if the server upload fails.
+  var userId = session && session.user && session.user.id ? session.user.id : 'guest';
+  var storageKey = 'mnemonics_items_' + userId;
+
   try {
-    var session = await new Promise(function(resolve) {
-      chrome.storage.local.get('mnemonics_session', function(result) { resolve(result.mnemonics_session || null); });
+    // Try server-side upload (requires login).
+    if (session && session.accessToken) {
+      await uploadImageCapture(item.imageUrl, {
+        title: item.title,
+        note: item.note,
+        sourceUrl: item.sourceUrl,
+        capturedAt: item.savedAt
+      }, session.accessToken);
+    } else {
+      // No login — still save locally so the user doesn't lose the screenshot.
+      showToast('Chưa đăng nhập — ảnh chỉ được lưu cục bộ.');
+    }
+
+    // Append to local storage under the correct user namespace.
+    var stored = await new Promise(function(resolve) {
+      chrome.storage.local.get(storageKey, function(r) { resolve(r[storageKey] || []); });
     });
-    await uploadImageCapture(item.imageUrl, {
-      title: item.title,
-      note: item.note,
-      sourceUrl: item.sourceUrl,
-      capturedAt: item.savedAt
-    }, session && session.accessToken);
+    stored.unshift(item);
+    await new Promise(function(resolve) {
+      chrome.storage.local.set({ [storageKey]: stored }, resolve);
+    });
+
+    // Notify the dashboard so it reloads without waiting for the next poll.
     chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_SCREENSHOT' }, function() {});
-    chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function() {
-      showToast('Đã lưu ảnh vào database');
-      notifyScreenshot('Mnemonics', 'Đã lưu ảnh vào database.');
-      setTimeout(function(){ window.close(); }, 650);
-    });
+    chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function() {});
+    chrome.runtime.sendMessage({ type: 'ITEM_SAVED' }, function() {});
+
+    showToast('Đã lưu ảnh vào database');
+    notifyScreenshot('Mnemonics', 'Đã lưu ảnh vào database.');
+    setTimeout(function(){ window.close(); }, 650);
+
   } catch (error) {
     saveButtons.forEach(function(button) { if (button) button.disabled = false; });
     var message = error && error.message ? error.message : 'Không lưu được ảnh vào database.';

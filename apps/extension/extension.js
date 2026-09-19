@@ -15,9 +15,13 @@ var cropOffset = null;
 
 function loadItems(cb) {
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get('mnemonics_items', function(r) {
-      savedItems = r.mnemonics_items || [];
-      if (cb) cb();
+    chrome.storage.local.get('mnemonics_session', function(result) {
+      var session = result.mnemonics_session || null;
+      var uid = session && session.user && session.user.id ? session.user.id : 'guest';
+      chrome.storage.local.get('mnemonics_items_' + uid, function(r) {
+        savedItems = r['mnemonics_items_' + uid] || [];
+        if (cb) cb();
+      });
     });
   } else {
     savedItems = JSON.parse(localStorage.getItem('mnemonics_items') || '[]');
@@ -27,7 +31,13 @@ function loadItems(cb) {
 
 function saveItems(cb) {
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.set({ mnemonics_items: savedItems }, cb);
+    chrome.storage.local.get('mnemonics_session', function(result) {
+      var session = result.mnemonics_session || null;
+      var uid = session && session.user && session.user.id ? session.user.id : 'guest';
+      var payload = {};
+      payload['mnemonics_items_' + uid] = savedItems;
+      chrome.storage.local.set(payload, cb);
+    });
   } else {
     localStorage.setItem('mnemonics_items', JSON.stringify(savedItems));
     if (cb) cb();
