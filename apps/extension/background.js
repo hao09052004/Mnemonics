@@ -122,6 +122,42 @@ function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
   chrome.tabs.create({ url: cropperUrl });
 }
 
+// After the server-side upload succeeds, also append a local item so the
+// dashboard renders it immediately. The dashboard reads exclusively from
+// chrome.storage.local — it never fetches from the API list — so without
+// this mirror the user sees "nothing happened" even though the database
+// has the row. imageUrl is kept as the original remote URL; the dashboard
+// wraps it through the proxy at render time.
+function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get(['mnemonics_session'], function(sess) {
+      const itemsKey = getUserItemsKey(sess.mnemonics_session);
+      chrome.storage.local.get([itemsKey], function(r) {
+        const items = r[itemsKey] || [];
+        const newItem = {
+          id: Date.now(),
+          title: (pageTitle || 'Ảnh đã lưu').slice(0, 80),
+          excerpt: '',
+          note: '',
+          imageUrl: imageUrl,
+          sourceUrl: pageUrl || '',
+          url: (pageUrl || '').replace(/^https?:\/\//, '').slice(0, 80),
+          type: 'image',
+          tags: ['context-menu'],
+          savedAt: new Date().toISOString(),
+          date: 'Vừa xong',
+          space: 'Mới lưu'
+        };
+        items.unshift(newItem);
+        const stored = items.slice(0, 80);
+        const payload = {};
+        payload[itemsKey] = stored;
+        chrome.storage.local.set(payload, function() { resolve(); });
+      });
+    });
+  });
+}
+
 
 // Tạo context menu khi extension được cài
 chrome.runtime.onInstalled.addListener(() => {
@@ -191,11 +227,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
     notifyCapture('Mnemonics', 'Đang tải ảnh lên database...', '...', '#f59e0b');
     uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle)
+      .then(() => writeImageToLocalStore(imageUrl, pageUrl, pageTitle))
       .then(() => {
         chrome.tabs.query({}, (tabs) => {
           tabs.forEach(t => {
             if (t.url && t.url.includes('mnemonics-dashboard.html')) {
-              chrome.tabs.sendMessage(t.id, { type: 'RELOAD_ITEMS' }).catch(() => {});
+              chrome.tabs.sendMessage(t.id, { type: 'ITEM_SAVED' }).catch(() => {});
             }
           });
         });
