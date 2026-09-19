@@ -240,7 +240,10 @@ async function handleSignup() {
   try {
     const data = await authRequest('register', { name, email, password });
     if (!data.session) throw new Error('Tài khoản đã tạo. Hãy xác nhận email rồi đăng nhập.');
-    saveSession({ ...data.session, user: data.user }, function() { showToast('Đã tạo tài khoản Mnemonics'); showPage('dashboard'); });
+    saveSession({ ...data.session, user: data.user }, function() {
+      showToast('Đã tạo tài khoản Mnemonics');
+      loadFromExtension(function() { showPage('dashboard'); });
+    });
   } catch (error) {
     setAuthError('signup-error', error.message);
   }
@@ -258,7 +261,10 @@ async function handleLogin() {
 
   try {
     const data = await authRequest('login', { email, password });
-    saveSession({ ...data.session, user: data.user }, function() { showToast('Đăng nhập thành công'); showPage('dashboard'); });
+    saveSession({ ...data.session, user: data.user }, function() {
+      showToast('Đăng nhập thành công');
+      loadFromExtension(function() { showPage('dashboard'); });
+    });
   } catch (error) {
     setAuthError('login-error', error.message);
   }
