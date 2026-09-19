@@ -6,6 +6,16 @@ import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from './auth.js';
 import type { ImageStorage } from './storage.js';
+import type { Audit } from './auth/audit.js';
+import type { Throttle } from './auth/throttle.js';
+import type { SupabaseUsersFacade } from './auth/supabase-users.js';
+import { createAuthRouter } from './auth/routes.js';
+
+export interface AuthDeps {
+  users: SupabaseUsersFacade;
+  throttle: Throttle;
+  audit: Audit;
+}
 
 declare global {
   namespace Express {
@@ -22,7 +32,8 @@ export function createApp(
   expectedToken = 'mnemonics-dev-token',
   developmentUserId = '00000000-0000-4000-8000-000000000001',
   imageStorage?: ImageStorage,
-  supabase?: SupabaseClient
+  supabase?: SupabaseClient,
+  authDeps?: AuthDeps
 ): Application {
   const app = express();
   const imageUpload = multer({
@@ -36,6 +47,20 @@ export function createApp(
     request.id = request.header('x-request-id') || createRequestId();
     next();
   });
+
+  // Mount the unified auth router if dependencies were provided. The
+  // pre-existing /auth/me, /register, /login routes in this file are kept
+  // for backwards compatibility but will be shadowed by the router when it
+  // is mounted (Express's `app.use` order matters: we mount the router
+  // before the legacy inline handlers, so the router wins).
+  if (supabase && authDeps) {
+    app.use('/api/v1/auth', createAuthRouter({
+      users: authDeps.users,
+      throttle: authDeps.throttle,
+      audit: authDeps.audit,
+      supabase
+    }));
+  }
 
   app.get('/', (_request, response) => response.json({
     name: 'Mnemonics API',
