@@ -328,8 +328,10 @@ let currentTimeFilter = 'all';
 
 // Phân loại một item về nhóm định dạng chuẩn để lọc/sắp xếp
 function getItemFormat(item) {
-  if (item.type === 'image') return 'image';
-  if (item.type === 'screenshot') return 'screenshot';
+  // Visual captures (uploaded images + cropped screenshots) share the same
+  // "Ảnh" tab — splitting them would force users to click two tabs to find
+  // what they just saved, which feels broken.
+  if (item.type === 'image' || item.type === 'screenshot') return 'image';
   if (item.type === 'file') return 'file';
   if (item.type === 'link') return 'link';
   if (item.type === 'quote') return 'quote';
