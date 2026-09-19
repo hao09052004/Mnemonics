@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export * from './auth.js';
 
 export const userRoles = ['user', 'admin'] as const;
 export type UserRole = (typeof userRoles)[number];
