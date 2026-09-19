@@ -160,23 +160,34 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
 
 
 // Tạo context menu khi extension được cài
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'save-to-mnemonics',
-    title: '★ Lưu vào Mnemonics',
-    contexts: ['selection']
+function setupContextMenus() {
+  // chrome.contextMenus.create errors if you call it twice with the same id
+  // — wipe first so reload-from-disk (which doesn't fire onInstalled)
+  // doesn't leave stale state.
+  chrome.contextMenus.removeAll(function() {
+    chrome.contextMenus.create({
+      id: 'save-to-mnemonics',
+      title: '★ Lưu vào Mnemonics',
+      contexts: ['selection']
+    });
+    chrome.contextMenus.create({
+      id: 'save-image-to-mnemonics',
+      title: '★ Lưu ảnh vào Mnemonics',
+      contexts: ['image']
+    });
+    chrome.contextMenus.create({
+      id: 'save-link-to-mnemonics',
+      title: '★ Lưu link vào Mnemonics',
+      contexts: ['link']
+    });
   });
-  chrome.contextMenus.create({
-    id: 'save-image-to-mnemonics',
-    title: '★ Lưu ảnh vào Mnemonics',
-    contexts: ['image']
-  });
-  chrome.contextMenus.create({
-    id: 'save-link-to-mnemonics',
-    title: '★ Lưu link vào Mnemonics',
-    contexts: ['link']
-  });
-});
+}
+
+chrome.runtime.onInstalled.addListener(setupContextMenus);
+// onStartup handles browser reboot; reload-from-disk skips onInstalled but
+// still loads this background script — recreate the menus every time.
+chrome.runtime.onStartup.addListener(setupContextMenus);
+setupContextMenus();
 
 // Xử lý khi user click context menu
 chrome.contextMenus.onClicked.addListener((info, tab) => {
