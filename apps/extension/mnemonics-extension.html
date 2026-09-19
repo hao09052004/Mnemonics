@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Mnemonics Extension</title>
+<style>
+  :root {
+    --purple: #5B3FE4; --purple-dark: #4A32C0; --purple-light: #EEE9FF;
+    --black: #0A0A0A; --white: #FFFFFF; --gray-bg: #F7F7F7;
+    --gray-border: #E8E8E8; --gray-text: #666666;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Be Vietnam Pro', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif; width: 390px; max-height: 620px; background: var(--white); color: var(--black); border-radius: 12px; overflow-x: hidden; overflow-y: auto; position: relative; -webkit-font-smoothing: antialiased; }
+  input, textarea, button { font-family: inherit; }
+  .ext-header { background: var(--black); padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; }
+  .ext-logo { color: white; font-size: 16px; font-weight: 700; }
+  .ext-logo span { color: var(--purple); }
+  .ext-badge { background: var(--purple); color: white; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+  .tab-info { padding: 14px 18px; background: var(--gray-bg); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; gap: 10px; }
+  .tab-url { font-size: 11px; color: var(--gray-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .capture-section { padding: 16px 18px; border-bottom: 1px solid var(--gray-border); }
+  .field-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--gray-text); margin-bottom: 6px; }
+  .field-input { width: 100%; border: 1.5px solid var(--gray-border); border-radius: 8px; padding: 9px 11px; font-size: 13px; color: var(--black); outline: none; background: white; transition: border-color 0.2s; font-family: inherit; resize: none; }
+  .field-input:focus { border-color: var(--purple); }
+  .field-input::placeholder { color: #bbb; }
+  .field-gap { height: 10px; }
+  .type-row { display: flex; gap: 6px; margin-top: 10px; }
+  .type-chip { flex: 1; padding: 7px 4px; border: 1.5px solid var(--gray-border); border-radius: 6px; background: white; font-size: 11px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.15s; color: var(--gray-text); }
+  .type-chip.selected { background: var(--purple); color: white; border-color: var(--purple); }
+  .ai-section { padding: 12px 18px; background: var(--purple-light); border-bottom: 1px solid #d4c6ff; }
+  .ai-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--purple); text-transform: uppercase; margin-bottom: 8px; }
+  .tags-row { display: flex; flex-wrap: wrap; gap: 5px; min-height: 24px; }
+  .ai-tag { background: white; color: var(--purple); font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 20px; border: 1px solid #c4b5fd; }
+  .save-area { padding: 14px 18px; }
+  .btn-save { width: 100%; padding: 13px; background: var(--purple); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+  .btn-save:hover { background: var(--purple-dark); }
+  .btn-save:disabled { background: #bbb; cursor: not-allowed; }
+  .recent-section { padding: 12px 18px 16px; border-top: 1px solid var(--gray-border); }
+  .recent-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--gray-text); margin-bottom: 10px; }
+  .recent-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--gray-border); }
+  .recent-item:last-child { border-bottom: none; }
+  .recent-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); flex-shrink: 0; margin-top: 5px; }
+  .recent-title { font-size: 12px; font-weight: 500; line-height: 1.4; color: var(--black); }
+  .recent-meta { font-size: 10px; color: var(--gray-text); margin-top: 2px; }
+  .recent-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+  .recent-tag { font-size: 10px; color: var(--purple); background: var(--purple-light); padding: 1px 6px; border-radius: 10px; }
+
+  .screenshot-capture-box { margin-top: 10px; padding: 10px; background: var(--gray-bg); border: 1.5px dashed var(--gray-border); border-radius: 10px; }
+  .btn-screenshot { width: 100%; padding: 10px 12px; background: var(--black); color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: background 0.2s, transform 0.15s; }
+  .btn-screenshot:hover { background: #2b2b2b; transform: translateY(-1px); }
+  .btn-screenshot:disabled { background: #999; cursor: not-allowed; transform: none; }
+  .screenshot-help { font-size: 11px; color: var(--gray-text); line-height: 1.5; margin-top: 8px; }
+  .screenshot-editor-note { margin-top: 9px; padding: 9px 10px; border-radius: 8px; background: white; border: 1px solid var(--gray-border); font-size: 11px; color: var(--gray-text); line-height: 1.5; }
+  .screenshot-editor-note b { color: var(--black); }
+
+  .success-overlay { display: none; position: absolute; inset: 0; background: var(--white); align-items: center; justify-content: center; flex-direction: column; gap: 12px; text-align: center; padding: 20px; border-radius: 12px; }
+  .success-overlay.show { display: flex; }
+  .success-icon { width: 56px; height: 56px; background: var(--purple-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .success-title { font-size: 18px; font-weight: 700; }
+  .success-sub { font-size: 13px; color: var(--gray-text); line-height: 1.5; }
+  .success-tags { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
+  .btn-more { margin-top: 4px; background: var(--purple); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-done { margin-top: 4px; background: white; color: var(--black); border: 1.5px solid var(--gray-border); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="ext-header">
+  <div class="ext-logo">Mne<span>monics</span></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div id="open-dashboard" style="background:rgba(255,255,255,0.15);color:white;font-size:10px;font-weight:600;padding:4px 10px;border-radius:12px;cursor:pointer;letter-spacing:0.5px">📊 DASHBOARD</div>
+    <div class="ext-badge">QUICK CAPTURE</div>
+  </div>
+</div>
+<div class="tab-info">
+  <div class="tab-url" id="tab-url">Trang hiện tại của bạn</div>
+</div>
+<div class="capture-section">
+  <div class="field-label">Tiêu đề</div>
+  <input class="field-input" id="cap-title" type="text" placeholder="Tên tài liệu, bài viết...">
+  <div class="field-gap"></div>
+  <div class="field-label">Ghi chú nhanh (không bắt buộc)</div>
+  <textarea class="field-input" id="cap-note" rows="2" placeholder="Thêm ghi chú của bạn..."></textarea>
+  <div class="type-row">
+    <div class="type-chip selected" data-type="article">📄 Bài viết</div>
+    <div class="type-chip" data-type="note">📝 Ghi chú</div>
+    <div class="type-chip" data-type="quote">💬 Trích dẫn</div>
+    <div class="type-chip" data-type="link">🔗 Link</div>
+  </div>
+  <div class="screenshot-capture-box">
+    <button class="btn-screenshot" id="capture-screenshot-btn">📸 CHỤP & CẮT MÀN HÌNH</button>
+    <div class="screenshot-help">Bấm để chụp tab hiện tại, sau đó Mnemonics sẽ mở <b>trang cắt ảnh lớn toàn màn hình</b> để chọn vùng chính xác hơn.</div>
+    <div class="screenshot-editor-note">Không còn crop trong popup nhỏ nữa. Trình cắt mới có ảnh lớn, zoom, kéo chọn vùng, lưu vùng cắt hoặc lưu toàn bộ.</div>
+  </div>
+</div>
+<div class="ai-section">
+  <div class="ai-label">★ SMART TAGS</div>
+  <div class="tags-row" id="tags-row">
+    <span style="font-size:11px;color:#a78bfa">Nhập nội dung để tạo tags...</span>
+  </div>
+</div>
+<div class="save-area">
+  <button class="btn-save" id="save-btn">★ LƯU KÝ ỨC</button>
+</div>
+<div class="recent-section">
+  <div class="recent-label">VỪA LƯU GẦN ĐÂY</div>
+  <div id="recent-list">
+    <div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Chưa có ký ức nào được lưu</div>
+  </div>
+</div>
+<div class="success-overlay" id="success-overlay">
+  <div class="success-icon">✓</div>
+  <div class="success-title">Đã lưu thành công! ✦</div>
+  <p class="success-sub">Tags đã được tạo tự động.</p>
+  <div class="success-tags" id="success-tags"></div>
+  <button class="btn-more" id="btn-more">+ Lưu thêm</button>
+  <button class="btn-done" id="btn-done">Xong</button>
+</div>
+<script src="extension.js"></script>
+</body>
+</html>

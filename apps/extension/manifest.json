@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Mnemonics — Quick Capture",
+  "version": "1.0.0",
+  "description": "Lưu ký ức tức thì từ bất kỳ trang web nào.",
+  "action": {
+    "default_popup": "mnemonics-extension.html",
+    "default_title": "Mnemonics Quick Capture",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "contextMenus",
+    "notifications",
+    "unlimitedStorage"
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "mnemonics-dashboard.html",
+        "dashboard.js",
+        "screenshot-cropper.html",
+        "screenshot-cropper.js",
+        "api-client.js",
+        "original-image.html",
+        "original-image.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:4000 https://*.supabase.co; img-src 'self' data: blob: https: chrome-extension:;"
+  }
+}

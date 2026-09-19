@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<title>Mnemonics — Ghi nhớ mọi thứ</title>
+<style>
+  :root {
+    --purple: #5B3FE4;
+    --purple-dark: #4A32C0;
+    --purple-light: #EEE9FF;
+    --black: #0A0A0A;
+    --white: #FFFFFF;
+    --gray-bg: #F7F7F7;
+    --gray-border: #E8E8E8;
+    --gray-text: #666666;
+    --gray-mid: #999999;
+    --font: 'Be Vietnam Pro', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { font-family: var(--font); }
+  body { color: var(--black); background: var(--white); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+  input, textarea, select, button { font-family: var(--font); }
+
+  /* ===== NAV ===== */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px; height: 60px;
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--gray-border);
+  }
+  .nav-logo { font-size: 20px; font-weight: 700; color: var(--purple); letter-spacing: -0.5px; cursor: pointer; }
+  .nav-links { display: flex; gap: 32px; align-items: center; }
+  .nav-links a { text-decoration: none; color: var(--black); font-size: 13px; font-weight: 500; letter-spacing: 0.3px; cursor: pointer; padding: 4px 0; border-bottom: 2px solid transparent; transition: border-color 0.2s; }
+  .nav-links a:hover, .nav-links a.active { border-bottom-color: var(--purple); color: var(--purple); }
+  .nav-right { display: flex; gap: 12px; align-items: center; }
+  .btn-login { font-size: 13px; font-weight: 500; color: var(--black); cursor: pointer; padding: 8px 16px; }
+  .btn-signup { background: var(--black); color: var(--white); font-size: 13px; font-weight: 600; padding: 8px 18px; border: none; cursor: pointer; border-radius: 6px; transition: background 0.2s; }
+  .btn-signup:hover { background: #333; }
+
+  /* ===== PAGES ===== */
+  .page { display: none; padding-top: 60px; min-height: 100vh; }
+  .page.active { display: block; }
+
+  /* ===== LANDING ===== */
+  .hero {
+    min-height: calc(100vh - 60px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 80px 40px 60px;
+  }
+  .hero h1 { font-size: clamp(48px, 7vw, 80px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 20px; }
+  .hero h1 span { color: var(--purple); }
+  .hero p { font-size: 16px; color: var(--gray-text); max-width: 480px; line-height: 1.7; margin-bottom: 36px; }
+  .hero-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--purple); color: var(--white);
+    font-size: 14px; font-weight: 600; padding: 14px 28px;
+    border: none; border-radius: 8px; cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .hero-btn:hover { background: var(--purple-dark); transform: translateY(-1px); }
+  .hero-btn svg { width: 16px; height: 16px; }
+
+  .features-section { padding: 80px 40px; max-width: 1100px; margin: 0 auto; }
+  .features-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: var(--gray-text); text-transform: uppercase; margin-bottom: 12px; }
+  .features-title { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .features-sub { color: var(--gray-text); font-size: 15px; max-width: 400px; line-height: 1.6; margin-bottom: 48px; }
+  .features-sub span { float: right; font-size: 11px; color: var(--gray-mid); font-weight: 500; letter-spacing: 1px; }
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--gray-border); border: 1px solid var(--gray-border); border-radius: 12px; overflow: hidden; }
+  .feature-card { background: var(--white); padding: 32px 28px; }
+  .feature-icon { width: 36px; height: 36px; border: 1.5px solid var(--gray-border); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+  .feature-icon svg { width: 16px; height: 16px; }
+  .feature-name { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .feature-desc { font-size: 14px; color: var(--gray-text); line-height: 1.65; margin-bottom: 16px; }
+  .feature-demo { background: var(--gray-bg); border-radius: 6px; padding: 12px 14px; font-size: 12px; color: var(--gray-text); }
+  .feature-demo .tag { display: inline-block; background: var(--white); border: 1px solid var(--gray-border); border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: 500; margin: 2px; }
+  .feature-demo .tag.active { background: var(--black); color: var(--white); border-color: var(--black); }
+  .feature-demo .tag.more { background: var(--purple); color: var(--white); border-color: var(--purple); }
+
+  footer { padding: 40px; border-top: 1px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { font-size: 14px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+  .footer-sub { font-size: 11px; color: var(--gray-text); margin-top: 4px; letter-spacing: 0.5px; }
+  .footer-links { display: flex; gap: 28px; }
+  .footer-links a { font-size: 12px; color: var(--gray-text); text-decoration: none; letter-spacing: 0.5px; }
+
+  /* ===== DASHBOARD ===== */
+  .dashboard-layout { display: flex; height: calc(100vh - 60px); }
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    border-right: 1px solid var(--gray-border);
+    display: flex; flex-direction: column;
+    padding: 20px 0;
+  }
+  .sidebar-logo { font-size: 18px; font-weight: 700; color: var(--purple); padding: 0 20px 20px; border-bottom: 1px solid var(--gray-border); margin-bottom: 12px; }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; font-size: 14px; font-weight: 500;
+    cursor: pointer; color: var(--black); border-radius: 0;
+    transition: background 0.15s;
+  }
+  .sidebar-item:hover { background: var(--gray-bg); }
+  .sidebar-item.active { background: var(--purple-light); color: var(--purple); }
+  .sidebar-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .sidebar-bottom { margin-top: auto; padding: 0 20px; border-top: 1px solid var(--gray-border); padding-top: 16px; }
+  .sidebar-settings { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--gray-text); cursor: pointer; padding: 8px 0; }
+  .avatar { width: 32px; height: 32px; background: var(--purple); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; }
+  .user-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; }
+  .user-name { font-size: 13px; font-weight: 500; }
+
+  .main-content { flex: 1; overflow-y: auto; padding: 28px 36px; }
+
+  /* Banner */
+  .memory-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1.5px solid var(--gray-border); border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 28px;
+  }
+  .banner-left { display: flex; align-items: center; gap: 14px; }
+  .banner-icon { width: 40px; height: 40px; background: var(--purple-light); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .banner-icon svg { width: 20px; height: 20px; color: var(--purple); }
+  .banner-meta { font-size: 11px; color: var(--gray-text); font-weight: 500; letter-spacing: 0.5px; }
+  .banner-title { font-size: 15px; font-weight: 600; margin-top: 2px; }
+  .banner-btn { background: var(--purple); color: white; font-size: 13px; font-weight: 600; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+  /* Dashboard header */
+  .dash-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+  .dash-title { font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+  .dash-count { font-size: 14px; color: var(--gray-text); margin-top: 4px; }
+  .search-bar {
+    display: flex; align-items: center; gap: 8px;
+    border: 1.5px solid var(--gray-border); border-radius: 8px;
+    padding: 10px 14px; width: 320px; background: var(--white);
+    transition: border-color 0.2s;
+  }
+  .search-bar:focus-within { border-color: var(--purple); }
+  .search-bar svg { width: 15px; height: 15px; color: var(--gray-mid); flex-shrink: 0; }
+  .search-bar input { border: none; outline: none; font-size: 13px; color: var(--black); width: 100%; background: transparent; }
+  .search-bar input::placeholder { color: var(--gray-mid); }
+
+  /* AI Search result */
+  #ai-result {
+    background: var(--purple-light); border: 1.5px solid var(--purple);
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;
+    display: none;
+  }
+  #ai-result .ai-label { font-size: 11px; font-weight: 700; color: var(--purple); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  #ai-result .ai-text { font-size: 14px; color: var(--black); line-height: 1.6; }
+  .ai-loading { display: flex; gap: 4px; align-items: center; }
+  .ai-dot { width: 6px; height: 6px; background: var(--purple); border-radius: 50%; animation: bounce 1.2s ease infinite; }
+  .ai-dot:nth-child(2) { animation-delay: 0.2s; }
+  .ai-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+
+  /* Masonry grid */
+  .items-divider { border: none; border-top: 1.5px solid var(--gray-border); margin-bottom: 24px; }
+  .masonry { columns: 3; column-gap: 16px; }
+  .memory-card {
+    break-inside: avoid; margin-bottom: 16px;
+    border: 1.5px solid var(--gray-border); border-radius: 10px;
+    overflow: hidden; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s;
+    background: var(--white);
+  }
+  .memory-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #ccc; }
+  .card-header { padding: 14px 14px 10px; display: flex; align-items: flex-start; justify-content: space-between; }
+  .card-type { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: var(--purple); color: white; }
+  .card-type.article { background: var(--purple); }
+  .card-type.image { background: #1a1a1a; }
+  .card-type.quote { background: #1a1a1a; }
+  .card-type.code { display: flex; align-items: center; gap: 4px; background: var(--gray-bg); color: var(--black); border: 1px solid var(--gray-border); }
+  .card-type.note { background: var(--purple-light); color: var(--purple); border: 1px solid #c4b5fd; }
+  .card-type.link { background: #0ea5e9; }
+  .card-type.file { background: #f59e0b; }
+  .card-type.screenshot { background: #10b981; }
+  .card-image-wrap { padding: 4px 0; }
+  .image-clickable { position: relative; cursor: zoom-in; }
+  .image-clickable img { transition: filter 0.18s, transform 0.18s; }
+  .image-clickable:hover img { filter: brightness(0.88); }
+  .image-click-badge {
+    position: absolute; top: 12px; right: 10px;
+    background: rgba(10,10,10,0.82); color: white;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
+    padding: 5px 9px; border-radius: 999px; opacity: 0;
+    transform: translateY(-4px); transition: opacity 0.18s, transform 0.18s;
+    pointer-events: none; text-transform: uppercase;
+  }
+  .image-clickable:hover .image-click-badge { opacity: 1; transform: translateY(0); }
+  .card-menu { color: var(--gray-mid); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; position: relative; }
+  .card-menu-wrap { position: relative; display: inline-block; }
+  .card-dropdown { display: none; position: absolute; right: 0; top: 24px; background: white; border: 1.5px solid var(--gray-border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 999; min-width: 140px; overflow: hidden; }
+  .card-dropdown.open { display: block; }
+  .card-dropdown-item { padding: 10px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--black); transition: background 0.15s; }
+  .card-dropdown-item:hover { background: var(--gray-bg); }
+  .card-dropdown-item.danger { color: #ef4444; }
+  .card-dropdown-item.danger:hover { background: #fff5f5; }
+  .card-body { padding: 0 14px 14px; }
+  .card-title { font-size: 15px; font-weight: 700; line-height: 1.35; margin-bottom: 8px; letter-spacing: -0.2px; }
+  .card-excerpt { font-size: 13px; color: var(--gray-text); line-height: 1.6; margin-bottom: 10px; }
+  .card-image { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+  .card-quote { font-size: 15px; font-weight: 700; line-height: 1.4; color: white; padding: 20px 14px; background: #1a1a1a; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .card-tag { font-size: 11px; font-weight: 500; color: var(--gray-text); padding: 2px 0; }
+  .card-tag::before { content: '#'; }
+  .card-footer { padding: 10px 14px; border-top: 1px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; }
+  .card-date { font-size: 11px; color: var(--gray-mid); }
+  .card-space { font-size: 11px; color: var(--purple); font-weight: 500; }
+  .card-checklist { padding: 0 14px 14px; }
+  .checklist-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .card-reminder-meta { font-size: 11px; font-weight: 700; color: var(--purple); letter-spacing: 0.5px; text-transform: uppercase; margin: -4px 0 10px; }
+  .check-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--black); margin-bottom: 8px; line-height: 1.4; }
+  .check-item.done { text-decoration: line-through; color: var(--gray-mid); }
+  .check-box { width: 16px; height: 16px; border: 1.5px solid var(--gray-border); border-radius: 3px; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; }
+  .check-box.checked { background: var(--purple); border-color: var(--purple); }
+  .check-box.checked::after { content: '✓'; color: white; font-size: 10px; }
+  .code-date { font-size: 11px; color: var(--gray-mid); text-align: right; margin-bottom: 6px; }
+
+  .check-item.reminder-clickable { cursor: pointer; border-radius: 6px; padding: 3px 2px; margin-left: -2px; margin-right: -2px; transition: background 0.15s; }
+  .check-item.reminder-clickable:hover { background: var(--gray-bg); }
+  .check-item.reminder-clickable:hover .check-box { border-color: var(--purple); }
+  .dashboard-reminder-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-border); }
+  .dashboard-reminder-actions button { border: 1.5px solid var(--gray-border); border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 800; cursor: pointer; background: var(--white); transition: all 0.15s; }
+  .dashboard-reminder-open { color: var(--purple); }
+  .dashboard-reminder-open:hover { background: var(--purple); border-color: var(--purple); color: white; }
+  .dashboard-reminder-delete { color: #ef4444; margin-left: auto; }
+  .dashboard-reminder-delete:hover { background: #fff5f5; border-color: #ef4444; }
+  body.dark .dashboard-reminder-delete:hover { background: #341b1b; }
+
+
+  /* Add button */
+  .fab {
+    position: fixed; bottom: 28px; right: 28px;
+    width: 52px; height: 52px;
+    background: var(--purple); color: white;
+    border: none; border-radius: 50%; cursor: pointer;
+    font-size: 24px; line-height: 1;
+    box-shadow: 0 4px 16px rgba(91,63,228,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(91,63,228,0.5); }
+
+  /* ===== KHÔNG GIAN ===== */
+  .spaces-header { display: flex; align-items: center; justify-content: space-between; padding: 28px 36px 0; }
+  .spaces-title-bar { display: flex; gap: 0; }
+  .spaces-tab { font-size: 13px; font-weight: 600; padding: 8px 18px; cursor: pointer; border-radius: 6px; background: transparent; border: 1.5px solid var(--gray-border); color: var(--gray-text); margin-right: -1px; transition: all 0.15s; }
+  .spaces-tab:first-child { border-radius: 6px 0 0 6px; }
+  .spaces-tab:last-child { border-radius: 0 6px 6px 0; }
+  .spaces-tab.active { background: var(--purple); color: white; border-color: var(--purple); z-index: 1; }
+  .view-toggle { display: flex; gap: 4px; }
+  .view-btn { width: 32px; height: 32px; border: 1.5px solid var(--gray-border); border-radius: 6px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .view-btn.active { background: var(--black); border-color: var(--black); }
+  .view-btn svg { width: 14px; height: 14px; }
+  .view-btn.active svg { color: white; }
+  .spaces-divider { border: none; border-top: 1.5px solid var(--gray-border); margin: 16px 36px 28px; }
+  .spaces-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 36px 36px; }
+  .space-card {
+    border: 1.5px solid var(--gray-border); border-radius: 12px;
+    padding: 24px; cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .space-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #ccc; }
+  .space-icon { width: 40px; height: 40px; border: 1.5px solid var(--gray-border); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 20px; }
+  .space-name { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; }
+  .space-desc { font-size: 13px; color: var(--gray-text); line-height: 1.55; margin-bottom: 20px; min-height: 56px; }
+  .space-count { font-size: 12px; color: var(--gray-text); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .space-ai { background: var(--gray-bg); color: var(--gray-text); font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--gray-border); }
+  .spaces-grid.hidden { display: none; }
+  .spaces-empty, .space-items-empty { grid-column: 1 / -1; border: 1.5px dashed var(--gray-border); border-radius: 14px; padding: 44px 24px; text-align: center; color: var(--gray-text); background: var(--gray-bg); }
+  .spaces-empty h3, .space-items-empty h3 { font-size: 16px; color: var(--black); margin-bottom: 8px; }
+  .space-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .space-star { width: 32px; height: 32px; border: 1.5px solid var(--gray-border); border-radius: 8px; background: var(--white); color: var(--gray-mid); cursor: pointer; font-size: 15px; transition: all 0.15s; }
+  .space-star:hover, .space-star.active { background: var(--purple); border-color: var(--purple); color: var(--white); }
+  .space-open-hint { margin-top: 18px; font-size: 12px; font-weight: 700; color: var(--purple); opacity: 0; transform: translateY(4px); transition: all 0.2s; }
+  .space-card:hover .space-open-hint { opacity: 1; transform: translateY(0); }
+  .spaces-grid.list-view { grid-template-columns: 1fr; }
+  .spaces-grid.list-view .space-card { display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center; padding: 18px 22px; }
+  .spaces-grid.list-view .space-card-top { margin-bottom: 0; }
+  .spaces-grid.list-view .space-desc { margin-bottom: 0; min-height: unset; }
+  .spaces-grid.list-view .space-count { justify-content: flex-end; }
+  .spaces-grid.list-view .space-open-hint { opacity: 1; margin-top: 0; white-space: nowrap; }
+
+  .space-detail { display: none; margin: 0 36px 36px; }
+  .space-detail.open { display: block; }
+  .space-detail-head { border: 1.5px solid var(--gray-border); border-radius: 16px; padding: 22px; background: linear-gradient(135deg, var(--white), var(--purple-light)); }
+  .space-back-btn { border: none; background: transparent; color: var(--purple); font-size: 13px; font-weight: 800; cursor: pointer; margin-bottom: 16px; padding: 0; }
+  .space-detail-title-row { display: flex; align-items: center; gap: 16px; }
+  .space-detail-icon { width: 52px; height: 52px; border: 1.5px solid #d8d0ff; background: var(--white); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+  .space-detail-name { font-size: 30px; font-weight: 900; letter-spacing: -0.8px; margin-bottom: 6px; }
+  .space-detail-desc { color: var(--gray-text); font-size: 14px; line-height: 1.6; max-width: 680px; }
+  .space-detail-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .space-detail-btn { border: 1.5px solid var(--gray-border); background: var(--white); color: var(--black); padding: 10px 14px; border-radius: 9px; font-size: 13px; font-weight: 800; cursor: pointer; }
+  .space-detail-btn.active, .space-detail-btn:hover { background: var(--purple); border-color: var(--purple); color: var(--white); }
+  .space-detail-meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+  .space-detail-meta span { border: 1px solid var(--gray-border); background: var(--white); border-radius: 999px; padding: 7px 12px; color: var(--gray-text); font-size: 12px; font-weight: 600; }
+  .space-detail-search { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--gray-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; background: var(--white); }
+  .space-detail-search:focus-within { border-color: var(--purple); }
+  .space-detail-search svg { width: 15px; height: 15px; color: var(--gray-mid); flex-shrink: 0; }
+  .space-detail-search input { border: none; outline: none; font-size: 13px; width: 100%; font-family: var(--font); }
+  .space-items { display: grid; gap: 12px; }
+  .space-item { display: flex; align-items: flex-start; gap: 14px; border: 1.5px solid var(--gray-border); border-radius: 14px; padding: 14px; background: var(--white); transition: box-shadow 0.2s, border-color 0.2s; }
+  .space-item:hover { border-color: #ccc; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+  .space-item-thumb { width: 76px; height: 76px; object-fit: cover; border-radius: 10px; border: 1px solid var(--gray-border); cursor: pointer; flex-shrink: 0; }
+  .space-item-type-icon { width: 44px; height: 44px; border-radius: 10px; border: 1.5px solid var(--gray-border); background: var(--purple-light); color: var(--purple); display: flex; align-items: center; justify-content: center; font-weight: 900; flex-shrink: 0; }
+  .space-item-body { flex: 1; min-width: 0; }
+  .space-item-top { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+  .space-item-type { color: var(--purple); font-size: 11px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase; }
+  .space-item-date { color: var(--gray-mid); font-size: 11px; white-space: nowrap; }
+  .space-item-title { font-size: 15px; font-weight: 800; line-height: 1.35; margin-bottom: 5px; }
+  .space-item-excerpt { color: var(--gray-text); font-size: 13px; line-height: 1.55; }
+  .space-item-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .space-item-tags span { color: var(--gray-text); font-size: 11px; font-weight: 600; }
+  .space-item-open { align-self: center; border: 1.5px solid var(--gray-border); background: var(--white); border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+  .space-item-open:hover { background: var(--black); color: var(--white); border-color: var(--black); }
+
+  /* ===== DARK MODE ===== */
+  body.dark {
+    --purple: #8B7BF0; --purple-dark: #7A68E8; --purple-light: #241f3d;
+    --black: #F2F2F5; --white: #16161c; --gray-bg: #1e1e26;
+    --gray-border: #2f2f3a; --gray-text: #a0a0ac; --gray-mid: #6c6c78;
+  }
+  body.dark .card-quote { background: #2a2540; }
+  body.dark .card-type.image, body.dark .card-type.quote { background: #322c52; }
+  body.dark img { opacity: 0.94; }
+
+  /* ===== FONT SIZE SCALE ===== */
+  body.font-sm { font-size: 14px; }
+  body.font-md { font-size: 16px; }
+  body.font-lg { font-size: 18px; }
+
+  /* ===== SORT / FILTER BAR ===== */
+  .dash-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .control-group { display: flex; align-items: center; gap: 6px; }
+  .control-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--gray-mid); }
+  .control-select {
+    border: 1.5px solid var(--gray-border); border-radius: 8px; padding: 8px 12px;
+    font-size: 12px; font-weight: 600; font-family: var(--font); background: var(--white);
+    color: var(--black); cursor: pointer; outline: none; transition: border-color 0.2s;
+  }
+  .control-select:focus, .control-select:hover { border-color: var(--purple); }
+  .format-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .format-chip {
+    border: 1.5px solid var(--gray-border); border-radius: 20px; padding: 6px 13px;
+    font-size: 12px; font-weight: 700; background: var(--white); color: var(--gray-text);
+    cursor: pointer; transition: all 0.15s; user-select: none;
+  }
+  .format-chip:hover { border-color: var(--purple); color: var(--purple); }
+  .format-chip.active { background: var(--purple); border-color: var(--purple); color: white; }
+
+  /* ===== BOOK SUGGESTION SIDEBAR (right) ===== */
+  .dashboard-body { display: flex; gap: 24px; align-items: flex-start; }
+  .dashboard-primary { flex: 1; min-width: 0; }
+  .book-rail { width: 300px; flex-shrink: 0; position: sticky; top: 20px; }
+  @media (max-width: 1200px) { .book-rail { display: none; } }
+  .book-panel {
+    border: 1.5px solid var(--gray-border); border-radius: 14px; overflow: hidden; background: var(--white);
+  }
+  .book-panel-head { padding: 16px 18px; background: linear-gradient(135deg, var(--purple), var(--purple-dark)); color: white; }
+  .book-panel-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; opacity: 0.85; }
+  .book-panel-title { font-size: 15px; font-weight: 800; margin-top: 3px; line-height: 1.3; }
+  .book-panel-topic { font-size: 12px; margin-top: 6px; opacity: 0.92; }
+  .book-list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .book-card {
+    display: flex; gap: 11px; border: 1.5px solid var(--gray-border); border-radius: 10px;
+    padding: 11px; cursor: pointer; transition: all 0.15s; text-decoration: none; color: inherit; background: var(--white);
+  }
+  .book-card:hover { border-color: var(--purple); box-shadow: 0 3px 12px rgba(91,63,228,0.12); transform: translateY(-1px); }
+  .book-cover { width: 46px; height: 64px; border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+  .book-info { flex: 1; min-width: 0; }
+  .book-title { font-size: 13px; font-weight: 800; line-height: 1.3; margin-bottom: 3px; }
+  .book-author { font-size: 11px; color: var(--gray-mid); margin-bottom: 5px; }
+  .book-badge { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; background: var(--purple-light); color: var(--purple); }
+  .book-panel-foot { padding: 11px 16px; border-top: 1px solid var(--gray-border); font-size: 11px; color: var(--gray-mid); text-align: center; line-height: 1.5; }
+  .book-topic-pick { padding: 12px; border-top: 1px solid var(--gray-border); }
+  .book-topic-pick label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-mid); display: block; margin-bottom: 6px; }
+
+  /* ===== SETTINGS PAGE ===== */
+  .settings-page { max-width: 820px; margin: 0 auto; padding: 40px 36px; }
+  .settings-title { font-size: 34px; font-weight: 900; letter-spacing: -1px; margin-bottom: 6px; }
+  .settings-sub { font-size: 14px; color: var(--gray-text); margin-bottom: 32px; }
+  .settings-section {
+    border: 1.5px solid var(--gray-border); border-radius: 14px; padding: 24px;
+    margin-bottom: 20px; background: var(--white);
+  }
+  .settings-section-title { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--purple); margin-bottom: 4px; }
+  .settings-section-desc { font-size: 13px; color: var(--gray-text); margin-bottom: 20px; line-height: 1.5; }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--gray-border); }
+  .settings-row:first-of-type { border-top: none; }
+  .settings-row-label { font-size: 14px; font-weight: 600; }
+  .settings-row-hint { font-size: 12px; color: var(--gray-mid); margin-top: 2px; line-height: 1.4; }
+  .settings-row-control { flex-shrink: 0; display: flex; gap: 8px; align-items: center; }
+  .seg-toggle { display: flex; border: 1.5px solid var(--gray-border); border-radius: 8px; overflow: hidden; }
+  .seg-toggle button {
+    border: none; background: var(--white); color: var(--gray-text); font-family: var(--font);
+    font-size: 12px; font-weight: 700; padding: 8px 14px; cursor: pointer; transition: all 0.15s;
+  }
+  .seg-toggle button.active { background: var(--purple); color: white; }
+  .switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch-slider { position: absolute; inset: 0; background: var(--gray-border); border-radius: 26px; cursor: pointer; transition: background 0.2s; }
+  .switch-slider::before { content: ''; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .switch input:checked + .switch-slider { background: var(--purple); }
+  .switch input:checked + .switch-slider::before { transform: translateX(20px); }
+  .settings-btn {
+    border: 1.5px solid var(--gray-border); background: var(--white); color: var(--black);
+    padding: 10px 16px; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: var(--font); transition: all 0.15s;
+  }
+  .settings-btn:hover { border-color: var(--purple); color: var(--purple); }
+  .settings-btn.primary { background: var(--purple); border-color: var(--purple); color: white; }
+  .settings-btn.primary:hover { background: var(--purple-dark); color: white; }
+  .settings-btn.danger { color: #ef4444; border-color: #f0c0c0; }
+  .settings-btn.danger:hover { background: #fef2f2; border-color: #ef4444; }
+  .topic-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .topic-tag {
+    border: 1.5px solid var(--gray-border); border-radius: 20px; padding: 7px 14px;
+    font-size: 12px; font-weight: 700; cursor: pointer; background: var(--white); color: var(--gray-text);
+    transition: all 0.15s; user-select: none;
+  }
+  .topic-tag:hover { border-color: var(--purple); }
+  .topic-tag.active { background: var(--purple); border-color: var(--purple); color: white; }
+  .settings-hidden-file { display: none; }
+
+  /* ===== NHẮC NHỞ ===== */
+  .reminders-page { padding: 36px; max-width: 1180px; margin: 0 auto; }
+  .reminders-hero {
+    display: flex; justify-content: space-between; align-items: stretch; gap: 20px;
+    border: 1.5px solid var(--gray-border); border-radius: 16px; padding: 26px;
+    margin-bottom: 24px; background: linear-gradient(135deg, var(--white), var(--purple-light));
+  }
+  .reminders-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; color: var(--purple); text-transform: uppercase; margin-bottom: 8px; }
+  .reminders-title { font-size: 34px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; }
+  .reminders-sub { font-size: 14px; color: var(--gray-text); line-height: 1.6; max-width: 560px; }
+  .reminder-stat-card {
+    min-width: 170px; background: var(--white); border: 1.5px solid #d8d0ff; border-radius: 14px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 18px;
+  }
+  .reminder-stat-number { font-size: 36px; font-weight: 900; color: var(--purple); line-height: 1; }
+  .reminder-stat-label { font-size: 12px; color: var(--gray-text); font-weight: 600; margin-top: 6px; text-align: center; }
+  .reminders-layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start; }
+  .reminder-composer, .reminder-list-panel {
+    border: 1.5px solid var(--gray-border); border-radius: 14px; background: var(--white);
+  }
+  .reminder-composer { padding: 22px; position: sticky; top: 84px; }
+  .reminder-panel-title { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; margin-bottom: 16px; }
+  .reminder-field { margin-bottom: 14px; }
+  .reminder-label { font-size: 11px; font-weight: 800; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .reminder-input, .reminder-select, .reminder-textarea {
+    width: 100%; border: 1.5px solid var(--gray-border); border-radius: 9px; padding: 11px 12px;
+    font-size: 13px; font-family: var(--font); outline: none; background: var(--white); transition: border-color 0.2s;
+  }
+  .reminder-textarea { resize: vertical; min-height: 112px; line-height: 1.55; }
+  .reminder-input:focus, .reminder-select:focus, .reminder-textarea:focus { border-color: var(--purple); }
+  .reminder-help { font-size: 11px; color: var(--gray-mid); line-height: 1.5; margin-top: 6px; }
+  .reminder-add-btn {
+    width: 100%; border: none; border-radius: 10px; background: var(--purple); color: var(--white);
+    padding: 13px; font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.2s, transform 0.15s;
+  }
+  .reminder-add-btn:hover { background: var(--purple-dark); transform: translateY(-1px); }
+  .reminder-list-panel { padding: 18px; }
+  .reminder-list-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .reminder-list-count { font-size: 12px; color: var(--gray-text); }
+  .reminder-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .reminder-tab {
+    border: 1.5px solid var(--gray-border); background: var(--white); color: var(--gray-text);
+    padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .reminder-tab.active { background: var(--purple); border-color: var(--purple); color: var(--white); }
+  .reminders-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .reminder-card {
+    border: 1.5px solid var(--gray-border); border-radius: 12px; background: var(--white); overflow: hidden;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .reminder-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #ccc; }
+  .reminder-card-main { padding: 16px 16px 10px; }
+  .reminder-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .reminder-card-title { font-size: 15px; font-weight: 800; line-height: 1.35; }
+  .reminder-kind {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 999px; white-space: nowrap; background: var(--purple-light); color: var(--purple);
+  }
+  .reminder-kind.meeting { background: #111; color: white; }
+  .reminder-progress { font-size: 11px; color: var(--gray-text); margin-bottom: 10px; }
+  .reminder-task { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.45; margin-bottom: 9px; color: var(--black); cursor: pointer; }
+  .reminder-task.done { color: var(--gray-mid); text-decoration: line-through; }
+  .reminder-check {
+    width: 17px; height: 17px; border: 1.5px solid var(--gray-border); border-radius: 4px; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center; background: var(--white);
+  }
+  .reminder-check.checked { background: var(--purple); border-color: var(--purple); }
+  .reminder-check.checked::after { content: '✓'; color: white; font-size: 11px; font-weight: 800; }
+  .reminder-card-footer { border-top: 1px solid var(--gray-border); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .reminder-date { font-size: 11px; color: var(--gray-mid); }
+  .reminder-space { font-size: 11px; color: var(--purple); font-weight: 700; }
+  .reminder-actions { display: flex; align-items: center; gap: 10px; }
+  .reminder-delete { border: none; background: transparent; color: #ef4444; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .reminder-empty { grid-column: 1 / -1; text-align: center; padding: 56px 16px; color: var(--gray-text); border: 1.5px dashed var(--gray-border); border-radius: 12px; }
+  .reminder-empty h3 { color: var(--black); font-size: 16px; margin-bottom: 6px; }
+  @media (max-width: 980px) {
+    .reminders-layout { grid-template-columns: 1fr; }
+    .reminder-composer { position: static; }
+    .reminders-grid { grid-template-columns: 1fr; }
+    .reminders-hero { flex-direction: column; }
+  }
+
+  /* ===== PRICING ===== */
+  .pricing-page { padding: 60px 40px; max-width: 920px; margin: 0 auto; }
+  .pricing-eyebrow { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--gray-border); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; color: var(--gray-text); margin-bottom: 24px; }
+  .pricing-h1 { font-size: clamp(40px, 6vw, 64px); font-weight: 900; letter-spacing: -2px; line-height: 1; margin-bottom: 12px; }
+  .pricing-sub { font-size: 16px; color: var(--gray-text); max-width: 520px; line-height: 1.6; margin-bottom: 48px; }
+  .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .pricing-card { border: 1.5px solid var(--gray-border); border-radius: 16px; padding: 32px; position: relative; }
+  .pricing-card.featured { border-color: var(--purple); border-width: 2px; }
+  .pricing-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--purple); color: white; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 20px; letter-spacing: 0.5px; white-space: nowrap; }
+  .pricing-tier { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray-text); margin-bottom: 6px; }
+  .pricing-name { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 10px; }
+  .pricing-tagline { font-size: 14px; color: var(--gray-text); margin-bottom: 24px; line-height: 1.5; }
+  .pricing-price { font-size: 40px; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px; }
+  .pricing-price span { font-size: 16px; font-weight: 500; color: var(--gray-text); }
+  .pricing-price.purple { color: var(--purple); }
+  .pricing-annual { font-size: 12px; font-weight: 600; color: var(--purple); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pricing-divider { border: none; border-top: 1px solid var(--gray-border); margin: 20px 0; }
+  .pricing-feature { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; margin-bottom: 12px; color: var(--black); }
+  .pricing-feature.disabled { color: var(--gray-mid); }
+  .pricing-feature .icon { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+  .pricing-feature .feature-link { color: var(--purple); font-weight: 600; }
+  .pricing-btn { width: 100%; padding: 14px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: 1.5px solid var(--gray-border); background: white; color: var(--black); margin-top: 24px; letter-spacing: 0.3px; transition: all 0.2s; }
+  .pricing-btn.primary { background: var(--purple); color: white; border-color: var(--purple); display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .pricing-btn.primary:hover { background: var(--purple-dark); }
+  .pricing-btn:hover:not(.primary) { background: var(--gray-bg); }
+  .pricing-footer { text-align: center; margin-top: 40px; }
+  .pricing-footer p { font-size: 12px; color: var(--gray-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 16px; }
+  .payment-icons { display: flex; justify-content: center; gap: 16px; }
+  .payment-icon { width: 36px; height: 24px; border: 1px solid var(--gray-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+
+
+  /* ===== AUTH ===== */
+  .auth-page {
+    min-height: calc(100vh - 60px);
+    display: grid;
+    grid-template-columns: minmax(320px, 460px) 1fr;
+    background: var(--white);
+  }
+  .auth-panel {
+    border-right: 1px solid var(--gray-border);
+    padding: 52px 44px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .auth-brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 18px; font-weight: 800; color: var(--purple); margin-bottom: 36px;
+  }
+  .auth-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: var(--gray-text); text-transform: uppercase; margin-bottom: 12px; }
+  .auth-title { font-size: 40px; font-weight: 900; letter-spacing: -1.4px; line-height: 1.05; margin-bottom: 12px; }
+  .auth-title span { color: var(--purple); }
+  .auth-sub { font-size: 14px; color: var(--gray-text); line-height: 1.7; margin-bottom: 28px; }
+  .auth-form { display: flex; flex-direction: column; gap: 14px; }
+  .auth-field label { display: block; font-size: 11px; font-weight: 800; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 7px; }
+  .auth-input {
+    width: 100%; border: 1.5px solid var(--gray-border); border-radius: 10px;
+    padding: 12px 13px; font-size: 14px; font-family: var(--font); outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .auth-input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(91,63,228,0.08); }
+  .auth-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--gray-text); }
+  .auth-check { display: flex; align-items: center; gap: 7px; }
+  .auth-link { color: var(--purple); font-weight: 800; cursor: pointer; text-decoration: none; }
+  .auth-submit {
+    width: 100%; border: none; border-radius: 10px; background: var(--purple); color: var(--white);
+    padding: 13px; font-size: 14px; font-weight: 900; cursor: pointer; margin-top: 4px; transition: background 0.2s, transform 0.15s;
+  }
+  .auth-submit:hover { background: var(--purple-dark); transform: translateY(-1px); }
+  .auth-divider { display: flex; align-items: center; gap: 10px; color: var(--gray-mid); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 18px 0; }
+  .auth-divider::before, .auth-divider::after { content: ''; height: 1px; background: var(--gray-border); flex: 1; }
+  .auth-demo-btn { border: 1.5px solid var(--gray-border); background: var(--white); border-radius: 10px; padding: 12px; font-size: 13px; font-weight: 800; cursor: pointer; }
+  .auth-switch { margin-top: 22px; font-size: 13px; color: var(--gray-text); text-align: center; }
+  .auth-visual {
+    padding: 54px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #f7f5ff 0%, #ffffff 54%, #f7f7f7 100%);
+  }
+  .auth-preview {
+    width: min(520px, 100%); border: 1.5px solid var(--gray-border); border-radius: 22px; background: rgba(255,255,255,0.82);
+    box-shadow: 0 24px 70px rgba(91,63,228,0.14); padding: 24px;
+  }
+  .auth-preview-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .auth-preview-title { font-size: 15px; font-weight: 900; }
+  .auth-preview-badge { background: var(--purple); color: white; padding: 5px 9px; border-radius: 999px; font-size: 10px; font-weight: 900; }
+  .auth-preview-card { border: 1.5px solid var(--gray-border); border-radius: 14px; padding: 16px; background: white; margin-bottom: 12px; }
+  .auth-preview-card strong { display: block; font-size: 14px; margin-bottom: 8px; }
+  .auth-preview-card p { font-size: 12px; color: var(--gray-text); line-height: 1.6; }
+  .auth-mini-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .auth-mini-tag { font-size: 11px; color: var(--purple); background: var(--purple-light); border: 1px solid #c4b5fd; border-radius: 999px; padding: 4px 8px; font-weight: 700; }
+  .auth-user-pill { display: none; align-items: center; gap: 8px; border: 1.5px solid var(--gray-border); border-radius: 999px; padding: 5px 10px 5px 5px; font-size: 12px; font-weight: 800; cursor: pointer; }
+  .auth-user-avatar { width: 26px; height: 26px; border-radius: 999px; background: var(--purple); color: white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; }
+  .btn-logout { display: none; border: 1.5px solid var(--gray-border); background: white; color: var(--black); font-size: 12px; font-weight: 800; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+  .auth-error { display: none; border: 1.5px solid #fecaca; background: #fff5f5; color: #b91c1c; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 700; line-height: 1.5; }
+  .auth-error.show { display: block; }
+  @media (max-width: 900px) {
+    .auth-page { grid-template-columns: 1fr; }
+    .auth-visual { display: none; }
+    .auth-panel { border-right: none; padding: 42px 24px; }
+  }
+
+  /* ===== IMAGE VIEWER ===== */
+  .image-viewer-overlay {
+    display: none; position: fixed; inset: 0; z-index: 260;
+    background: rgba(0,0,0,0.72); align-items: center; justify-content: center;
+    padding: 28px; backdrop-filter: blur(4px);
+  }
+  .image-viewer-overlay.open { display: flex; }
+  .image-viewer-panel {
+    position: relative; width: min(980px, 94vw); max-height: 90vh;
+    background: var(--white); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.32);
+  }
+  .image-viewer-close {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    width: 34px; height: 34px; border: none; border-radius: 999px;
+    background: rgba(10,10,10,0.8); color: white; font-size: 22px;
+    line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .image-viewer-img-wrap {
+    background: #111; display: flex; align-items: center; justify-content: center;
+    max-height: calc(90vh - 74px); overflow: auto;
+  }
+  .image-viewer-img-wrap img {
+    max-width: 100%; max-height: calc(90vh - 74px); display: block; object-fit: contain;
+  }
+  .image-viewer-footer {
+    padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    border-top: 1px solid var(--gray-border);
+  }
+  .image-viewer-title { font-size: 14px; font-weight: 800; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .image-viewer-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .image-viewer-btn {
+    border: 1.5px solid var(--gray-border); background: white; color: var(--black);
+    border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 800; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .image-viewer-btn.primary { background: var(--purple); border-color: var(--purple); color: white; }
+  @media (max-width: 720px) {
+    .image-viewer-footer { align-items: flex-start; flex-direction: column; }
+    .image-viewer-title { white-space: normal; }
+  }
+
+  /* ===== MODAL ===== */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; padding: 32px; width: 480px; max-width: 90vw; }
+  .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+  .modal-field { margin-bottom: 16px; }
+  .modal-label { font-size: 12px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .modal-input { width: 100%; border: 1.5px solid var(--gray-border); border-radius: 8px; padding: 10px 12px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .modal-input:focus { border-color: var(--purple); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .modal-cancel { flex: 1; padding: 11px; border: 1.5px solid var(--gray-border); border-radius: 8px; background: white; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .modal-save { flex: 1; padding: 11px; border: none; border-radius: 8px; background: var(--purple); color: white; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .modal-save:hover { background: var(--purple-dark); }
+  .ai-tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .ai-tag { background: var(--purple-light); color: var(--purple); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 20px; border: 1px solid #c4b5fd; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 90px; right: 28px; background: var(--black); color: white; font-size: 13px; font-weight: 500; padding: 12px 20px; border-radius: 8px; z-index: 300; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-text); }
+  .empty-state svg { width: 48px; height: 48px; margin: 0 auto 16px; opacity: 0.3; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--black); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo" id="nav-logo"><svg width="28" height="28" viewBox="0 0 28 28" style="display:inline-block;vertical-align:middle;margin-right:6px" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="14" fill="#5B3FE4"/><path d="M9 7 H19 V22 L14 18 L9 22 Z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="white" text-anchor="middle">M</text><circle cx="21" cy="7" r="4" fill="#a78bfa"/><text x="21" y="10" font-family="system-ui,sans-serif" font-size="6" font-weight="700" fill="white" text-anchor="middle">★</text></svg>Mnemonics</div>
+  <div class="nav-links" id="nav-links">
+    <a id="nav-dashboard">Bảng điều khiển</a>
+    <a id="nav-spaces">Không gian</a>
+    <a id="nav-reminders">Nhắc nhở</a>
+    <a id="nav-pricing">Gói dịch vụ</a>
+  </div>
+  <div class="nav-right">
+    <div class="btn-login" id="btn-login">Đăng nhập</div>
+    <button class="btn-signup" id="btn-signup">ĐĂNG KÝ</button>
+    <div class="auth-user-pill" id="auth-user-pill" title="Mở dashboard">
+      <span class="auth-user-avatar" id="auth-user-avatar">M</span>
+      <span id="auth-user-name">User</span>
+    </div>
+    <button class="btn-logout" id="btn-logout">Đăng xuất</button>
+  </div>
+</nav>
+
+<!-- ===== LANDING PAGE ===== -->
+<div class="page active" id="page-landing">
+  <div class="hero">
+    <h1>Ghi nhớ mọi thứ.<br><span>Không cần sắp xếp.</span></h1>
+    <p>Mnemonics ứng dụng AI để tự động hóa việc tổ chức liên kết, tài liệu và ghi chú. Một hạ tầng kỹ thuật số tinh gọn cho tư duy của bạn.</p>
+    <button class="hero-btn" id="btn-hero">
+      BẮT ĐẦU MIỄN PHÍ
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+    </button>
+  </div>
+
+  <div class="features-section">
+    <div class="features-label">Cơ chế vận hành</div>
+    <div class="features-title">Hệ thống loại bỏ mọi rào cản</div>
+    <p class="features-sub">
+      Thiết kế để xóa bỏ khoảng cách giữa việc tiếp nhận thông tin và truy xuất ký ức.
+      <span>MÃ HÓA TÀI LIỆU [03]</span>
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M12 12l3 3"/></svg>
+        </div>
+        <div class="feature-name">Tìm kiếm thông minh</div>
+        <p class="feature-desc">Truy vấn bằng ngôn ngữ tự nhiên. Không cần nhớ từ khóa chính xác, chỉ cần mô tả những gì bạn đang tìm kiếm.</p>
+        <div class="feature-demo">
+          <svg viewBox="0 0 16 16" fill="none" stroke="#999" stroke-width="1.5" style="width:12px;height:12px;margin-right:6px;vertical-align:-2px"><path d="M1 5l1 7h12l1-7"/></svg>
+          "Bài viết về thiết kế UI tuần trước..."
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><path d="M9 11.5h5M11.5 9v5"/></svg>
+        </div>
+        <div class="feature-name">Phân loại tự động</div>
+        <p class="feature-desc">Tạm biệt các thư mục thủ công. AI phân tích và tự động đưa nội dung vào đúng không gian làm việc phù hợp.</p>
+        <div class="feature-demo">
+          <span class="tag active">THIẾT KẾ</span>
+          <span class="tag">NGHIÊN CỨU</span>
+          <span class="tag more">+03</span>
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M1 8h14"/><circle cx="8" cy="8" r="7"/></svg>
+        </div>
+        <div class="feature-name">Nhắc nhở ngữ cảnh</div>
+        <p class="feature-desc">AI theo dõi các ghi chú quan trọng và nhắc nhở bạn vào thời điểm thích hợp để củng cố kiến thức.</p>
+        <div class="feature-demo">
+          <div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid var(--gray-border);border-radius:4px;padding:6px 8px;font-size:11px;">
+            <span style="width:8px;height:8px;background:var(--purple);border-radius:2px;flex-shrink:0;display:inline-block;"></span>
+            CẦN XEM LẠI: 02 MỤC QUAN TRỌNG
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>
+      <div class="footer-logo">MNEMONICS</div>
+      <div class="footer-sub">© 2024 MNEMONICS. INFRASTRUCTURE FOR THE MIND.</div>
+    </div>
+    <div class="footer-links">
+      <a href="#">QUYỀN RIÊNG TƯ</a>
+      <a href="#">ĐIỀU KHOẢN</a>
+      <a href="#">HỖ TRỢ</a>
+    </div>
+  </footer>
+</div>
+
+
+<!-- ===== LOGIN PAGE ===== -->
+<div class="page" id="page-login">
+  <div class="auth-page">
+    <div class="auth-panel">
+      <div class="auth-brand">
+        <svg width="30" height="30" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="14" fill="#5B3FE4"/><path d="M9 7 H19 V22 L14 18 L9 22 Z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="white" text-anchor="middle">M</text><circle cx="21" cy="7" r="4" fill="#a78bfa"/><text x="21" y="10" font-family="system-ui,sans-serif" font-size="6" font-weight="700" fill="white" text-anchor="middle">★</text></svg>
+        Mnemonics
+      </div>
+      <div class="auth-eyebrow">Đăng nhập tài khoản</div>
+      <h1 class="auth-title">Chào mừng <span>trở lại.</span></h1>
+      <p class="auth-sub">Truy cập lại kho ký ức, todo list, biên bản họp và không gian cá nhân của bạn.</p>
+      <div class="auth-form">
+        <div class="auth-error" id="login-error"></div>
+        <div class="auth-field">
+          <label>Email</label>
+          <input class="auth-input" id="login-email" type="email" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label>Mật khẩu</label>
+          <input class="auth-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="auth-row">
+          <label class="auth-check"><input id="login-remember" type="checkbox" checked> Ghi nhớ đăng nhập</label>
+          <span class="auth-link" id="auth-demo-login">Dùng tài khoản demo</span>
+        </div>
+        <button class="auth-submit" id="btn-auth-login">ĐĂNG NHẬP</button>
+      </div>
+      <div class="auth-switch">Chưa có tài khoản? <span class="auth-link" id="auth-go-signup">Đăng ký miễn phí</span></div>
+    </div>
+    <div class="auth-visual">
+      <div class="auth-preview">
+        <div class="auth-preview-head">
+          <div class="auth-preview-title">Không gian của bạn</div>
+          <div class="auth-preview-badge">SYNC LOCAL</div>
+        </div>
+        <div class="auth-preview-card">
+          <strong>Todo list hôm nay</strong>
+          <p>✓ Tổng hợp tài liệu đã lưu<br>□ Xem lại 2 mục cần ôn tập<br>□ Chuẩn bị nội dung họp nhóm</p>
+          <div class="auth-mini-tags"><span class="auth-mini-tag">todo</span><span class="auth-mini-tag">study</span></div>
+        </div>
+        <div class="auth-preview-card">
+          <strong>AI Semantic Search</strong>
+          <p>Tìm lại nội dung bằng cách mô tả ý tưởng, không cần nhớ đúng keyword ban đầu.</p>
+          <div class="auth-mini-tags"><span class="auth-mini-tag">search</span><span class="auth-mini-tag">memory</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SIGNUP PAGE ===== -->
+<div class="page" id="page-signup">
+  <div class="auth-page">
+    <div class="auth-panel">
+      <div class="auth-brand">
+        <svg width="30" height="30" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="14" fill="#5B3FE4"/><path d="M9 7 H19 V22 L14 18 L9 22 Z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="white" text-anchor="middle">M</text><circle cx="21" cy="7" r="4" fill="#a78bfa"/><text x="21" y="10" font-family="system-ui,sans-serif" font-size="6" font-weight="700" fill="white" text-anchor="middle">★</text></svg>
+        Mnemonics
+      </div>
+      <div class="auth-eyebrow">Tạo tài khoản mới</div>
+      <h1 class="auth-title">Bắt đầu xây <span>bộ não số.</span></h1>
+      <p class="auth-sub">Tạo tài khoản để lưu ký ức, ảnh, ghi chú và nhắc nhở trong một dashboard thống nhất.</p>
+      <div class="auth-form">
+        <div class="auth-error" id="signup-error"></div>
+        <div class="auth-field">
+          <label>Tên hiển thị</label>
+          <input class="auth-input" id="signup-name" type="text" placeholder="VD: Jane Doe" autocomplete="name">
+        </div>
+        <div class="auth-field">
+          <label>Email</label>
+          <input class="auth-input" id="signup-email" type="email" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label>Mật khẩu</label>
+          <input class="auth-input" id="signup-password" type="password" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password">
+        </div>
+        <div class="auth-field">
+          <label>Nhập lại mật khẩu</label>
+          <input class="auth-input" id="signup-confirm" type="password" placeholder="Nhập lại mật khẩu" autocomplete="new-password">
+        </div>
+        <button class="auth-submit" id="btn-auth-signup">TẠO TÀI KHOẢN</button>
+      </div>
+      <div class="auth-switch">Đã có tài khoản? <span class="auth-link" id="auth-go-login">Đăng nhập</span></div>
+    </div>
+    <div class="auth-visual">
+      <div class="auth-preview">
+        <div class="auth-preview-head">
+          <div class="auth-preview-title">Gói Memory</div>
+          <div class="auth-preview-badge">FREE</div>
+        </div>
+        <div class="auth-preview-card">
+          <strong>50 mục lưu mỗi tháng</strong>
+          <p>Lưu nhanh bài viết, ảnh, quote, ghi chú và những nội dung cần quay lại sau.</p>
+          <div class="auth-mini-tags"><span class="auth-mini-tag">capture</span><span class="auth-mini-tag">note</span><span class="auth-mini-tag">image</span></div>
+        </div>
+        <div class="auth-preview-card">
+          <strong>Nhắc nhở & biên bản họp</strong>
+          <p>Biến meeting note thành checklist có thể tick hoàn thành ngay trong dashboard.</p>
+          <div class="auth-mini-tags"><span class="auth-mini-tag">meeting</span><span class="auth-mini-tag">task</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD ===== -->
+<div class="page" id="page-dashboard">
+  <div class="dashboard-layout">
+    <div class="sidebar">
+      <div class="sidebar-logo"><svg width="26" height="26" viewBox="0 0 28 28" style="display:inline-block;vertical-align:middle;margin-right:6px" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="14" fill="#5B3FE4"/><path d="M9 7 H19 V22 L14 18 L9 22 Z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/><text x="14" y="17" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="white" text-anchor="middle">M</text><circle cx="21" cy="7" r="4" fill="#a78bfa"/><text x="21" y="10" font-family="system-ui,sans-serif" font-size="6" font-weight="700" fill="white" text-anchor="middle">★</text></svg>Mnemonics</div>
+      <div class="sidebar-item active" id="sidebar-dashboard">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M12 12l3 3"/></svg>
+        Tìm kiếm
+      </div>
+      <div class="sidebar-item" id="sidebar-spaces">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        Không gian
+      </div>
+      <div class="sidebar-item" id="sidebar-reminders">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/><path d="M8 5v4l2.5 2.5"/></svg>
+        Nhắc nhở
+      </div>
+      <div class="sidebar-bottom">
+        <div class="sidebar-settings" id="sidebar-settings">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:15px;height:15px"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
+          Cài đặt
+        </div>
+        <div class="user-row">
+          <div class="avatar">JD</div>
+          <div class="user-name">Jane Doe</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <!-- Memory banner -->
+      <div class="memory-banner">
+        <div class="banner-left">
+          <div class="banner-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="#5B3FE4" stroke-width="1.5"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2z"/><path d="M10 6v4l3 3"/></svg>
+          </div>
+          <div>
+            <div class="banner-meta">KHÁM PHÁ LẠI · 1 NĂM TRƯỚC</div>
+            <div class="banner-title">Bạn đã lưu 4 mục về "Thiết kế"</div>
+          </div>
+        </div>
+        <button class="banner-btn" id="btn-banner">
+          XEM BỘ SƯU TẬP
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+
+      <!-- Header + Search -->
+      <div class="dash-header">
+        <div>
+          <div class="dash-title">Lưu trữ của bạn</div>
+          <div class="dash-count" id="item-count">0 ký ức đã được lưu trong tháng này.</div>
+        </div>
+        <div class="search-bar">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M12 12l3 3"/></svg>
+          <input id="search-input" type="text" placeholder="Tìm kiếm không gian, thẻ hoặc nội dung..."/>
+        </div>
+      </div>
+
+      <!-- AI Result -->
+      <div id="ai-result">
+        <div class="ai-label">
+          <svg viewBox="0 0 16 16" fill="none" stroke="#5B3FE4" stroke-width="1.5" style="width:13px;height:13px"><path d="M8 1l1.5 4.5H14L10 8.5l1.5 4.5L8 10.5 4.5 13 6 8.5 2 5.5h4.5z"/></svg>
+          AI SEMANTIC SEARCH
+        </div>
+        <div id="ai-result-text" class="ai-text"></div>
+      </div>
+
+      <!-- Sort & filter controls -->
+      <div class="dash-controls">
+        <div class="format-chips" id="format-chips">
+          <div class="format-chip active" data-format="all">Tất cả</div>
+          <div class="format-chip" data-format="text">📝 Văn bản</div>
+          <div class="format-chip" data-format="image">🖼️ Ảnh</div>
+          <div class="format-chip" data-format="link">🔗 Link</div>
+          <div class="format-chip" data-format="file">📎 Tệp</div>
+          <div class="format-chip" data-format="screenshot">📸 Ảnh chụp MH</div>
+          <div class="format-chip" data-format="quote">💬 Trích dẫn</div>
+        </div>
+        <div class="control-group" style="margin-left:auto">
+          <span class="control-label">Sắp xếp</span>
+          <select class="control-select" id="sort-select">
+            <option value="newest">Mới nhất trước</option>
+            <option value="oldest">Cũ nhất trước</option>
+            <option value="title">Tiêu đề A → Z</option>
+            <option value="type">Theo định dạng</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">Thời gian</span>
+          <select class="control-select" id="time-select">
+            <option value="all">Mọi lúc</option>
+            <option value="today">Hôm nay</option>
+            <option value="week">7 ngày qua</option>
+            <option value="month">Tháng này</option>
+            <option value="year">Năm nay</option>
+          </select>
+        </div>
+      </div>
+
+      <hr class="items-divider">
+
+      <!-- Dashboard body: cards + book rail -->
+      <div class="dashboard-body">
+        <div class="dashboard-primary">
+          <div class="masonry" id="cards-container">
+            <!-- Filled by JS -->
+          </div>
+        </div>
+        <aside class="book-rail" id="book-rail">
+          <!-- Filled by JS -->
+        </aside>
+      </div>
+    </div>
+  </div>
+  <button class="fab" id="btn-fab" title="Thêm ký ức mới">+</button>
+</div>
+
+<!-- ===== KHÔNG GIAN ===== -->
+<div class="page" id="page-spaces">
+  <div class="spaces-header">
+    <div class="spaces-title-bar">
+      <div class="spaces-tab active" data-space-filter="all">TẤT CẢ KHÔNG GIAN</div>
+      <div class="spaces-tab" data-space-filter="recent">GẦN ĐÂY</div>
+      <div class="spaces-tab" data-space-filter="favorite">YÊU THÍCH</div>
+    </div>
+    <div class="view-toggle">
+      <div class="view-btn active" data-space-view="grid" title="Dạng lưới">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="5" height="5" rx="1"/><rect x="8" y="1" width="5" height="5" rx="1"/><rect x="1" y="8" width="5" height="5" rx="1"/><rect x="8" y="8" width="5" height="5" rx="1"/></svg>
+      </div>
+      <div class="view-btn" data-space-view="list" title="Dạng danh sách">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h12M1 7h12M1 11h12"/></svg>
+      </div>
+    </div>
+  </div>
+  <hr class="spaces-divider">
+  <div class="space-detail" id="space-detail"></div>
+  <div class="spaces-grid" id="spaces-grid">
+    <!-- Filled by JS -->
+  </div>
+</div>
+
+
+<!-- ===== NHẮC NHỞ ===== -->
+<div class="page" id="page-reminders">
+  <div class="reminders-page">
+    <div class="reminders-hero">
+      <div>
+        <div class="reminders-eyebrow">Daily checklist · Meeting minutes</div>
+        <div class="reminders-title">Nhắc nhở</div>
+        <p class="reminders-sub">Tạo checklist cho một ngày, ghi lại biên bản cuộc họp, rồi đánh dấu các việc cần làm ngay trong dashboard.</p>
+      </div>
+      <div class="reminder-stat-card">
+        <div class="reminder-stat-number" id="reminder-open-count">0</div>
+        <div class="reminder-stat-label">việc chưa hoàn thành</div>
+      </div>
+    </div>
+
+    <div class="reminders-layout">
+      <div class="reminder-composer">
+        <div class="reminder-panel-title">+ Tạo nhắc nhở mới</div>
+        <div class="reminder-field">
+          <div class="reminder-label">Loại</div>
+          <select class="reminder-select" id="reminder-kind-input">
+            <option value="todo">Todo list trong ngày</option>
+            <option value="meeting">Biên bản cuộc họp</option>
+          </select>
+        </div>
+        <div class="reminder-field">
+          <div class="reminder-label">Tiêu đề</div>
+          <input class="reminder-input" id="reminder-title-input" type="text" placeholder="VD: Chuẩn bị họp: Kiến trúc hệ thống">
+        </div>
+        <div class="reminder-field">
+          <div class="reminder-label">Checklist / Action items</div>
+          <textarea class="reminder-textarea" id="reminder-tasks-input" placeholder="Mỗi dòng là một việc cần làm&#10;Xem lại chiến lược bộ nhớ đệm&#10;Thảo luận về WebSockets so với SSE&#10;Kiểm tra giới hạn tần suất API"></textarea>
+          <div class="reminder-help">Mẹo: với biên bản họp, nhập các quyết định hoặc action items thành từng dòng.</div>
+        </div>
+        <div class="reminder-field">
+          <div class="reminder-label">Không gian</div>
+          <input class="reminder-input" id="reminder-space-input" type="text" placeholder="VD: Công việc" value="Công việc">
+        </div>
+        <button class="reminder-add-btn" id="btn-reminder-add">LƯU NHẮC NHỞ ✦</button>
+      </div>
+
+      <div class="reminder-list-panel">
+        <div class="reminder-list-top">
+          <div>
+            <div class="reminder-panel-title" style="margin-bottom:4px">Danh sách nhắc nhở</div>
+            <div class="reminder-list-count" id="reminder-list-count">0 mục</div>
+          </div>
+        </div>
+        <div class="reminder-tabs">
+          <button class="reminder-tab active" data-reminder-filter="all">Tất cả</button>
+          <button class="reminder-tab" data-reminder-filter="todo">Todo</button>
+          <button class="reminder-tab" data-reminder-filter="meeting">Biên bản họp</button>
+          <button class="reminder-tab" data-reminder-filter="open">Chưa xong</button>
+          <button class="reminder-tab" data-reminder-filter="done">Đã xong</button>
+        </div>
+        <div class="reminders-grid" id="reminders-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CÀI ĐẶT ===== -->
+<div class="page" id="page-settings">
+  <div class="settings-page">
+    <div class="settings-title">Cài đặt</div>
+    <div class="settings-sub">Tùy chỉnh giao diện, quản lý dữ liệu và sở thích của bạn.</div>
+
+    <!-- Giao diện -->
+    <div class="settings-section">
+      <div class="settings-section-title">🎨 Giao diện</div>
+      <div class="settings-section-desc">Điều chỉnh chế độ sáng/tối và cỡ chữ hiển thị.</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Chế độ hiển thị</div>
+          <div class="settings-row-hint">Chọn giao diện sáng, tối hoặc theo hệ thống.</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="seg-toggle" id="theme-toggle">
+            <button data-theme="light">☀️ Sáng</button>
+            <button data-theme="dark">🌙 Tối</button>
+            <button data-theme="system">💻 Hệ thống</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Cỡ chữ</div>
+          <div class="settings-row-hint">Áp dụng cho toàn bộ ứng dụng.</div>
+        </div>
+        <div class="settings-row-control">
+          <div class="seg-toggle" id="fontsize-toggle">
+            <button data-fontsize="sm">Nhỏ</button>
+            <button data-fontsize="md">Vừa</button>
+            <button data-fontsize="lg">Lớn</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sở thích lĩnh vực -->
+    <div class="settings-section">
+      <div class="settings-section-title">📚 Sở thích lĩnh vực</div>
+      <div class="settings-section-desc">Chọn các lĩnh vực bạn quan tâm. Mnemonics sẽ gợi ý sách, khóa học và tài liệu phù hợp ở ô "Gợi ý cho bạn" trên Bảng điều khiển.</div>
+      <div class="topic-tags" id="topic-tags"></div>
+    </div>
+
+    <!-- Thông báo -->
+    <div class="settings-section">
+      <div class="settings-section-title">🔔 Thông báo</div>
+      <div class="settings-section-desc">Quản lý thông báo khi lưu và nhắc nhở.</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Thông báo khi lưu ký ức</div>
+          <div class="settings-row-hint">Hiện thông báo mỗi khi lưu thành công.</div>
+        </div>
+        <div class="settings-row-control">
+          <label class="switch"><input type="checkbox" id="setting-notif-save" checked><span class="switch-slider"></span></label>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Nhắc nhở việc chưa hoàn thành</div>
+          <div class="settings-row-hint">Nhắc lại các việc trong checklist chưa xong.</div>
+        </div>
+        <div class="settings-row-control">
+          <label class="switch"><input type="checkbox" id="setting-notif-remind" checked><span class="switch-slider"></span></label>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Gợi ý "Khám phá lại"</div>
+          <div class="settings-row-hint">Nhắc lại ký ức đã lưu từ lâu.</div>
+        </div>
+        <div class="settings-row-control">
+          <label class="switch"><input type="checkbox" id="setting-notif-rediscover" checked><span class="switch-slider"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dữ liệu -->
+    <div class="settings-section">
+      <div class="settings-section-title">💾 Dữ liệu</div>
+      <div class="settings-section-desc">Sao lưu, khôi phục hoặc xóa toàn bộ ký ức đã lưu.</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Xuất dữ liệu</div>
+          <div class="settings-row-hint">Tải toàn bộ ký ức về dưới dạng tệp JSON để sao lưu.</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="settings-btn primary" id="btn-export-data">⬇ Xuất JSON</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Nhập dữ liệu</div>
+          <div class="settings-row-hint">Khôi phục từ tệp JSON đã xuất trước đó.</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="settings-btn" id="btn-import-data">⬆ Nhập JSON</button>
+          <input type="file" id="import-file-input" class="settings-hidden-file" accept="application/json,.json">
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Xóa toàn bộ dữ liệu</div>
+          <div class="settings-row-hint">Xóa vĩnh viễn tất cả ký ức và nhắc nhở. Không thể hoàn tác.</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="settings-btn danger" id="btn-clear-data">🗑 Xóa tất cả</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tài khoản -->
+    <div class="settings-section">
+      <div class="settings-section-title">👤 Tài khoản</div>
+      <div class="settings-section-desc">Thông tin đăng nhập và gói dịch vụ.</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label" id="settings-account-name">Khách</div>
+          <div class="settings-row-hint" id="settings-account-email">Chưa đăng nhập</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="settings-btn" id="settings-account-btn">Đăng nhập</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">Gói dịch vụ</div>
+          <div class="settings-row-hint" id="settings-plan-name">Memory (miễn phí)</div>
+        </div>
+        <div class="settings-row-control">
+          <button class="settings-btn" id="settings-upgrade-btn">Nâng cấp</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PRICING ===== -->
+<div class="page" id="page-pricing">
+  <div class="pricing-page">
+    <div class="pricing-eyebrow">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M5 7h6M5 10h4"/></svg>
+      HẠ TẦNG NĂNG SUẤT THÔNG MINH
+    </div>
+    <h1 class="pricing-h1">GHI NHỚ MỌI THỨ.<br>TRUY XUẤT TỨC THÌ.</h1>
+    <p class="pricing-sub">Hệ thống hóa tri thức cá nhân với hạ tầng AI chuyên sâu. Chọn gói dịch vụ tối ưu để mở khóa khả năng lưu trữ không giới hạn.</p>
+
+    <div class="pricing-grid">
+      <!-- Free -->
+      <div class="pricing-card">
+        <div class="pricing-tier">CƠ BẢN</div>
+        <div class="pricing-name">MEMORY</div>
+        <p class="pricing-tagline">Lý tưởng để làm quen với quản trị tri thức cá nhân.</p>
+        <div class="pricing-price">0 VND <span>/ vĩnh viễn</span></div>
+        <div style="height:20px"></div>
+        <hr class="pricing-divider">
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="#999" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          Tối đa 50 mục lưu trữ / tháng
+        </div>
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="#999" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          Hệ thống thư mục & nhãn cơ bản
+        </div>
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="#999" stroke-width="1.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          Tìm kiếm tiêu chuẩn
+        </div>
+        <div class="pricing-feature disabled">
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="#ccc" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Phân loại thông minh bằng AI
+        </div>
+        <button class="pricing-btn" id="btn-current-plan">GÓI HIỆN TẠI</button>
+      </div>
+
+      <!-- Paid -->
+      <div class="pricing-card featured">
+        <div class="pricing-badge">ƯU TIÊN SỬ DỤNG</div>
+        <div class="pricing-tier">NÂNG CAO</div>
+        <div class="pricing-name" style="display:flex;align-items:center;gap:8px;">
+          MASTERY
+          <svg viewBox="0 0 16 16" fill="none" stroke="#5B3FE4" stroke-width="1.5" style="width:18px;height:18px"><circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4"/></svg>
+        </div>
+        <p class="pricing-tagline">Kích hoạt toàn bộ sức mạnh AI để vận hành bộ não số của bạn.</p>
+        <div class="pricing-price purple">29.000 VND <span>/ tháng</span></div>
+        <div class="pricing-annual">THANH TOÁN THEO NĂM (249.000VND/NĂM)</div>
+        <hr class="pricing-divider">
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="#5B3FE4" stroke="none"><path d="M3 8l3 3 7-7" stroke="#5B3FE4" stroke-width="2" fill="none"/></svg>
+          Lưu trữ mục không giới hạn
+        </div>
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="#5B3FE4" stroke="none"><path d="M3 8l3 3 7-7" stroke="#5B3FE4" stroke-width="2" fill="none"/></svg>
+          <span><span class="feature-link">AI SMART GROUPING</span> — Tự động phân loại dữ liệu</span>
+        </div>
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="#5B3FE4" stroke="none"><path d="M3 8l3 3 7-7" stroke="#5B3FE4" stroke-width="2" fill="none"/></svg>
+          <span><span class="feature-link">AI SEMANTIC SEARCH</span> — Tìm kiếm theo khái niệm</span>
+        </div>
+        <div class="pricing-feature">
+          <svg class="icon" viewBox="0 0 16 16" fill="#5B3FE4" stroke="none"><path d="M3 8l3 3 7-7" stroke="#5B3FE4" stroke-width="2" fill="none"/></svg>
+          Tích hợp Reminder Pro hệ thống
+        </div>
+        <button class="pricing-btn primary" id="btn-upgrade">
+          NÂNG CẤP LÊN MASTERY
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="pricing-footer">
+      <p>HỆ THỐNG THANH TOÁN BẢO MẬT BỞI STRIPE. HỦY BẤT KỲ LÚC NÀO.</p>
+      <div class="payment-icons">
+        <div class="payment-icon"><svg viewBox="0 0 24 16" fill="none" stroke="#ccc" stroke-width="1"><rect x="1" y="1" width="22" height="14" rx="2"/><path d="M1 5h22"/></svg></div>
+        <div class="payment-icon"><svg viewBox="0 0 24 16" fill="none" stroke="#ccc" stroke-width="1"><rect x="1" y="1" width="22" height="14" rx="2"/><circle cx="9" cy="8" r="4" stroke="#ccc"/><circle cx="15" cy="8" r="4" stroke="#ccc"/></svg></div>
+        <div class="payment-icon"><svg viewBox="0 0 24 16" fill="none" stroke="#ccc" stroke-width="1"><rect x="1" y="1" width="22" height="14" rx="2"/><path d="M7 10V6l2 4 2-4v4M13 6h3a1.5 1.5 0 010 3h-3"/></svg></div>
+        <div class="payment-icon"><svg viewBox="0 0 24 16" fill="none" stroke="#ccc" stroke-width="1"><rect x="1" y="1" width="22" height="14" rx="2"/><path d="M7 6h10M7 10h6"/></svg></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">✦ Thêm ký ức mới</div>
+    <div class="modal-field">
+      <div class="modal-label">Tiêu đề</div>
+      <input class="modal-input" id="new-title" type="text" placeholder="Tên tài liệu, bài viết...">
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Nội dung / URL</div>
+      <textarea class="modal-input" id="new-content" rows="3" placeholder="Dán nội dung, link, hoặc ghi chú của bạn..."></textarea>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Loại</div>
+      <select class="modal-input" id="new-type">
+        <option value="article">📄 Bài viết</option>
+        <option value="note">📝 Ghi chú</option>
+        <option value="quote">💬 Trích dẫn</option>
+        <option value="code">💻 Mã nguồn</option>
+        <option value="link">🔗 Link / Đường dẫn</option>
+        <option value="file">📎 Tệp đính kèm</option>
+        <option value="screenshot">📸 Ảnh chụp màn hình</option>
+        <option value="image">🖼️ Ảnh</option>
+      </select>
+    </div>
+    <div class="modal-field" id="modal-url-field" style="display:none">
+      <div class="modal-label">Đường dẫn (URL)</div>
+      <input class="modal-input" id="new-url" type="text" placeholder="https://... hoặc dán link">
+    </div>
+    <div class="modal-field" id="modal-file-field" style="display:none">
+      <div class="modal-label" id="modal-file-label">Chọn tệp / ảnh (hoặc dán ảnh chụp màn hình vào ô nội dung)</div>
+      <input class="modal-input" id="new-file" type="file">
+      <div id="modal-file-preview" style="margin-top:10px"></div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">AI Tags (tự động tạo)</div>
+      <div class="ai-tag-row" id="ai-tags-preview">
+        <span style="font-size:13px;color:var(--gray-text)">Nhập nội dung để AI tạo tags...</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="btn-modal-cancel">Hủy</button>
+      <button class="modal-save" id="btn-modal-save">Lưu ký ức ✦</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMAGE VIEWER -->
+<div class="image-viewer-overlay" id="image-viewer">
+  <div class="image-viewer-panel">
+    <button class="image-viewer-close" id="image-viewer-close" title="Đóng">×</button>
+    <div class="image-viewer-img-wrap">
+      <img id="image-viewer-img" src="" alt="Ảnh đã lưu">
+    </div>
+    <div class="image-viewer-footer">
+      <div class="image-viewer-title" id="image-viewer-title">Ảnh đã lưu</div>
+      <div class="image-viewer-actions">
+        <button class="image-viewer-btn" id="image-viewer-open-page">Mở trang nguồn</button>
+        <button class="image-viewer-btn primary" id="image-viewer-open-image">Mở ảnh gốc</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

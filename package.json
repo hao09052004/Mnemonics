@@ -1,0 +1,18 @@
+{
+  "name": "mnemonics",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "audit:structure": "node scripts/audit-structure.mjs",
+    "build": "pnpm --recursive build",
+    "typecheck": "pnpm --recursive typecheck",
+    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/api test",
+    "gates:agents": "node quality-gates/runners/check-agents.mjs",
+    "gates:skills": "node quality-gates/runners/check-skills.mjs",
+    "gates:spec-sync": "node quality-gates/runners/check-spec-sync.mjs",
+    "gates:knowledge": "node quality-gates/runners/knowledge-regression.mjs",
+    "gates:all": "pnpm gates:agents && pnpm gates:skills && pnpm gates:spec-sync",
+    "seed:skills": "node scripts/seed-skill-metas.mjs"
+  }
+}
