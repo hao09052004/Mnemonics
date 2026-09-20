@@ -77,31 +77,51 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   const noteText = extra && extra.note ? extra.note : '';
   const capturedAt = extra && extra.capturedAt ? extra.capturedAt : new Date().toISOString();
 
-  // 1. Try the local proxy first — it bypasses CORS by fetching
-  //    server-to-server. Most modern CDNs (Facebook, Instagram, Twitter)
-  //    require this path.
+  // Resolve the image to a Blob. data: URLs are decoded locally (so we
+  // don't need any network fetch and CORS is irrelevant). Remote http(s)
+  // URLs go through the local proxy first (bypasses CORS by fetching
+  // server-to-server); fallback to a direct background fetch which only
+  // works for CORS-friendly CDNs.
   let blob;
   try {
-    blob = await fetchImageViaLocalProxy(imageUrl);
-  } catch (proxyError) {
-    console.warn('[mnemonics] proxy fetch failed, trying direct:', proxyError && proxyError.message);
-    // 2. Fall back to a direct background fetch — works for CORS-friendly
-    //    hosts (Unsplash, Wikimedia, etc.).
-    let directResponse;
-    try {
-      directResponse = await fetch(imageUrl, { credentials: 'omit', redirect: 'follow' });
-    } catch (networkError) {
-      const wrapped = new Error('CORS_BLOCKED: ' + (networkError && networkError.message ? networkError.message : 'fetch failed'));
-      wrapped.code = 'CORS_BLOCKED';
-      throw wrapped;
+    if (/^data:/i.test(imageUrl)) {
+      const mimeMatch = /^data:([^;]+)/i.exec(imageUrl);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const base64 = imageUrl.replace(/^data:[^;]+;base64,/, '');
+      let binary;
+      try { binary = atob(base64); }
+      catch (decodeErr) { throw new Error('Không giải mã được ảnh data URL: ' + decodeErr.message); }
+      const bytes = new Uint8Array(binary.length);
+      for (let bi = 0; bi < binary.length; bi++) bytes[bi] = binary.charCodeAt(bi);
+      blob = new Blob([bytes], { type: mime });
+      console.log('[mnemonics] upload: data URL decoded locally, mime:', mime, 'size:', bytes.length);
+    } else if (/^https?:\/\//i.test(imageUrl)) {
+      try {
+        blob = await fetchImageViaLocalProxy(imageUrl);
+      } catch (proxyError) {
+        console.warn('[mnemonics] proxy fetch failed, trying direct:', proxyError && proxyError.message);
+        let directResponse;
+        try {
+          directResponse = await fetch(imageUrl, { credentials: 'omit', redirect: 'follow' });
+        } catch (networkError) {
+          const wrapped = new Error('CORS_BLOCKED: ' + (networkError && networkError.message ? networkError.message : 'fetch failed'));
+          wrapped.code = 'CORS_BLOCKED';
+          throw wrapped;
+        }
+        if (!directResponse.ok) throw new Error('Không tải được ảnh từ trang nguồn (' + directResponse.status + ').');
+        if (directResponse.type === 'opaque') {
+          const wrapped = new Error('CORS_BLOCKED: opaque response');
+          wrapped.code = 'CORS_BLOCKED';
+          throw wrapped;
+        }
+        blob = await directResponse.blob();
+      }
+    } else {
+      throw new Error('URL ảnh không hỗ trợ: ' + String(imageUrl).slice(0, 40));
     }
-    if (!directResponse.ok) throw new Error('Không tải được ảnh từ trang nguồn (' + directResponse.status + ').');
-    if (directResponse.type === 'opaque') {
-      const wrapped = new Error('CORS_BLOCKED: opaque response');
-      wrapped.code = 'CORS_BLOCKED';
-      throw wrapped;
-    }
-    blob = await directResponse.blob();
+  } catch (blobError) {
+    console.warn('[mnemonics] image blob resolution failed:', blobError && blobError.message);
+    throw blobError;
   }
 
   const mimeType = blob.type || 'image/jpeg';
@@ -139,20 +159,22 @@ async function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
 
   var payload;
   if (!/^https?:\/\//i.test(imageUrl)) {
+    console.log('[mnemonics] cropper: non-http URL, storing directly:', imageUrl.slice(0, 60));
     payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
   } else {
     // Convert the CORS-blocked CDN image to a data: URL through the background
     // worker. data: URLs are same-origin to the extension so the canvas stays
     // untainted and cropping works without CORS/taint errors.
+    console.log('[mnemonics] cropper: fetching image via FETCH_IMAGE_AS_DATA_URL:', imageUrl.slice(0, 80));
     try {
       var response = await new Promise(function(resolve) {
         chrome.runtime.sendMessage({ type: 'FETCH_IMAGE_AS_DATA_URL', url: imageUrl }, resolve);
       });
       if (response && response.ok && response.data && response.data.dataUrl) {
-        console.log('[mnemonics] cropper: image converted to data URL, bytes:', response.data.byteLength);
+        console.log('[mnemonics] cropper: FETCH_IMAGE_AS_DATA_URL ok, bytes:', response.data.byteLength, 'dataUrl len:', response.data.dataUrl.length);
         payload = { imageUrl: response.data.dataUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
       } else {
-        console.warn('[mnemonics] cropper: fetch-as-data-url failed, using raw URL:', response && response.error);
+        console.warn('[mnemonics] cropper: FETCH_IMAGE_AS_DATA_URL failed:', response && response.error, '— using raw URL');
         payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
       }
     } catch (err) {
@@ -162,9 +184,11 @@ async function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
   }
 
   // Wait for the pending screenshot to be stored before opening the cropper tab.
+  console.log('[mnemonics] cropper: storing pending, imageUrl type:', typeof payload.imageUrl, 'prefix:', String(payload.imageUrl).slice(0, 20));
   await new Promise(function(resolve) {
     chrome.runtime.sendMessage({ type: 'SET_PENDING_SCREENSHOT', payload: payload }, resolve);
   });
+  console.log('[mnemonics] cropper: pending stored, opening tab');
   chrome.tabs.create({ url: chrome.runtime.getURL('screenshot-cropper.html') });
 }
 
