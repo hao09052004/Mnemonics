@@ -415,6 +415,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Convert an external image URL to a data: URL the extension page can
+  // render. chrome-extension pages can display `<img src="data:...">` and
+  // `<img src="blob:...">` unconditionally, but cross-origin HTTPS
+  // responses without `Cross-Origin-Resource-Policy: cross-origin` are
+  // blocked by Chrome's CORP/ORB and just show as black squares. Fetching
+  // the bytes from the background service worker (which is not a document
+  // context and is not subject to CORP) and re-encoding as a data URL
+  // sidesteps that check entirely. Same trick used by other screenshot
+  // extensions.
+  if (msg && msg.type === 'FETCH_IMAGE_AS_DATA_URL') {
+    const imageUrl = String(msg.url || '');
+    if (!/^https?:\/\//i.test(imageUrl)) {
+      sendResponse({ ok: false, error: 'URL không hợp lệ' });
+      return true;
+    }
+    fetch(imageUrl, { credentials: 'omit' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        if (!/^image\/(jpeg|png|webp|gif)/i.test(contentType)) {
+          throw new Error('Không phải ảnh: ' + contentType);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
+          throw new Error('Ảnh quá lớn (>10MB)');
+        }
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        sendResponse({
+          ok: true,
+          data: { dataUrl: 'data:' + contentType.split(';')[0] + ';base64,' + base64, byteLength: arrayBuffer.byteLength }
+        });
+      })
+      .catch((err) => {
+        console.warn('[Mnemonics] fetchImageAsDataUrl failed:', err);
+        sendResponse({ ok: false, error: err.message || 'Fetch thất bại' });
+      });
+    return true;
+  }
+
   if (msg && msg.type === 'UPLOAD_IMAGE_FROM_CROPPER') {
     const imageUrl = msg.imageUrl || '';
     const payload = msg.payload || {};
