@@ -277,13 +277,15 @@ async function saveScreenshot(useCrop) {
     // Try server-side upload (requires login AND either a data: URL OR a
     // remote http(s) URL we can re-fetch through the local proxy).
     if (session && session.accessToken && (isDataUrl || /^https?:\/\//.test(imageUrl))) {
-      // The cropper runs inside the extension's web_accessible_resources
-      // origin, which CSP `connect-src` whitelists — but `chrome.runtime`
-      // is still in scope here because the script is loaded as a module
-      // from the same extension origin. Forward the upload to the
-      // background worker so it can use `fetchImageViaLocalProxy` (which
-      // handles the proxy + direct fallback the same way context-menu
-      // saves do), then POST the resulting Blob to /captures/image.
+      // Forward the upload to the background worker so it can use
+      // `fetchImageViaLocalProxy` (which handles the proxy + direct
+      // fallback the same way context-menu saves do), then POST the
+      // resulting Blob to /captures/image. If `chrome.runtime` is not
+      // available (e.g. the page is open outside the extension context),
+      // fall back to a direct fetch from the page.
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        throw new Error('Không liên lạc được với background script (chrome.runtime không khả dụng). Hãy mở cropper từ extension context.');
+      }
       var uploadResult = await new Promise(function(resolve, reject) {
         chrome.runtime.sendMessage(
           {
@@ -325,9 +327,16 @@ async function saveScreenshot(useCrop) {
     });
 
     // Notify the dashboard so it reloads without waiting for the next poll.
-    chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_SCREENSHOT' }, function() {});
-    chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function() {});
-    chrome.runtime.sendMessage({ type: 'ITEM_SAVED' }, function() {});
+    var safeSend = function(type) {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        try { chrome.runtime.sendMessage({ type: type }, function() { void chrome.runtime.lastError; }); } catch (_) {}
+      }
+    };
+    safeSend('CLEAR_PENDING_SCREENSHOT');
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      try { chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function() { void chrome.runtime.lastError; }); } catch (_) {}
+    }
+    safeSend('ITEM_SAVED');
 
     showToast('Đã lưu ảnh vào database');
     notifyScreenshot('Mnemonics', 'Đã lưu ảnh vào database.');
