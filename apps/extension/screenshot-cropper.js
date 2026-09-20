@@ -370,7 +370,6 @@ function loadPending() {
     // For remote https:// URLs (e.g. from FB/IG), convert to data: URL
     // through the background worker so canvas stays untainted.
     if (/^https?:\/\//i.test(srcParam)) {
-    if (/^https?:\/\//i.test(srcParam)) {
       sendMessageWithRetry({ type: 'FETCH_IMAGE_AS_DATA_URL', url: srcParam })
         .then(function(response) {
           var payload;
