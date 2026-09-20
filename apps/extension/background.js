@@ -218,49 +218,6 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   return body;
 }
 
-// Open the cropper extension page pre-loaded with the remote image URL. The
-// cropper will receive the image as a data: URL through the pending-screenshot
-// mechanism so it doesn't have to fetch it directly (which would fail for
-// CORS-blocked CDNs like Facebook/Instagram). The cropper will then offer
-// the user a chance to crop before saving.
-async function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
-  var displayUrl = (pageUrl || imageUrl).replace(/^https?:\/\//, '').slice(0, 80);
-
-  var payload;
-  if (!/^https?:\/\//i.test(imageUrl)) {
-    console.log('[mnemonics] cropper: non-http URL, storing directly:', imageUrl.slice(0, 60));
-    payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
-  } else {
-    // Convert the CORS-blocked CDN image to a data: URL through the background
-    // worker. data: URLs are same-origin to the extension so the canvas stays
-    // untainted and cropping works without CORS/taint errors.
-    console.log('[mnemonics] cropper: fetching image via FETCH_IMAGE_AS_DATA_URL:', imageUrl.slice(0, 80));
-    try {
-      var response = await new Promise(function(resolve) {
-        chrome.runtime.sendMessage({ type: 'FETCH_IMAGE_AS_DATA_URL', url: imageUrl }, resolve);
-      });
-      if (response && response.ok && response.data && response.data.dataUrl) {
-        console.log('[mnemonics] cropper: FETCH_IMAGE_AS_DATA_URL ok, bytes:', response.data.byteLength, 'dataUrl len:', response.data.dataUrl.length);
-        payload = { imageUrl: response.data.dataUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
-      } else {
-        console.warn('[mnemonics] cropper: FETCH_IMAGE_AS_DATA_URL failed:', response && response.error, '— using raw URL');
-        payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
-      }
-    } catch (err) {
-      console.warn('[mnemonics] cropper: background fetch threw:', err);
-      payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
-    }
-  }
-
-  // Wait for the pending screenshot to be stored before opening the cropper tab.
-  console.log('[mnemonics] cropper: storing pending, imageUrl type:', typeof payload.imageUrl, 'prefix:', String(payload.imageUrl).slice(0, 20));
-  await new Promise(function(resolve) {
-    chrome.runtime.sendMessage({ type: 'SET_PENDING_SCREENSHOT', payload: payload }, resolve);
-  });
-  console.log('[mnemonics] cropper: pending stored, opening tab');
-  chrome.tabs.create({ url: chrome.runtime.getURL('screenshot-cropper.html') });
-}
-
 // After the server-side upload succeeds, also append a local item so the
 // dashboard renders it immediately. The dashboard reads exclusively from
 // chrome.storage.local — it never fetches from the API list — so without
@@ -332,7 +289,6 @@ function setupContextMenus() {
     const menus = [
       { id: 'save-to-mnemonics', title: '★ Lưu vào Mnemonics', contexts: ['selection'] },
       { id: 'save-image-to-mnemonics', title: '★ Lưu ảnh vào Mnemonics', contexts: ['image'] },
-      { id: 'save-image-crop-to-mnemonics', title: '★ Lưu & cắt ảnh (Mnemonics)', contexts: ['image'] },
       { id: 'save-link-to-mnemonics', title: '★ Lưu link vào Mnemonics', contexts: ['link'] }
     ];
     let remaining = menus.length;
@@ -398,7 +354,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const pageUrl = tab.url || '';
     const pageTitle = tab.title || '';
 
-    notifyCapture('Mnemonics', 'Đang tải ảnh lên database...', '...', '#f59e0b');
+    notifyCapture('Mnemonics', 'Đang lưu ảnh...', '…', '#f59e0b');
     uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle)
       .then((serverResult) => writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult))
       .then(() => {
@@ -413,37 +369,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       })
       .catch((error) => {
         console.warn('Mnemonics image upload failed:', error);
-        if (error && error.code === 'CORS_BLOCKED') {
-          notifyCapture('Mnemonics', 'Trang nguồn chặn CORS — mở cropper để bạn xử lý thủ công.', '!', '#f59e0b');
-          try { openCropperWithImage(imageUrl, pageUrl, pageTitle); } catch (openErr) {
-            console.error('Mnemonics cropper fallback failed:', openErr);
-            notifyCapture('Mnemonics - Lỗi', 'Không mở được cropper.', '!', '#ef4444');
-          }
-          return;
-        }
-        writeImageToLocalStore(imageUrl, pageUrl, pageTitle)
+        const reason = (error && error.message) ? error.message : 'Lỗi không xác định';
+        writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null)
           .then(() => notifyCapture(
-            'Mnemonics - Đã lưu cục bộ',
-            'Ảnh đã hiện trong dashboard nhưng database chưa lưu: ' + (error.message || 'lỗi không xác định'),
+            'Mnemonics - Lưu cục bộ',
+            'Ảnh chưa upload lên database, nhưng đã hiện trong dashboard. Chi tiết: ' + reason,
             '!',
             '#f59e0b'
           ))
           .catch((localError) => notifyCapture(
             'Mnemonics - Lỗi lưu ảnh',
-            (error.message || 'Không lưu được vào database.') + ' ' + (localError.message || ''),
+            reason + '. ' + ((localError && localError.message) || ''),
             '!',
             '#ef4444'
           ));
       });
-  }
-
-  if (info.menuItemId === 'save-image-crop-to-mnemonics') {
-    const imageUrl = info.srcUrl || '';
-    const pageUrl = tab.url || '';
-    const pageTitle = tab.title || '';
-
-    notifyCapture('Mnemonics', 'Đang mở cropper...', '✂️', '#5B3FE4');
-    openCropperWithImage(imageUrl, pageUrl, pageTitle);
   }
 
   if (info.menuItemId === 'save-to-mnemonics') {

@@ -1,15 +1,6 @@
 var image = document.getElementById('image');
 var title = document.getElementById('title');
 var download = document.getElementById('download');
-var status = document.getElementById('status');
-
-function showError(message) {
-  console.error('[original-image]', message);
-  status.textContent = message;
-  status.hidden = false;
-  image.hidden = true;
-  download.hidden = true;
-}
 
 // Chrome's CORP/ORB strips cross-origin HTTPS responses that don't send
 // `Cross-Origin-Resource-Policy: cross-origin`. Supabase Storage doesn't
@@ -34,14 +25,19 @@ function fetchAsDataUrl(originalUrl) {
   });
 }
 
+function showError(message) {
+  console.error('[original-image]', message);
+  // Replace the image with an inline error banner so the user still gets
+  // feedback even though we no longer show a permanent "loading…" hint.
+  var main = document.querySelector('main');
+  if (main) {
+    main.innerHTML = '<div style="color:#f87171;padding:24px;text-align:center;max-width:600px;">' +
+      '<strong>Không thể hiển thị ảnh gốc.</strong><br>' + (message || 'Hãy thử lưu ảnh lại từ extension.') + '</div>';
+  }
+}
+
 chrome.storage.local.get('mnemonics_original_image', function(result) {
   var payload = result.mnemonics_original_image;
-  console.log('[original-image] payload received:', {
-    hasPayload: !!payload,
-    urlPreview: payload && payload.url ? String(payload.url).slice(0, 80) + '...' : null,
-    urlLength: payload && payload.url ? String(payload.url).length : 0,
-    title: payload && payload.title
-  });
   if (!payload || !payload.url) {
     showError('Không tìm thấy ảnh gốc. Hãy đóng trang này và mở lại từ dashboard.');
     return;
@@ -50,12 +46,9 @@ chrome.storage.local.get('mnemonics_original_image', function(result) {
   title.textContent = payload.title || 'Ảnh gốc';
   document.title = title.textContent + ' - Mnemonics';
   image.onload = function() {
-    console.log('[original-image] image displayed');
-    status.hidden = true;
     image.hidden = false;
   };
-  image.onerror = function(evt) {
-    console.error('[original-image] image failed:', evt);
+  image.onerror = function() {
     showError('Không thể hiển thị ảnh gốc. Hãy thử lưu ảnh lại từ extension.');
   };
 
@@ -67,10 +60,8 @@ chrome.storage.local.get('mnemonics_original_image', function(result) {
     image.src = directUrl;
     download.href = directUrl;
   } else {
-    status.textContent = 'Đang tải ảnh gốc...';
     fetchAsDataUrl(directUrl)
       .then(function(dataUrl) {
-        console.log('[original-image] converted to data URL, length:', dataUrl.length);
         image.src = dataUrl;
         download.href = dataUrl;
       })
