@@ -1,5 +1,60 @@
 var MNEMONICS_API_URL = 'http://localhost:4000';
 
+// Read the access token from chrome.storage.local (preferred) or localStorage
+// (when running outside the extension for tests). Returns null if no
+// session is present or the session has expired. Used by popup + dashboard.
+function readAccessToken() {
+  var raw = null;
+  try {
+    raw = localStorage.getItem('mnemonics_session');
+    if (raw) {
+      var sess = JSON.parse(raw);
+      if (sess && sess.accessToken) {
+        if (sess.expiresAt && sess.expiresAt * 1000 < Date.now()) return null;
+        return sess.accessToken;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    var captured;
+    chrome.storage.local.get('mnemonics_session', function(r) {
+      captured = r && r.mnemonics_session ? r.mnemonics_session.accessToken : null;
+    });
+    if (captured) return captured;
+    // chrome.storage.local.get is async; the synchronous shim above is
+    // best-effort. For popup fast-path, callers can await getAccessToken().
+    return null;
+  }
+  return null;
+}
+
+// Async variant: read access token with proper chrome.storage.local round-trip.
+// Used by background-message flows where we need the truly current value.
+function getAccessToken() {
+  return new Promise(function(resolve) {
+    try {
+      var raw = localStorage.getItem('mnemonics_session');
+      if (raw) {
+        var sess = JSON.parse(raw);
+        if (sess && sess.accessToken) {
+          if (sess.expiresAt && sess.expiresAt * 1000 < Date.now()) {
+            return resolve(null);
+          }
+          return resolve(sess.accessToken);
+        }
+      }
+    } catch (e) { /* ignore */ }
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get('mnemonics_session', function(r) {
+        if (chrome.runtime.lastError) return resolve(null);
+        resolve(r && r.mnemonics_session ? r.mnemonics_session.accessToken : null);
+      });
+      return;
+    }
+    resolve(null);
+  });
+}
+
 // Convert a `data:image/...;base64,...` URL into a Blob without going through
 // `fetch(dataUrl)` — Chrome's CSP `connect-src 'self' <api>` blocks data URLs
 // and throws `Refused to connect because it violates the document's Content

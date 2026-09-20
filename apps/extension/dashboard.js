@@ -297,23 +297,8 @@ async function loginDemoUser() {
   showPage('login');
 }
 
-function readAccessToken() {
-  try {
-    const raw = localStorage.getItem('mnemonics_session');
-    if (raw) {
-      const s = JSON.parse(raw);
-      if (s && s.accessToken) return s.accessToken;
-    }
-  } catch (e) { /* ignore */ }
-  if (typeof chrome !== 'undefined' && chrome.storage) {
-    let captured;
-    chrome.storage.local.get('mnemonics_session', function(r) {
-      captured = r && r.mnemonics_session ? r.mnemonics_session.accessToken : null;
-    });
-    return captured;
-  }
-  return null;
-}
+// `readAccessToken` is provided by api-client.js (loaded before this
+// file). Use that one so the popup and dashboard share the same logic.
 
 async function silentRefresh(refreshToken) {
   try {

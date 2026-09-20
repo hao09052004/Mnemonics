@@ -418,14 +418,38 @@ function saveCapture() {
     item.excerpt = note;
     if (!item.tags || item.tags.length === 0) item.tags = ['link'];
   }
+
+  // Persist to chrome.storage.local *first* so the dashboard updates
+  // immediately, then upload to /api/v1/captures if we have a session.
+  // The DB only accepts type: 'link' | 'text' | 'image', so we map the
+  // popup's wider type vocabulary through api-client.js#toCapturePayload.
   savedItems.unshift(item);
   if (savedItems.length > 50) savedItems = savedItems.slice(0, 50);
+
   saveItems(function() {
     // Thông báo cho dashboard biết có item mới
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
     }
   });
+
+  // Best-effort server upload. Failures don't block the local save.
+  if (currentType !== 'image') {
+    // Use async variant so the popup correctly reads from
+    // chrome.storage.local (the sync shim returns null there).
+    if (typeof getAccessToken === 'function') {
+      getAccessToken().then(function(accessToken) {
+        if (!accessToken) return;
+        var apiItem = Object.assign({}, item, { capturedAt: item.savedAt });
+        if (typeof sendCaptureToApi === 'function') {
+          sendCaptureToApi(apiItem, accessToken).catch(function(err) {
+            console.warn('[mnemonics popup] capture upload failed', err);
+          });
+        }
+      });
+    }
+  }
+
   document.getElementById('success-tags').innerHTML = currentTags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');
   document.getElementById('success-overlay').classList.add('show');
 }
