@@ -53,10 +53,12 @@ async function fetchImageViaLocalProxy(imageUrl) {
   return response.blob();
 }
 
-async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle) {
+async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
+  const noteText = extra && extra.note ? extra.note : '';
+  const capturedAt = extra && extra.capturedAt ? extra.capturedAt : new Date().toISOString();
 
   // 1. Try the local proxy first — it bypasses CORS by fetching
   //    server-to-server. Most modern CDNs (Facebook, Instagram, Twitter)
@@ -93,8 +95,9 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle) {
   const form = new FormData();
   form.append('file', blob, 'mnemonics-context-image');
   form.append('title', (pageTitle || 'Ảnh đã lưu').slice(0, 500));
+  form.append('note', noteText.slice(0, 4000));
   form.append('sourceUrl', pageUrl || '');
-  form.append('capturedAt', new Date().toISOString());
+  form.append('capturedAt', capturedAt);
   form.append('clientRequestId', crypto.randomUUID());
 
   const uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
@@ -129,10 +132,18 @@ function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
 // has the row. imageUrl is kept as the original remote URL; the dashboard
 // wraps it through the proxy at render time.
 function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
-  return new Promise(function(resolve) {
+  return new Promise(function(resolve, reject) {
     chrome.storage.local.get(['mnemonics_session'], function(sess) {
+      if (chrome.runtime.lastError) {
+        reject(new Error('Không đọc được phiên đăng nhập: ' + chrome.runtime.lastError.message));
+        return;
+      }
       const itemsKey = getUserItemsKey(sess.mnemonics_session);
       chrome.storage.local.get([itemsKey], function(r) {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Không đọc được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
+          return;
+        }
         const items = r[itemsKey] || [];
         const newItem = {
           id: Date.now(),
@@ -152,7 +163,13 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
         const stored = items.slice(0, 80);
         const payload = {};
         payload[itemsKey] = stored;
-        chrome.storage.local.set(payload, function() { resolve(); });
+        chrome.storage.local.set(payload, function() {
+          if (chrome.runtime.lastError) {
+            reject(new Error('Không ghi được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
+            return;
+          }
+          resolve();
+        });
       });
     });
   });
@@ -160,25 +177,27 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
 
 
 // Tạo context menu khi extension được cài
+let contextMenusSetupInProgress = false;
+
 function setupContextMenus() {
+  if (contextMenusSetupInProgress) return;
+  contextMenusSetupInProgress = true;
+
   // chrome.contextMenus.create errors if you call it twice with the same id
   // — wipe first so reload-from-disk (which doesn't fire onInstalled)
   // doesn't leave stale state.
   chrome.contextMenus.removeAll(function() {
-    chrome.contextMenus.create({
-      id: 'save-to-mnemonics',
-      title: '★ Lưu vào Mnemonics',
-      contexts: ['selection']
-    });
-    chrome.contextMenus.create({
-      id: 'save-image-to-mnemonics',
-      title: '★ Lưu ảnh vào Mnemonics',
-      contexts: ['image']
-    });
-    chrome.contextMenus.create({
-      id: 'save-link-to-mnemonics',
-      title: '★ Lưu link vào Mnemonics',
-      contexts: ['link']
+    const menus = [
+      { id: 'save-to-mnemonics', title: '★ Lưu vào Mnemonics', contexts: ['selection'] },
+      { id: 'save-image-to-mnemonics', title: '★ Lưu ảnh vào Mnemonics', contexts: ['image'] },
+      { id: 'save-link-to-mnemonics', title: '★ Lưu link vào Mnemonics', contexts: ['link'] }
+    ];
+    let remaining = menus.length;
+    menus.forEach(function(menu) {
+      chrome.contextMenus.create(menu, function() {
+        remaining -= 1;
+        if (remaining === 0) contextMenusSetupInProgress = false;
+      });
     });
   });
 }
@@ -262,7 +281,19 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
           }
           return;
         }
-        notifyCapture('Mnemonics - Lỗi lưu ảnh', error.message || 'Không lưu được ảnh vào database.', '!', '#ef4444');
+        writeImageToLocalStore(imageUrl, pageUrl, pageTitle)
+          .then(() => notifyCapture(
+            'Mnemonics - Đã lưu cục bộ',
+            'Ảnh đã hiện trong dashboard nhưng database chưa lưu: ' + (error.message || 'lỗi không xác định'),
+            '!',
+            '#f59e0b'
+          ))
+          .catch((localError) => notifyCapture(
+            'Mnemonics - Lỗi lưu ảnh',
+            (error.message || 'Không lưu được vào database.') + ' ' + (localError.message || ''),
+            '!',
+            '#ef4444'
+          ));
       });
   }
 
@@ -358,6 +389,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     });
     sendResponse({ ok: true });
+    return true;
+  }
+
+  if (msg && msg.type === 'UPLOAD_IMAGE_FROM_CROPPER') {
+    const imageUrl = msg.imageUrl || '';
+    const payload = msg.payload || {};
+    uploadImageFromContextMenu(imageUrl, payload.sourceUrl || '', payload.title || '', {
+      note: payload.note || '',
+      capturedAt: payload.capturedAt || new Date().toISOString()
+    })
+      .then((serverItem) => {
+        sendResponse({ ok: true, data: serverItem });
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: error && error.message ? error.message : 'Upload failed' });
+      });
     return true;
   }
 });

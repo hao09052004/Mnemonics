@@ -274,20 +274,42 @@ async function saveScreenshot(useCrop) {
   try {
     var imageUrl = item.imageUrl || '';
     var isDataUrl = /^data:image\//.test(imageUrl);
-    // Try server-side upload (requires login AND a data: URL — http(s) URLs
-    // cannot be POSTed directly because the API expects a Blob/File part).
-    if (session && session.accessToken && isDataUrl) {
-      await uploadImageCapture(imageUrl, {
-        title: item.title,
-        note: item.note,
-        sourceUrl: item.sourceUrl,
-        capturedAt: item.savedAt
-      }, session.accessToken);
-    } else if (session && session.accessToken && !isDataUrl) {
-      // Cross-origin image that couldn't be re-encoded via canvas
-      // (tainted). We keep the http(s) URL locally — the API would
-      // need to fetch it server-side to upload, which isn't supported.
-      console.warn('[mnemonics] skipping server upload: imageUrl is remote http(s), not a data URL');
+    // Try server-side upload (requires login AND either a data: URL OR a
+    // remote http(s) URL we can re-fetch through the local proxy).
+    if (session && session.accessToken && (isDataUrl || /^https?:\/\//.test(imageUrl))) {
+      // The cropper runs inside the extension's web_accessible_resources
+      // origin, which CSP `connect-src` whitelists — but `chrome.runtime`
+      // is still in scope here because the script is loaded as a module
+      // from the same extension origin. Forward the upload to the
+      // background worker so it can use `fetchImageViaLocalProxy` (which
+      // handles the proxy + direct fallback the same way context-menu
+      // saves do), then POST the resulting Blob to /captures/image.
+      var uploadResult = await new Promise(function(resolve, reject) {
+        chrome.runtime.sendMessage(
+          {
+            type: 'UPLOAD_IMAGE_FROM_CROPPER',
+            imageUrl: imageUrl,
+            payload: {
+              title: item.title,
+              note: item.note,
+              sourceUrl: item.sourceUrl,
+              capturedAt: item.savedAt
+            }
+          },
+          function(response) {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message || 'Không liên lạc được với background script.'));
+              return;
+            }
+            if (!response || !response.ok) {
+              reject(new Error((response && response.error) || 'Không upload được ảnh lên server.'));
+              return;
+            }
+            resolve(response);
+          }
+        );
+      });
+      console.log('[mnemonics] cropper upload ok:', uploadResult && uploadResult.data && uploadResult.data.id);
     } else {
       // No login — still save locally so the user doesn't lose the screenshot.
       showToast('Chưa đăng nhập — ảnh chỉ được lưu cục bộ.');
