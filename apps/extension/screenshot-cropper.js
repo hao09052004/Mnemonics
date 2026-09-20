@@ -200,7 +200,7 @@ function setPendingPayload(payload) {
     updateMeta();
   };
   img.onerror = function() {
-    showLoadError('Trình duyệt không tải được ảnh từ URL này. Trang nguồn có thể chặn CORS — hãy thử ảnh khác hoặc tải về rồi kéo vào extension.');
+    showLoadError('Trình duyệt không tải được ảnh. Ảnh có thể đã bị xóa hoặc URL không hợp lệ.');
   };
 
   if (screenshotObjectUrl) {
@@ -208,35 +208,18 @@ function setPendingPayload(payload) {
     screenshotObjectUrl = null;
   }
 
+  // Load the image. data: / blob: URLs are same-origin to the extension
+  // so canvas stays untainted (required for cropping). Remote https:// URLs
+  // from legacy URL-param flow are shown directly (cropping may fail with
+  // a tainted-canvas error — acceptable fallback).
   var sourceUrl = pending.imageUrl;
-  // Remote (http/https) URLs from context-menu fallback: try to fetch as
-  // blob so canvas stays untainted. If CORS fails, fall back to direct
-  // <img src> — display works (browser already loaded it on the page)
-  // but cropping/canvas may be blocked. The user sees a clear error
-  // message either way.
-  if (/^https?:\/\//i.test(sourceUrl)) {
-    fetch(sourceUrl, { credentials: 'omit', mode: 'cors' })
-      .then(function(res) { return res.blob(); })
-      .then(function(blob) {
-        screenshotObjectUrl = URL.createObjectURL(blob);
-        img.src = screenshotObjectUrl;
-      })
-      .catch(function() { img.src = sourceUrl; });
-    return;
-  }
-
-  // data:image/... URL (screenshot path). Use blob URL when possible for
-  // large images so the page stays responsive.
-  try {
-    fetch(sourceUrl)
-      .then(function(res) { return res.blob(); })
-      .then(function(blob) {
-        screenshotObjectUrl = URL.createObjectURL(blob);
-        img.src = screenshotObjectUrl;
-      })
-      .catch(function() { img.src = sourceUrl; });
-  } catch (e) {
+  if (/^data:/i.test(sourceUrl) || /^(blob:|chrome-extension:)/i.test(sourceUrl)) {
     img.src = sourceUrl;
+  } else if (/^https?:\/\//i.test(sourceUrl)) {
+    // Legacy path: direct URL from ?src= param. Display-only; crop may taint canvas.
+    img.src = sourceUrl;
+  } else {
+    showLoadError('Định dạng ảnh không nhận diện được: ' + sourceUrl.slice(0, 50));
   }
 }
 
@@ -360,13 +343,41 @@ function loadPending() {
   var params = new URLSearchParams(window.location.search);
   var srcParam = params.get('src');
   if (srcParam) {
-    setPendingPayload({
-      imageUrl: srcParam,
-      sourceUrl: params.get('sourceUrl') || '',
-      displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
-      title: params.get('title') || 'Ảnh đã lưu',
-      tags: ['ảnh', 'context-menu']
-    });
+    // For remote https:// URLs (e.g. from FB/IG), convert to data: URL
+    // through the background worker so canvas stays untainted.
+    if (/^https?:\/\//i.test(srcParam)) {
+      chrome.runtime.sendMessage({ type: 'FETCH_IMAGE_AS_DATA_URL', url: srcParam }, function(response) {
+        var payload;
+        if (response && response.ok && response.data && response.data.dataUrl) {
+          payload = {
+            imageUrl: response.data.dataUrl,
+            sourceUrl: params.get('sourceUrl') || '',
+            displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
+            title: params.get('title') || 'Ảnh đã lưu',
+            tags: ['ảnh', 'context-menu']
+          };
+        } else {
+          // Conversion failed — still open the cropper with the raw URL
+          // (display may work, cropping may taint canvas)
+          payload = {
+            imageUrl: srcParam,
+            sourceUrl: params.get('sourceUrl') || '',
+            displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
+            title: params.get('title') || 'Ảnh đã lưu',
+            tags: ['ảnh', 'context-menu']
+          };
+        }
+        setPendingPayload(payload);
+      });
+    } else {
+      setPendingPayload({
+        imageUrl: srcParam,
+        sourceUrl: params.get('sourceUrl') || '',
+        displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
+        title: params.get('title') || 'Ảnh đã lưu',
+        tags: ['ảnh', 'context-menu']
+      });
+    }
     return;
   }
 

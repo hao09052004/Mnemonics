@@ -130,16 +130,42 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
 }
 
 // Open the cropper extension page pre-loaded with the remote image URL. The
-// cropper will fetch the image itself (in page context) — if that also fails,
-// the user still sees a clear error and can try a different image.
-function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
-  const params = new URLSearchParams({
-    src: imageUrl,
-    sourceUrl: pageUrl || '',
-    title: pageTitle || 'Ảnh đã lưu'
+// cropper will receive the image as a data: URL through the pending-screenshot
+// mechanism so it doesn't have to fetch it directly (which would fail for
+// CORS-blocked CDNs like Facebook/Instagram). The cropper will then offer
+// the user a chance to crop before saving.
+async function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
+  var displayUrl = (pageUrl || imageUrl).replace(/^https?:\/\//, '').slice(0, 80);
+
+  var payload;
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
+  } else {
+    // Convert the CORS-blocked CDN image to a data: URL through the background
+    // worker. data: URLs are same-origin to the extension so the canvas stays
+    // untainted and cropping works without CORS/taint errors.
+    try {
+      var response = await new Promise(function(resolve) {
+        chrome.runtime.sendMessage({ type: 'FETCH_IMAGE_AS_DATA_URL', url: imageUrl }, resolve);
+      });
+      if (response && response.ok && response.data && response.data.dataUrl) {
+        console.log('[mnemonics] cropper: image converted to data URL, bytes:', response.data.byteLength);
+        payload = { imageUrl: response.data.dataUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
+      } else {
+        console.warn('[mnemonics] cropper: fetch-as-data-url failed, using raw URL:', response && response.error);
+        payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
+      }
+    } catch (err) {
+      console.warn('[mnemonics] cropper: background fetch threw:', err);
+      payload = { imageUrl: imageUrl, sourceUrl: pageUrl || '', displayUrl: displayUrl, title: pageTitle || 'Ảnh đã lưu', tags: ['ảnh', 'context-menu'] };
+    }
+  }
+
+  // Wait for the pending screenshot to be stored before opening the cropper tab.
+  await new Promise(function(resolve) {
+    chrome.runtime.sendMessage({ type: 'SET_PENDING_SCREENSHOT', payload: payload }, resolve);
   });
-  const cropperUrl = chrome.runtime.getURL('screenshot-cropper.html') + '?' + params.toString();
-  chrome.tabs.create({ url: cropperUrl });
+  chrome.tabs.create({ url: chrome.runtime.getURL('screenshot-cropper.html') });
 }
 
 // After the server-side upload succeeds, also append a local item so the
@@ -213,6 +239,7 @@ function setupContextMenus() {
     const menus = [
       { id: 'save-to-mnemonics', title: '★ Lưu vào Mnemonics', contexts: ['selection'] },
       { id: 'save-image-to-mnemonics', title: '★ Lưu ảnh vào Mnemonics', contexts: ['image'] },
+      { id: 'save-image-crop-to-mnemonics', title: '★ Lưu & cắt ảnh (Mnemonics)', contexts: ['image'] },
       { id: 'save-link-to-mnemonics', title: '★ Lưu link vào Mnemonics', contexts: ['link'] }
     ];
     let remaining = menus.length;
@@ -293,9 +320,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       })
       .catch((error) => {
         console.warn('Mnemonics image upload failed:', error);
-        // If the remote server blocked CORS or the fetch failed for any
-        // reason we can't bypass from the background worker, open the
-        // extension cropper so the user can still save the image.
         if (error && error.code === 'CORS_BLOCKED') {
           notifyCapture('Mnemonics', 'Trang nguồn chặn CORS — mở cropper để bạn xử lý thủ công.', '!', '#f59e0b');
           try { openCropperWithImage(imageUrl, pageUrl, pageTitle); } catch (openErr) {
@@ -318,6 +342,15 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
             '#ef4444'
           ));
       });
+  }
+
+  if (info.menuItemId === 'save-image-crop-to-mnemonics') {
+    const imageUrl = info.srcUrl || '';
+    const pageUrl = tab.url || '';
+    const pageTitle = tab.title || '';
+
+    notifyCapture('Mnemonics', 'Đang mở cropper...', '✂️', '#5B3FE4');
+    openCropperWithImage(imageUrl, pageUrl, pageTitle);
   }
 
   if (info.menuItemId === 'save-to-mnemonics') {
