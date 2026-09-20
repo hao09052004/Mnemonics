@@ -214,7 +214,18 @@ export function createApp(
         const capture = { ...parsed.data, image: { ...parsed.data.image, storageKey } };
         await imageStorage.upload({ storageKey, buffer: request.file.buffer, mimeType: request.file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp' });
         const item = await repository.createPendingImageItem({ userId: request.userId!, itemId, capture });
-        response.status(201).json({ data: { id: item.id, status: item.status, storageKey } });
+        // Mint a long-lived signed URL the dashboard can <img src=...>
+        // directly. The bucket is private, so the public Supabase URL
+        // would 404 — but signed URLs work for any bucket as long as they
+        // haven't expired. 30 days keeps cached dashboard cards alive
+        // across browser restarts without being effectively permanent.
+        let signedUrl: string | undefined;
+        if (imageStorage && typeof (imageStorage as { createSignedUrl?: (key: string, expiresIn: number) => Promise<string | null> }).createSignedUrl === 'function') {
+          signedUrl = await (imageStorage as { createSignedUrl: (key: string, expiresIn: number) => Promise<string | null> })
+            .createSignedUrl(storageKey, 60 * 60 * 24 * 30)
+            .catch(() => undefined) ?? undefined;
+        }
+        response.status(201).json({ data: { id: item.id, status: item.status, storageKey, signedUrl } });
       } catch (error) {
         if (storageKey && imageStorage) await imageStorage.remove(storageKey).catch(() => undefined);
         next(error);

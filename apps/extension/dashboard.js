@@ -1205,10 +1205,15 @@ function normalizeExternalUrl(url) {
 // Render-time helper: when an item's imageUrl is a remote http(s) URL we
 // can't display it directly because the browser blocks cross-origin
 // <img> requests. Rewrite it through the API image proxy which sets
-// Access-Control-Allow-Origin: *. Data URLs and blob: pass through.
+// Access-Control-Allow-Origin: *. Data URLs, blob:, and Supabase Storage
+// signed URLs (which already include auth tokens and CORS headers) pass
+// through untouched.
 function imageSrcForRender(imageUrl) {
   if (!imageUrl) return '';
   if (/^(data:|blob:|chrome-extension:)/i.test(imageUrl)) return imageUrl;
+  // Supabase Storage signed URLs (`?token=...`) already authorize the
+  // browser — proxying them just strips the token and breaks the load.
+  if (/^https?:\/\/[^/]*\.supabase\.co\/storage\//i.test(imageUrl)) return imageUrl;
   if (/^https?:\/\//i.test(imageUrl)) {
     var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : (window.MNEMONICS_API_URL || 'http://localhost:4000'));
     return apiBase + '/api/v1/proxy/image?url=' + encodeURIComponent(imageUrl);
@@ -2011,7 +2016,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   // Load data
-  loadAuthState(function() { syncAccountSettings(); });
+  loadAuthState(function() {
+    syncAccountSettings();
+    loadFromExtension();
+  });
   // Schedule silent refresh after the user logs in (no-op until session exists).
   setTimeout(function() {
     try {

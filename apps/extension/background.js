@@ -1,6 +1,11 @@
 // Background service worker
 let mnemonicsPendingScreenshot = null;
 const MNEMONICS_API_URL = 'http://localhost:4000';
+// Mirror of .env → bucket + Supabase URL the API uploads into. The public
+// bucket serves these URLs directly so the dashboard can <img src=...>
+// them without bouncing through the API proxy (which can't authenticate
+// to Facebook/Instagram/Twitter CDNs anyway).
+const SUPABASE_STORAGE_BASE = 'https://jtmowwtmjtmceihzvreu.supabase.co/storage/v1/object/public/mnemonics-assets';
 
 function getAccessToken() {
   return new Promise((resolve) => chrome.storage.local.get('mnemonics_session', (result) => {
@@ -12,6 +17,18 @@ function getAccessToken() {
 function getUserItemsKey(session) {
   const uid = session && session.user && session.user.id ? session.user.id : 'guest';
   return 'mnemonics_items_' + uid;
+}
+
+// When the API upload succeeds it returns `{ data: { storageKey, signedUrl } }` —
+// the signed URL is a Supabase Storage URL that the browser can fetch
+// directly, bypassing the proxy entirely (which can't authenticate to
+// Facebook/Instagram/Twitter CDNs anyway). Prefer signedUrl, fall back to
+// the original remote URL when the server didn't mint one (e.g. upload
+// succeeded but signed-URL generation failed).
+function rewriteUploadedImageUrl(originalImageUrl, serverResult) {
+  const signedUrl = serverResult && serverResult.data && serverResult.data.signedUrl;
+  if (signedUrl) return signedUrl;
+  return originalImageUrl;
 }
 
 function setCaptureBadge(text, color) {
@@ -129,9 +146,11 @@ function openCropperWithImage(imageUrl, pageUrl, pageTitle) {
 // dashboard renders it immediately. The dashboard reads exclusively from
 // chrome.storage.local — it never fetches from the API list — so without
 // this mirror the user sees "nothing happened" even though the database
-// has the row. imageUrl is kept as the original remote URL; the dashboard
-// wraps it through the proxy at render time.
-function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
+// has the row. The stored `imageUrl` is rewritten to the Supabase public
+// storage URL when `serverResult.storageKey` is present, so the dashboard
+// renders the uploaded copy directly instead of resetting back to the
+// remote CDN (Facebook, Instagram, etc. block the API proxy).
+function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult) {
   return new Promise(function(resolve, reject) {
     chrome.storage.local.get(['mnemonics_session'], function(sess) {
       if (chrome.runtime.lastError) {
@@ -145,12 +164,16 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle) {
           return;
         }
         const items = r[itemsKey] || [];
+        // Prefer the Supabase Storage public URL so the dashboard can
+        // <img src=...> the cached copy without going through the proxy
+        // (which often fails for Facebook/Instagram/Twitter CDNs).
+        const renderedImageUrl = rewriteUploadedImageUrl(imageUrl, serverResult);
         const newItem = {
           id: Date.now(),
           title: (pageTitle || 'Ảnh đã lưu').slice(0, 80),
           excerpt: '',
           note: '',
-          imageUrl: imageUrl,
+          imageUrl: renderedImageUrl,
           sourceUrl: pageUrl || '',
           url: (pageUrl || '').replace(/^https?:\/\//, '').slice(0, 80),
           type: 'image',
@@ -257,7 +280,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
     notifyCapture('Mnemonics', 'Đang tải ảnh lên database...', '...', '#f59e0b');
     uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle)
-      .then(() => writeImageToLocalStore(imageUrl, pageUrl, pageTitle))
+      .then((serverResult) => writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult))
       .then(() => {
         chrome.tabs.query({}, (tabs) => {
           tabs.forEach(t => {

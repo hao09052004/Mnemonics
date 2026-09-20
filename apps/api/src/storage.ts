@@ -9,6 +9,7 @@ export type ImageUpload = {
 export interface ImageStorage {
   upload(input: ImageUpload): Promise<void>;
   remove(storageKey: string): Promise<void>;
+  createSignedUrl(storageKey: string, expiresInSeconds: number): Promise<string | null>;
 }
 
 export function normalizeSupabaseUrl(value: string): string {
@@ -46,6 +47,13 @@ function createImageStorage(client: SupabaseClient, bucket: string): ImageStorag
     },
     async remove(storageKey) {
       await client.storage.from(bucket).remove([storageKey]);
+    },
+    async createSignedUrl(storageKey, expiresInSeconds) {
+      const { data, error } = await client.storage
+        .from(bucket)
+        .createSignedUrl(storageKey, expiresInSeconds);
+      if (error || !data?.signedUrl) return null;
+      return data.signedUrl;
     }
   };
 }
