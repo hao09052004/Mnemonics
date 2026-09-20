@@ -173,6 +173,37 @@ function notifyDashboard() {
   }
 }
 
+// Wrap a chrome.runtime.sendMessage call in a promise that survives
+// background-worker idle. MV3 service workers get killed after ~30s of
+// inactivity; the first message after that throws "Could not establish
+// connection" because the worker hasn't woken up yet. Retrying once after
+// a short delay lets the worker spin back up so the second attempt
+// succeeds — this is the same trick the official Chrome samples use.
+function sendMessageWithRetry(payload, maxAttempts) {
+  maxAttempts = maxAttempts || 3;
+  return new Promise(function(resolve, reject) {
+    var attempt = 0;
+    var lastError = null;
+    function tryOnce() {
+      attempt += 1;
+      chrome.runtime.sendMessage(payload, function(response) {
+        if (chrome.runtime.lastError) {
+          lastError = chrome.runtime.lastError.message || 'connection error';
+          console.warn('[mnemonics] sendMessage attempt', attempt, 'failed:', lastError);
+          if (attempt < maxAttempts) {
+            setTimeout(tryOnce, 250);
+            return;
+          }
+          reject(new Error(lastError));
+          return;
+        }
+        resolve(response);
+      });
+    }
+    tryOnce();
+  });
+}
+
 function showLoadError(message) {
   stage.style.display = 'none';
   var empty = document.getElementById('empty-state');
@@ -269,31 +300,24 @@ async function saveScreenshot(useCrop) {
       if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
         throw new Error('Không liên lạc được với background script (chrome.runtime không khả dụng). Hãy mở cropper từ extension context.');
       }
-      var uploadResult = await new Promise(function(resolve, reject) {
-        chrome.runtime.sendMessage(
-          {
-            type: 'UPLOAD_IMAGE_FROM_CROPPER',
-            imageUrl: imageUrl,
-            payload: {
-              title: item.title,
-              note: item.note,
-              sourceUrl: item.sourceUrl,
-              capturedAt: item.savedAt
-            }
-          },
-          function(response) {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message || 'Không liên lạc được với background script.'));
-              return;
-            }
-            if (!response || !response.ok) {
-              reject(new Error((response && response.error) || 'Không upload được ảnh lên server.'));
-              return;
-            }
-            resolve(response);
+      var uploadResult;
+      try {
+        uploadResult = await sendMessageWithRetry({
+          type: 'UPLOAD_IMAGE_FROM_CROPPER',
+          imageUrl: imageUrl,
+          payload: {
+            title: item.title,
+            note: item.note,
+            sourceUrl: item.sourceUrl,
+            capturedAt: item.savedAt
           }
-        );
-      });
+        });
+        if (!uploadResult || !uploadResult.ok) {
+          throw new Error((uploadResult && uploadResult.error) || 'Không upload được ảnh lên server.');
+        }
+      } catch (msgErr) {
+        throw new Error(msgErr && msgErr.message ? msgErr.message : 'Không liên lạc được với background script.');
+      }
       console.log('[mnemonics] cropper upload ok:', uploadResult && uploadResult.data && uploadResult.data.id);
     } else {
       // No login — still save locally so the user doesn't lose the screenshot.
@@ -346,29 +370,41 @@ function loadPending() {
     // For remote https:// URLs (e.g. from FB/IG), convert to data: URL
     // through the background worker so canvas stays untainted.
     if (/^https?:\/\//i.test(srcParam)) {
-      chrome.runtime.sendMessage({ type: 'FETCH_IMAGE_AS_DATA_URL', url: srcParam }, function(response) {
-        var payload;
-        if (response && response.ok && response.data && response.data.dataUrl) {
-          payload = {
-            imageUrl: response.data.dataUrl,
-            sourceUrl: params.get('sourceUrl') || '',
-            displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
-            title: params.get('title') || 'Ảnh đã lưu',
-            tags: ['ảnh', 'context-menu']
-          };
-        } else {
-          // Conversion failed — still open the cropper with the raw URL
-          // (display may work, cropping may taint canvas)
-          payload = {
+    if (/^https?:\/\//i.test(srcParam)) {
+      sendMessageWithRetry({ type: 'FETCH_IMAGE_AS_DATA_URL', url: srcParam })
+        .then(function(response) {
+          var payload;
+          if (response && response.ok && response.data && response.data.dataUrl) {
+            payload = {
+              imageUrl: response.data.dataUrl,
+              sourceUrl: params.get('sourceUrl') || '',
+              displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
+              title: params.get('title') || 'Ảnh đã lưu',
+              tags: ['ảnh', 'context-menu']
+            };
+          } else {
+            // Conversion failed — still open the cropper with the raw URL
+            // (display may work, cropping may taint canvas)
+            payload = {
+              imageUrl: srcParam,
+              sourceUrl: params.get('sourceUrl') || '',
+              displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
+              title: params.get('title') || 'Ảnh đã lưu',
+              tags: ['ảnh', 'context-menu']
+            };
+          }
+          setPendingPayload(payload);
+        })
+        .catch(function(err) {
+          console.warn('[mnemonics] FETCH_IMAGE_AS_DATA_URL via cropper failed:', err);
+          setPendingPayload({
             imageUrl: srcParam,
             sourceUrl: params.get('sourceUrl') || '',
             displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
             title: params.get('title') || 'Ảnh đã lưu',
             tags: ['ảnh', 'context-menu']
-          };
-        }
-        setPendingPayload(payload);
-      });
+          });
+        });
     } else {
       setPendingPayload({
         imageUrl: srcParam,
@@ -387,17 +423,18 @@ function loadPending() {
     });
   }
 
-  chrome.runtime.sendMessage({ type: 'GET_PENDING_SCREENSHOT' }, function(response) {
-    if (chrome.runtime && chrome.runtime.lastError) {
+  sendMessageWithRetry({ type: 'GET_PENDING_SCREENSHOT' })
+    .then(function(response) {
+      if (response && response.ok && response.payload && response.payload.imageUrl) {
+        setPendingPayload(response.payload);
+        return;
+      }
       fallbackToStorage();
-      return;
-    }
-    if (response && response.ok && response.payload && response.payload.imageUrl) {
-      setPendingPayload(response.payload);
-      return;
-    }
-    fallbackToStorage();
-  });
+    })
+    .catch(function(err) {
+      console.warn('[mnemonics] GET_PENDING_SCREENSHOT failed:', err);
+      fallbackToStorage();
+    });
 }
 stage.addEventListener('pointerdown', drawStart);
 stage.addEventListener('pointermove', drawMove);

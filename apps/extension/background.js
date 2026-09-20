@@ -13,6 +13,67 @@ function getAccessToken() {
   }));
 }
 
+// Return a still-valid access token, refreshing proactively if the stored
+// one is expired or close to expiring. Required because the cropper and
+// context-menu paths upload through the background script which doesn't
+// share the dashboard's auto-refresh timer — without this the upload
+// returns "Xác thực không hợp lệ" whenever the JWT has expired but the
+// storage cache hasn't been refreshed yet.
+async function getValidAccessToken() {
+  const stored = await new Promise(function(resolve) {
+    chrome.storage.local.get('mnemonics_session', function(r) { resolve(r.mnemonics_session); });
+  });
+  if (!stored || !stored.accessToken) {
+    throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
+  }
+
+  // Check expiry. Supabase access_token JWTs carry an `exp` claim; the
+  // session blob also has `expiresAt` (seconds since epoch) for clients
+  // that don't want to decode the JWT.
+  const expiresAtMs = (typeof stored.expiresAt === 'number' ? stored.expiresAt * 1000 : 0)
+    || (function() {
+      try {
+        const parts = String(stored.accessToken).split('.');
+        if (parts.length !== 3) return 0;
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        return payload.exp ? payload.exp * 1000 : 0;
+      } catch (_) { return 0; }
+    })();
+  const refreshThreshold = Date.now() + 60 * 1000; // refresh 1 minute before expiry
+  if (expiresAtMs && expiresAtMs > refreshThreshold) {
+    return stored.accessToken;
+  }
+
+  if (!stored.refreshToken) {
+    throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
+  }
+
+  console.log('[mnemonics] access token expired or close to expiry, refreshing...');
+  let response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: stored.refreshToken })
+    });
+  } catch (networkErr) {
+    throw new Error('Không refresh được token: ' + networkErr.message);
+  }
+  let payload = {};
+  try { payload = await response.json(); } catch (_) { payload = {}; }
+  if (!response.ok || !payload.data || !payload.data.accessToken) {
+    // Refresh failed — wipe the stale session so the user has to re-login.
+    chrome.storage.local.remove('mnemonics_session', function() {});
+    throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
+  }
+  const next = Object.assign({}, stored, payload.data);
+  await new Promise(function(resolve) {
+    chrome.storage.local.set({ mnemonics_session: next }, function() { resolve(); });
+  });
+  console.log('[mnemonics] token refreshed, expiresAt:', next.expiresAt);
+  return next.accessToken;
+}
+
 // Returns the chrome.storage.local key for the current user's items.
 function getUserItemsKey(session) {
   const uid = session && session.user && session.user.id ? session.user.id : 'guest';
@@ -71,7 +132,7 @@ async function fetchImageViaLocalProxy(imageUrl) {
 }
 
 async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
   const noteText = extra && extra.note ? extra.note : '';
@@ -88,11 +149,19 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
       const mimeMatch = /^data:([^;]+)/i.exec(imageUrl);
       const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
       const base64 = imageUrl.replace(/^data:[^;]+;base64,/, '');
+      // Decode base64 in chunks to avoid blowing the call stack on large
+      // images (a typical 1MB JPEG decodes to ~1.3MB of binary). The naive
+      // `String.fromCharCode.apply(null, bytes)` throws RangeError above
+      // ~256KB.
       let binary;
       try { binary = atob(base64); }
       catch (decodeErr) { throw new Error('Không giải mã được ảnh data URL: ' + decodeErr.message); }
+      const CHUNK = 0x8000;
       const bytes = new Uint8Array(binary.length);
-      for (let bi = 0; bi < binary.length; bi++) bytes[bi] = binary.charCodeAt(bi);
+      for (let off = 0; off < binary.length; off += CHUNK) {
+        const slice = binary.substr(off, CHUNK);
+        for (let bi = 0; bi < slice.length; bi++) bytes[off + bi] = slice.charCodeAt(bi);
+      }
       blob = new Blob([bytes], { type: mime });
       console.log('[mnemonics] upload: data URL decoded locally, mime:', mime, 'size:', bytes.length);
     } else if (/^https?:\/\//i.test(imageUrl)) {
@@ -498,9 +567,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
           throw new Error('Ảnh quá lớn (>10MB)');
         }
+        // Build base64 in chunks so a 1MB+ image doesn't blow the JS call
+        // stack. `btoa(bigString)` itself works on the whole string, but
+        // building the binary string byte-by-byte crashes above ~256KB.
         const bytes = new Uint8Array(arrayBuffer);
+        const CHUNK = 0x8000;
         let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        for (let off = 0; off < bytes.length; off += CHUNK) {
+          const slice = bytes.subarray(off, off + CHUNK);
+          binary += String.fromCharCode.apply(null, slice);
+        }
         const base64 = btoa(binary);
         sendResponse({
           ok: true,
