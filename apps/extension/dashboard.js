@@ -167,6 +167,18 @@ function loadAuthState(cb) {
   getStorageValue('mnemonics_session', null, function(session) {
     currentUser = session && session.user && session.accessToken ? session.user : null;
     updateAuthUI();
+    // If the user is already signed in when the dashboard opens, skip
+    // the marketing landing page entirely — landing is only meaningful
+    // for first-time / logged-out visitors. Otherwise we'd render
+    // "Bắt đầu miễn phí" while the avatar pill in the header is
+    // already showing the logged-in user, which is contradictory.
+    if (currentUser) {
+      const activePage = document.querySelector('.page.active');
+      const landingPage = document.getElementById('page-landing');
+      if (activePage === landingPage) {
+        showPage('dashboard');
+      }
+    }
     if (cb) cb();
   });
 }
