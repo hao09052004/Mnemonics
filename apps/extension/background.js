@@ -279,6 +279,77 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult) {
   });
 }
 
+// Upload a non-image capture (link or text/quote) to the API. Returns
+// the parsed JSON body on success. Throws with a human-readable message
+// on network failure / 4xx so callers can show it.
+async function uploadTextCapture(payload) {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu.');
+  if (!payload || !payload.title) throw new Error('Thiếu tiêu đề.');
+  const response = await fetch(MNEMONICS_API_URL + '/api/v1/captures', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + accessToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được.');
+  }
+  return body;
+}
+
+// Mirror of the non-image item into chrome.storage.local so the dashboard
+// shows it immediately even though the API list isn't queried. When
+// `serverResult` is null we mark `pendingUpload: true` so the dashboard
+// surfaces a "Đồng bộ" pill.
+function writeGenericLocalStore(item, serverResult) {
+  return new Promise(function(resolve, reject) {
+    chrome.storage.local.get(['mnemonics_session'], function(sess) {
+      if (chrome.runtime.lastError) {
+        reject(new Error('Không đọc được phiên đăng nhập: ' + chrome.runtime.lastError.message));
+        return;
+      }
+      const itemsKey = getUserItemsKey(sess.mnemonics_session);
+      chrome.storage.local.get([itemsKey], function(r) {
+        if (chrome.runtime.lastError) {
+          reject(new Error('Không đọc được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
+          return;
+        }
+        const items = r[itemsKey] || [];
+        const stored = Object.assign({}, item, {
+          pendingUpload: !serverResult
+        });
+        items.unshift(stored);
+        const trimmed = items.slice(0, 80);
+        const payload = {};
+        payload[itemsKey] = trimmed;
+        chrome.storage.local.set(payload, function() {
+          if (chrome.runtime.lastError) {
+            reject(new Error('Không ghi được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
+            return;
+          }
+          resolve();
+        });
+      });
+    });
+  });
+}
+
+// Forward RELOAD_ITEMS / ITEM_SAVED broadcasts to every open dashboard
+// tab — keeps the cards-container in sync without a refresh.
+function notifyDashboards(type) {
+  chrome.tabs.query({}, function(tabs) {
+    tabs.forEach(function(t) {
+      if (t.url && t.url.includes('mnemonics-dashboard.html')) {
+        chrome.tabs.sendMessage(t.id, { type: type }).catch(function() {});
+      }
+    });
+  });
+}
+
 
 // Tạo context menu khi extension được cài
 let contextMenusSetupInProgress = false;
@@ -318,37 +389,49 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const linkUrl = info.linkUrl || '';
     const pageTitle = tab.title || '';
     const linkText = info.selectionText || '';
+    const title = (linkText || pageTitle || linkUrl).slice(0, 80) || 'Link đã lưu';
+
+    // Build the local-first item immediately so the dashboard shows it
+    // even before the server confirms. We push it again after the API
+    // call if we want — but here we just rely on the existing pattern.
+    const localItem = {
+      id: Date.now(),
+      title: title,
+      note: '',
+      excerpt: '',
+      sourceUrl: linkUrl,
+      url: linkUrl.replace(/^https?:\/\//, '').slice(0, 80),
+      type: 'link',
+      tags: ['link'],
+      savedAt: new Date().toISOString(),
+      date: 'Vừa xong'
+    };
+
+    // Try the server first. If it succeeds, drop pendingUpload. If it
+    // fails, still keep the local copy but mark it pendingUpload so the
+    // dashboard surfaces a "Đồng bộ" pill.
     getAccessToken().then(function(session) {
       const itemsKey = getUserItemsKey(session);
-      chrome.storage.local.get(itemsKey, function(r) {
-        const items = r[itemsKey] || [];
-        const newItem = {
-          id: Date.now(),
-          title: (linkText || pageTitle || linkUrl).slice(0, 80) || 'Link đã lưu',
-          note: '',
-          excerpt: '',
-          sourceUrl: linkUrl,
-          url: linkUrl.replace(/^https?:\/\//, '').slice(0, 80),
-          type: 'link',
-          tags: ['link'],
-          savedAt: new Date().toISOString(),
-          date: 'Vừa xong'
-        };
-        items.unshift(newItem);
-        const payload = {};
-        payload[itemsKey] = items.slice(0, 80);
-        chrome.storage.local.set(payload, function() {
-          chrome.tabs.query({}, function(tabs) {
-            tabs.forEach(function(t) {
-              if (t.url && t.url.includes('mnemonics-dashboard.html')) {
-                chrome.tabs.sendMessage(t.id, { type: 'RELOAD_ITEMS' }).catch(function() {});
-              }
-            });
-          });
-          chrome.notifications.create({
-            type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
-            message: '🔗 Đã lưu link thành công!'
-          });
+      uploadTextCapture({
+        type: 'link',
+        title: title,
+        sourceUrl: linkUrl,
+        capturedAt: localItem.savedAt,
+        clientRequestId: crypto.randomUUID()
+      }).then(function() {
+        writeGenericLocalStore(localItem, { ok: true });
+        notifyDashboards('ITEM_SAVED');
+        chrome.notifications.create({
+          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
+          message: '🔗 Đã lưu link lên database!'
+        });
+      }).catch(function(error) {
+        console.warn('Mnemonics link upload failed:', error);
+        writeGenericLocalStore(localItem, null);
+        notifyDashboards('ITEM_SAVED');
+        chrome.notifications.create({
+          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lưu cục bộ',
+          message: 'Link chưa upload lên database: ' + (error.message || 'lỗi')
         });
       });
     });
@@ -396,61 +479,62 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const pageUrl = tab.url || '';
     const pageTitle = tab.title || '';
 
-    getAccessToken().then(function(session) {
-      const itemsKey = getUserItemsKey(session);
+    // Auto tags từ text được chọn (chỉ dùng cho local item; server
+    // sẽ sinh tag riêng nếu muốn). Khi text quá ngắn hoặc không có
+    // gì để chọn, fallback về pageUrl/anchor của tab.
+    const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','was','were',
+      'this','that','with','from','have','will','your','page','home','có','của','và','với','từ',
+      'này','đó','cho','một','các','được','không','thì','đã','đang','sẽ'];
+    const words = selectedText.toLowerCase()
+      .replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !stopwords.includes(w));
+    const freq = {};
+    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+    const tags = Object.keys(freq).sort((a,b) => freq[b]-freq[a]).slice(0, 4);
 
-      chrome.storage.local.get(itemsKey, function(r) {
-        const items = r[itemsKey] || [];
+    const localItem = {
+      id: Date.now(),
+      title: pageTitle.slice(0, 80) || 'Đoạn trích',
+      note: selectedText.slice(0, 500),
+      excerpt: selectedText.slice(0, 280),
+      sourceUrl: pageUrl,
+      url: pageUrl.replace(/^https?:\/\//, '').slice(0, 80),
+      type: 'quote',
+      tags: tags.length > 0 ? tags : ['trích dẫn'],
+      savedAt: new Date().toISOString(),
+      date: 'Vừa xong'
+    };
 
-        // Auto tags từ text được chọn
-        const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','was','were',
-          'this','that','with','from','have','will','your','page','home','có','của','và','với','từ',
-          'này','đó','cho','một','các','được','không','thì','đã','đang','sẽ'];
-        const words = selectedText.toLowerCase()
-          .replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ')
-          .split(/\s+/)
-          .filter(w => w.length > 3 && !stopwords.includes(w));
-        const freq = {};
-        words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-        const tags = Object.keys(freq).sort((a,b) => freq[b]-freq[a]).slice(0, 4);
+    // Server schema dùng type 'text' cho selection, không phải 'quote'.
+    // Bỏ `tags` (server sẽ tự sinh) để tránh .strict() reject.
+    const serverPayload = {
+      type: 'text',
+      title: localItem.title,
+      sourceUrl: pageUrl || undefined,
+      selectedText: selectedText || undefined,
+      capturedAt: localItem.savedAt,
+      clientRequestId: crypto.randomUUID()
+    };
 
-        const newItem = {
-          id: Date.now(),
-          title: pageTitle.slice(0, 80),
-          note: selectedText.slice(0, 500),
-          sourceUrl: pageUrl,
-          url: pageUrl.replace(/^https?:\/\//, '').slice(0, 80),
-          type: 'quote',
-          tags: tags.length > 0 ? tags : ['trích dẫn'],
-          savedAt: new Date().toISOString(),
-          date: 'Vừa xong'
-        };
-
-        items.unshift(newItem);
-        const toStore = items.slice(0, 50);
-
-        const payload = {};
-        payload[itemsKey] = toStore;
-        chrome.storage.local.set(payload, function() {
-          // Notify dashboard nếu đang mở
-          chrome.tabs.query({}, function(tabs) {
-            tabs.forEach(function(t) {
-              if (t.url && t.url.includes('mnemonics-dashboard.html')) {
-                chrome.tabs.sendMessage(t.id, { type: 'RELOAD_ITEMS' }).catch(function() {});
-              }
-            });
-          });
-
-          // Hiện thông báo nhỏ
-          chrome.notifications.create({
-            type: 'basic',
-            iconUrl: 'icon48.png',
-            title: 'Mnemonics',
-            message: '★ Đã lưu trích dẫn thành công!'
-          });
+    uploadTextCapture(serverPayload)
+      .then(function() {
+        writeGenericLocalStore(localItem, { ok: true });
+        notifyDashboards('ITEM_SAVED');
+        chrome.notifications.create({
+          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
+          message: '★ Đã lưu trích dẫn lên database!'
+        });
+      })
+      .catch(function(error) {
+        console.warn('Mnemonics text upload failed:', error);
+        writeGenericLocalStore(localItem, null);
+        notifyDashboards('ITEM_SAVED');
+        chrome.notifications.create({
+          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lưu cục bộ',
+          message: 'Trích dẫn chưa upload lên database: ' + (error.message || 'lỗi')
         });
       });
-    });
   }
 });
 
@@ -569,6 +653,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true, data: serverItem });
       })
       .catch((error) => {
+        sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
+      });
+    return true;
+  }
+
+  // Re-upload a link or text/quote item that initially failed to reach
+  // Supabase. Shares the same /api/v1/captures endpoint as the live
+  // context-menu flow.
+  if (msg && msg.type === 'RESYNC_TEXT_ITEM') {
+    const type = msg.itemType === 'link' ? 'link' : 'text';
+    const serverPayload = {
+      type: type,
+      title: msg.title || (type === 'link' ? 'Link đã lưu' : 'Đoạn trích'),
+      sourceUrl: msg.sourceUrl || undefined,
+      selectedText: msg.selectedText || undefined,
+      capturedAt: msg.capturedAt || new Date().toISOString(),
+      clientRequestId: crypto.randomUUID()
+    };
+    uploadTextCapture(serverPayload)
+      .then(function(serverItem) {
+        sendResponse({ ok: true, data: serverItem });
+      })
+      .catch(function(error) {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
       });
     return true;

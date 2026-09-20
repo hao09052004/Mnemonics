@@ -619,6 +619,22 @@ function renderCards(data) {
   const container = document.getElementById('cards-container');
   document.getElementById('item-count').textContent = `${data.length} ký ức đã được lưu trong tháng này.`;
 
+  // Build the "Đồng bộ lên database" pill used by image/link/quote cards
+  // that failed to upload the first time. Pass the matching payload
+  // fields through data-* so the click handler can re-trigger the right
+  // pipeline (image vs link vs text).
+  function pendingBadgeHtml(item) {
+    if (!item || !item.pendingUpload) return '';
+    const id = escapeHtml(String(item.id || ''));
+    const title = escapeHtml(item.title || '');
+    const sourceUrl = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
+    const noteText = escapeHtml(item.note || item.selectedText || '');
+    const capturedAt = escapeHtml(item.savedAt || '');
+    return `<button type="button" class="resync-btn" data-resync-id="${id}" data-resync-type="${escapeHtml(item.type || '')}" data-resync-title="${title}" data-resync-source="${sourceUrl}" data-resync-note="${noteText}" data-resync-captured="${capturedAt}" title="Upload lên Supabase">
+      <span class="resync-dot"></span>Đồng bộ lên database
+    </button>`;
+  }
+
   if (data.length === 0) {
     container.innerHTML = `<div class="empty-state" style="column-span:all">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="24" cy="24" r="20"/><path d="M16 20h16M16 28h10"/></svg>
@@ -637,18 +653,13 @@ function renderCards(data) {
 
     let body = '';
     if (item.type === 'quote') {
-      body = `<div class="card-quote">${item.quote || item.note || item.excerpt || ''}</div>`;
+      body = `<div class="card-quote">${item.quote || item.note || item.excerpt || ''}</div>
+        ${pendingBadgeHtml(item)}`;
     } else if ((item.type === 'image' || item.type === 'screenshot') && item.imageUrl) {
       const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Ảnh chụp màn hình' : 'Ảnh đã lưu'));
       const imageSrc = escapeHtml(imageSrcForRender(item.imageUrl));
       const pageSrc = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
-      // When an item failed to upload the user sees a "Đồng bộ lên database"
-      // pill that re-runs the upload pipeline through the background.
-      const pendingBadge = item.pendingUpload
-        ? `<button type="button" class="resync-btn" data-resync-id="${escapeHtml(String(item.id))}" data-resync-image="${imageSrc}" data-resync-source="${pageSrc}" data-resync-title="${imageTitle}" data-resync-note="${escapeHtml(item.note || '')}" data-resync-captured="${escapeHtml(item.savedAt || '')}" title="Upload lên Supabase">
-            <span class="resync-dot"></span>Đồng bộ lên database
-          </button>`
-        : '';
+      const pendingBadge = pendingBadgeHtml(item);
       body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="Bấm để xem ảnh">
         <img src="${imageSrc}" alt="${imageTitle}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;">
         <div class="image-click-badge">${item.type === 'screenshot' ? 'Xem ảnh chụp' : 'Xem ảnh'}</div>
@@ -663,6 +674,7 @@ function renderCards(data) {
         ${item.excerpt ? `<p class="card-excerpt">${escapeHtml(item.excerpt)}</p>` : ''}
         ${linkUrl ? `<a href="${linkUrl}" target="_blank" rel="noopener" data-open-link="${linkUrl}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:4px">🔗 ${displayUrl || 'Mở link'} →</a>` : ''}
         ${item.tags ? `<div class="card-tags">${item.tags.map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+        ${pendingBadgeHtml(item)}
       </div>`;
     } else if (item.type === 'file') {
       const fileName = escapeHtml(item.fileName || item.title || 'Tệp đính kèm');
@@ -2140,15 +2152,16 @@ function deleteItem(id) {
   }
 }
 
-// Re-upload a single image item that the initial save couldn't push to
-// Supabase (token expired, network down, CORS, …). The pending pill
-// disappears as soon as the upload returns 201; otherwise we keep the
-// pill visible and surface the error so the user knows what to fix.
+// Re-upload a single item that the initial save couldn't push to
+// Supabase (token expired, network down, …). The pending pill disappears
+// as soon as the upload returns 201; otherwise we keep the pill visible
+// and surface the error so the user knows what to fix.
 function resyncItem(btn) {
   var id = btn.dataset.resyncId;
+  var type = btn.dataset.resyncType || 'image';
   var item = items.find(function(i) { return String(i.id) === String(id); });
   if (!item) {
-    showToast('Không tìm thấy ảnh trong dashboard để đồng bộ.');
+    showToast('Không tìm thấy trong dashboard để đồng bộ.');
     return;
   }
   var originalLabel = btn.innerHTML;
@@ -2162,14 +2175,31 @@ function resyncItem(btn) {
     return;
   }
 
-  chrome.runtime.sendMessage({
-    type: 'RESYNC_ITEM',
-    imageUrl: item.imageUrl || '',
-    sourceUrl: item.sourceUrl || '',
-    title: item.title || '',
-    note: item.note || '',
-    capturedAt: item.savedAt || ''
-  }, function(response) {
+  // Route by item type. Image still needs the binary through the
+  // existing image upload pipeline; link/quote/note share the text
+  // pipeline that goes through /api/v1/captures.
+  var message;
+  if (type === 'image' || type === 'screenshot') {
+    message = {
+      type: 'RESYNC_ITEM',
+      imageUrl: item.imageUrl || '',
+      sourceUrl: item.sourceUrl || '',
+      title: item.title || '',
+      note: item.note || '',
+      capturedAt: item.savedAt || ''
+    };
+  } else {
+    message = {
+      type: 'RESYNC_TEXT_ITEM',
+      itemType: type === 'quote' ? 'text' : (type || 'text'),
+      title: item.title || '',
+      sourceUrl: item.sourceUrl || item.url || '',
+      selectedText: item.note || item.selectedText || '',
+      capturedAt: item.savedAt || ''
+    };
+  }
+
+  chrome.runtime.sendMessage(message, function(response) {
     btn.disabled = false;
     if (chrome.runtime && chrome.runtime.lastError) {
       btn.innerHTML = originalLabel;
@@ -2177,9 +2207,6 @@ function resyncItem(btn) {
       return;
     }
     if (response && response.ok) {
-      // Mark the item as uploaded in-place. We don't have the new
-      // storageKey from this view; the next reloadItems will reconcile
-      // anyway, but clearing the flag here hides the pill immediately.
       item.pendingUpload = false;
       renderDashboard();
       showToast('✅ Đã upload lên Supabase');
