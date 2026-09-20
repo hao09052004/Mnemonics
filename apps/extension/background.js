@@ -131,6 +131,48 @@ async function fetchImageViaLocalProxy(imageUrl) {
   return response.blob();
 }
 
+async function blobUrlToDataUrl(blobUrl) {
+  // Background pages can't use canvas toImageBitmap from cross-origin URLs
+  // without CORS. Instead we use fetch with img → canvas. This still needs
+  // CORS unless the image is already CORS-open or we use a CORS proxy.
+  // As a last resort for stubborn CDNs (Facebook, Instagram), we skip the
+  // data-URL caching and the user will need to re-screenshot manually.
+  try {
+    const response = await fetch(blobUrl, { credentials: 'omit' });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const blob = await response.blob();
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); };
+      reader.onerror = function() { reject(new Error('FileReader failed')); };
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    return null; // CORS or network blocked — caller must fall back
+  }
+}
+
+// When the image proxy (server-to-server fetch) fails, we attempt one more
+// pass using the background page's fetch.  Background pages are exempt from
+// most CORS restrictions so this works for CDNs that block the extension's
+// service worker.  If that also fails we return null so the caller can
+// show the user a "sync failed" pill.
+async function tryResolveImageViaBackground(imageUrl) {
+  try {
+    const response = await fetch(imageUrl, { credentials: 'omit', redirect: 'follow' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); };
+      reader.onerror = function() { reject(new Error('read failed')); };
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
 async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   const accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
@@ -144,6 +186,7 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   // server-to-server); fallback to a direct background fetch which only
   // works for CORS-friendly CDNs.
   let blob;
+  let resolvedDataUrl = null; // cached data URL to persist on failure
   try {
     if (/^data:/i.test(imageUrl)) {
       const mimeMatch = /^data:([^;]+)/i.exec(imageUrl);
@@ -163,6 +206,7 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
         for (let bi = 0; bi < slice.length; bi++) bytes[off + bi] = slice.charCodeAt(bi);
       }
       blob = new Blob([bytes], { type: mime });
+      resolvedDataUrl = imageUrl; // already a data URL
       console.log('[mnemonics] upload: data URL decoded locally, mime:', mime, 'size:', bytes.length);
     } else if (/^https?:\/\//i.test(imageUrl)) {
       try {
@@ -184,6 +228,15 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
           throw wrapped;
         }
         blob = await directResponse.blob();
+        // Convert blob to data URL so we can persist it if the upload fails.
+        // This is the critical step that lets us re-upload without needing
+        // the original URL to still be valid (Facebook URLs expire).
+        resolvedDataUrl = await new Promise(function(resolve, reject) {
+          const reader = new FileReader();
+          reader.onload = function() { resolve(reader.result); };
+          reader.onerror = function() { reject(new Error('read failed')); };
+          reader.readAsDataURL(blob);
+        });
       }
     } else {
       throw new Error('URL ảnh không hỗ trợ: ' + String(imageUrl).slice(0, 40));
@@ -215,7 +268,7 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   if (!uploadResponse.ok) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được ảnh.');
   }
-  return body;
+  return Object.assign(body, { _resolvedDataUrl: resolvedDataUrl });
 }
 
 // After the server-side upload succeeds, also append a local item so the
@@ -226,7 +279,15 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
 // storage URL when `serverResult.storageKey` is present, so the dashboard
 // renders the uploaded copy directly instead of resetting back to the
 // remote CDN (Facebook, Instagram, etc. block the API proxy).
-function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult) {
+// imageUrl — the URL passed in (Facebook CDN, blob URL, etc.)
+// pageUrl — the page the image was on
+// pageTitle — page title
+// serverResult — null when upload failed; object when it succeeded
+// resolvedDataUrl — optional base64 data URL from the blob fetch step.
+//   Critical for re-sync: if the original CDN URL (Facebook, Instagram) has
+//   expired since the first save, we still have the bytes cached as a data URL
+//   and can re-upload without needing the original URL.
+function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, resolvedDataUrl) {
   return new Promise(function(resolve, reject) {
     chrome.storage.local.get(['mnemonics_session'], function(sess) {
       if (chrome.runtime.lastError) {
@@ -244,12 +305,17 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult) {
         // <img src=...> the cached copy without going through the proxy
         // (which often fails for Facebook/Instagram/Twitter CDNs).
         const renderedImageUrl = rewriteUploadedImageUrl(imageUrl, serverResult);
+        // If upload failed but we have a resolved data URL, use it so the card
+        // actually renders AND re-sync can re-upload without the CDN URL.
+        const effectiveImageUrl = (!serverResult && resolvedDataUrl)
+          ? resolvedDataUrl
+          : renderedImageUrl;
         const newItem = {
           id: Date.now(),
           title: (pageTitle || 'Ảnh đã lưu').slice(0, 80),
           excerpt: '',
           note: '',
-          imageUrl: renderedImageUrl,
+          imageUrl: effectiveImageUrl,
           sourceUrl: pageUrl || '',
           url: (pageUrl || '').replace(/^https?:\/\//, '').slice(0, 80),
           type: 'image',
@@ -444,7 +510,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
     notifyCapture('Mnemonics', 'Đang lưu ảnh...', '…', '#f59e0b');
     uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle)
-      .then((serverResult) => writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult))
+      .then((serverResult) => {
+        const dataUrl = serverResult && serverResult._resolvedDataUrl ? serverResult._resolvedDataUrl : null;
+        return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, dataUrl);
+      })
       .then(() => {
         chrome.tabs.query({}, (tabs) => {
           tabs.forEach(t => {
@@ -458,7 +527,17 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       .catch((error) => {
         console.warn('Mnemonics image upload failed:', error);
         const reason = (error && error.message) ? error.message : 'Lỗi không xác định';
-        writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null)
+        // When upload fails, try to fetch the image via background fetch
+        // so we can persist it as a data URL for re-sync.
+        tryResolveImageViaBackground(imageUrl)
+          .then(function(dataUrl) {
+            // Pass resolvedDataUrl so the card renders AND re-sync works
+            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, dataUrl);
+          })
+          .catch(function() {
+            // Could not resolve image at all — still save with original URL
+            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, null);
+          })
           .then(() => notifyCapture(
             'Mnemonics - Lưu cục bộ',
             'Ảnh chưa upload lên database, nhưng đã hiện trong dashboard. Chi tiết: ' + reason,
