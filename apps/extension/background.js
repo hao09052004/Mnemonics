@@ -256,7 +256,12 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult) {
           tags: ['context-menu'],
           savedAt: new Date().toISOString(),
           date: 'Vừa xong',
-          space: 'Mới lưu'
+          space: 'Mới lưu',
+          // Mark the item as not-yet-uploaded whenever we don't have a
+          // serverResult; the dashboard surfaces a "Đồng bộ lên database"
+          // button on those rows. Once the user clicks it, we re-upload
+          // and clear the flag in place.
+          pendingUpload: !serverResult
         };
         items.unshift(newItem);
         const stored = items.slice(0, 80);
@@ -542,6 +547,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .catch((error) => {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Upload failed' });
+      });
+    return true;
+  }
+
+  // Re-upload a single local item that was saved while the upload pipeline
+  // was failing (token expired, network down, …). The dashboard finds the
+  // matching row by its local id, sends the original imageUrl back here,
+  // and we re-run the same upload pipeline as a fresh context-menu save.
+  // On success the dashboard clears the `pendingUpload` flag.
+  if (msg && msg.type === 'RESYNC_ITEM') {
+    const imageUrl = msg.imageUrl || '';
+    const sourceUrl = msg.sourceUrl || '';
+    const title = msg.title || '';
+    const note = msg.note || '';
+    uploadImageFromContextMenu(imageUrl, sourceUrl, title, {
+      note: note,
+      capturedAt: msg.capturedAt || new Date().toISOString()
+    })
+      .then((serverItem) => {
+        sendResponse({ ok: true, data: serverItem });
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
       });
     return true;
   }

@@ -642,10 +642,18 @@ function renderCards(data) {
       const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Ảnh chụp màn hình' : 'Ảnh đã lưu'));
       const imageSrc = escapeHtml(imageSrcForRender(item.imageUrl));
       const pageSrc = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
+      // When an item failed to upload the user sees a "Đồng bộ lên database"
+      // pill that re-runs the upload pipeline through the background.
+      const pendingBadge = item.pendingUpload
+        ? `<button type="button" class="resync-btn" data-resync-id="${escapeHtml(String(item.id))}" data-resync-image="${imageSrc}" data-resync-source="${pageSrc}" data-resync-title="${imageTitle}" data-resync-note="${escapeHtml(item.note || '')}" data-resync-captured="${escapeHtml(item.savedAt || '')}" title="Upload lên Supabase">
+            <span class="resync-dot"></span>Đồng bộ lên database
+          </button>`
+        : '';
       body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="Bấm để xem ảnh">
         <img src="${imageSrc}" alt="${imageTitle}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;">
         <div class="image-click-badge">${item.type === 'screenshot' ? 'Xem ảnh chụp' : 'Xem ảnh'}</div>
         ${item.title ? `<div class="card-title" style="margin-top:8px">${imageTitle}</div>` : ''}
+        ${pendingBadge}
       </div>`;
     } else if (item.type === 'link') {
       const linkUrl = escapeHtml(normalizeExternalUrl(item.sourceUrl || item.url || item.note || ''));
@@ -1969,6 +1977,18 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
+    // "Đồng bộ lên database" — re-run the upload pipeline for an item that
+    // failed the first attempt (token expired, network down, …). We block
+    // the click so it doesn't bubble up to the surrounding image-preview
+    // handler.
+    var resyncBtn = e.target.closest('[data-resync-id]');
+    if (resyncBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      resyncItem(resyncBtn);
+      return;
+    }
+
     var dashboardReminderTask = e.target.closest('[data-dashboard-reminder-id][data-dashboard-task-index]');
     if (dashboardReminderTask) {
       e.preventDefault();
@@ -2118,4 +2138,55 @@ function deleteItem(id) {
     renderDashboard();
     showToast('🗑 Đã xóa ký ức');
   }
+}
+
+// Re-upload a single image item that the initial save couldn't push to
+// Supabase (token expired, network down, CORS, …). The pending pill
+// disappears as soon as the upload returns 201; otherwise we keep the
+// pill visible and surface the error so the user knows what to fix.
+function resyncItem(btn) {
+  var id = btn.dataset.resyncId;
+  var item = items.find(function(i) { return String(i.id) === String(id); });
+  if (!item) {
+    showToast('Không tìm thấy ảnh trong dashboard để đồng bộ.');
+    return;
+  }
+  var originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="resync-dot"></span>Đang upload...';
+
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+    showToast('Trang này cần chạy trong extension context để đồng bộ.');
+    return;
+  }
+
+  chrome.runtime.sendMessage({
+    type: 'RESYNC_ITEM',
+    imageUrl: item.imageUrl || '',
+    sourceUrl: item.sourceUrl || '',
+    title: item.title || '',
+    note: item.note || '',
+    capturedAt: item.savedAt || ''
+  }, function(response) {
+    btn.disabled = false;
+    if (chrome.runtime && chrome.runtime.lastError) {
+      btn.innerHTML = originalLabel;
+      showToast('Không đồng bộ được: ' + chrome.runtime.lastError.message);
+      return;
+    }
+    if (response && response.ok) {
+      // Mark the item as uploaded in-place. We don't have the new
+      // storageKey from this view; the next reloadItems will reconcile
+      // anyway, but clearing the flag here hides the pill immediately.
+      item.pendingUpload = false;
+      renderDashboard();
+      showToast('✅ Đã upload lên Supabase');
+    } else {
+      btn.innerHTML = originalLabel;
+      var msg = (response && response.error) ? response.error : 'Upload thất bại';
+      showToast('Không đồng bộ được: ' + msg);
+    }
+  });
 }
