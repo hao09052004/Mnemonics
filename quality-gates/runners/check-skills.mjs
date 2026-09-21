@@ -132,12 +132,25 @@ for (const f of files) {
     return null;
   }
   const vendorAbs = join(ROOT, vendorRoot);
-  if (!existsSync(vendorAbs)) {
-    // Vendor directory not present (e.g. partial clone, fresh checkout
-    // before vendor sources are populated). Skip the hash check rather
-    // than failing the gate — frontmatter contract was already validated
-    // above and sidecar metadata is present.
-    console.warn(`[skill-frontmatter] skip hash-check for ${rel}: vendor root ${vendorRoot} not present`);
+  // Treat a vendor root as "unpopulated" when the folder is missing OR when
+  // it is present but contains no SKILL.md (e.g. a registered git submodule
+  // that was not initialised in the checkout). Skip the hash check rather
+  // than failing the gate — the frontmatter contract was already validated
+  // and sidecar metadata is present, so drift cannot be detected anyway.
+  function hasAnySkill(dir) {
+    if (!existsSync(dir)) return false;
+    for (const e of readdirSync(dir)) {
+      const full = join(dir, e);
+      if (statSync(full).isDirectory()) {
+        if (hasAnySkill(full)) return true;
+      } else if (e === "SKILL.md") {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (!hasAnySkill(vendorAbs)) {
+    console.warn(`[skill-frontmatter] skip hash-check for ${rel}: vendor root ${vendorRoot} has no SKILL.md`);
     continue;
   }
   const upstream = search(vendorAbs);
