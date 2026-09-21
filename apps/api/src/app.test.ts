@@ -47,8 +47,8 @@ function createTestApp(repository: ItemRepository, expectedToken?: string, image
     imageStorage
   );
 
-  // Mount capture router (mirrors server.ts)
-  app.use(createCaptureRouter({
+  // Mount capture router under /api/v1 (mirrors server.ts)
+  app.use('/api/v1', createCaptureRouter({
     repository,
     imageStorage,
     expectedToken: expectedToken || 'mnemonics-dev-token',
