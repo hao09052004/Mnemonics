@@ -380,30 +380,6 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
   });
 }
 
-// Delete an item server-side. The refresh-on-401 logic lives in
-// `getValidAccessToken`; we reuse it so DELETE works the same as
-// CAPTURE/PATCH. A 204 is success — we must not parse JSON.
-function deleteItemOnServer(itemId, accessToken) {
-  return fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
-    method: 'DELETE',
-    headers: accessToken ? { Authorization: 'Bearer ' + accessToken } : {}
-  }).then(function(response) {
-    if (!response.ok && response.status !== 204) {
-      return response.text().then(function(body) {
-        let msg = 'API xóa thất bại';
-        try {
-          const parsed = JSON.parse(body);
-          if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
-        } catch (_) { /* leave default */ }
-        throw new Error(msg);
-      });
-    }
-    // Don't attempt to parse 204 No Content.
-    if (response.status === 204) return;
-    return response.text().catch(function() { return null; });
-  });
-}
-
 // Lắng nghe message DELETE_ITEM từ dashboard.
 // Upload a non-image capture (link or text/quote) to the API. Returns
 // the parsed JSON body on success. Throws with a human-readable message
@@ -855,4 +831,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     return true;
   }
+
+  // Operator/dev-only message: ask the service worker to reload itself.
+  // Useful when a popup or dashboard tab wants to pick up new background
+  // code without going through chrome://extensions. The reload happens
+  // asynchronously and the call returns immediately.
+  if (msg && msg.type === 'RESTART_EXTENSION') {
+    sendResponse({ ok: true });
+    setTimeout(function() { chrome.runtime.reload(); }, 50);
+    return true;
+  }
 });
+
+// (deleteItemOnServer is declared earlier in this file. Single source of truth.)

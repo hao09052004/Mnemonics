@@ -3,18 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Mnemonics Extension</title>
 <style>
   :root {
     --purple: #5B3FE4; --purple-dark: #4A32C0; --purple-light: #EEE9FF;
     --black: #0A0A0A; --white: #FFFFFF; --gray-bg: #F7F7F7;
     --gray-border: #E8E8E8; --gray-text: #666666;
+    --font: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Be Vietnam Pro', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif; width: 390px; max-height: 620px; background: var(--white); color: var(--black); border-radius: 12px; overflow-x: hidden; overflow-y: auto; position: relative; -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--font); width: 390px; max-height: 620px; background: var(--white); color: var(--black); border-radius: 12px; overflow-x: hidden; overflow-y: auto; position: relative; -webkit-font-smoothing: antialiased; }
   input, textarea, button { font-family: inherit; }
   .ext-header { background: var(--black); padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; }
   .ext-logo { color: white; font-size: 16px; font-weight: 700; }
