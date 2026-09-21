@@ -132,26 +132,12 @@ for (const f of files) {
     return null;
   }
   const vendorAbs = join(ROOT, vendorRoot);
-  // A vendor root is considered "populated" only if it contains at least
-  // one SKILL.md. An empty placeholder dir (e.g. present-but-uncommitted
-  // vendor scaffolding) should not cause the gate to fail.
-  function hasAnySkill(dir) {
-    if (!existsSync(dir)) return false;
-    for (const e of readdirSync(dir)) {
-      const full = join(dir, e);
-      if (statSync(full).isDirectory()) {
-        if (hasAnySkill(full)) return true;
-      } else if (e === "SKILL.md") {
-        return true;
-      }
-    }
-    return false;
-  }
-  if (!hasAnySkill(vendorAbs)) {
-    // Vendor directory is missing or empty. Skip the hash check rather than
-    // failing the gate — frontmatter contract was already validated above
-    // and sidecar metadata is present.
-    console.warn(`[skill-frontmatter] skip hash-check for ${rel}: vendor root ${vendorRoot} has no SKILL.md`);
+  if (!existsSync(vendorAbs)) {
+    // Vendor directory not present (e.g. partial clone, fresh checkout
+    // before vendor sources are populated). Skip the hash check rather
+    // than failing the gate — frontmatter contract was already validated
+    // above and sidecar metadata is present.
+    console.warn(`[skill-frontmatter] skip hash-check for ${rel}: vendor root ${vendorRoot} not present`);
     continue;
   }
   const upstream = search(vendorAbs);
