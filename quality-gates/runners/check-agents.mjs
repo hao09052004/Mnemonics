@@ -11,7 +11,7 @@
  * Exit 0 on PASS, 1 on FAIL.
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep, relative } from "node:path";
 
 const ROOT = process.cwd();
 const AGENT_DIRS = ["agents/core", "agents/product", "agents/curated"];
@@ -85,7 +85,7 @@ console.log(`[agent-contract] checking ${files.length} file(s)`);
 const errors = [];
 
 for (const f of files) {
-  const rel = f.replace(ROOT + "\\", "").replace(/\\/g, "/");
+  const rel = relative(ROOT, f).split(sep).join("/");
   const text = readFileSync(f, "utf8");
   const fm = parseFrontmatter(text);
   if (!fm) { errors.push(`${rel}: missing frontmatter`); continue; }
@@ -100,7 +100,10 @@ for (const f of files) {
   for (const k of ["inputs", "outputs", "skills", "gates"]) {
     const arr = fm[k] ?? [];
     for (const p of arr) {
-      const candidate = join(ROOT, String(p).replace(/\//g, "\\"));
+      // Convert forward-slash paths in frontmatter to native OS separators
+      // before joining with ROOT, so the check works on both Windows and Linux.
+      const nativePath = String(p).split("/").join(sep);
+      const candidate = join(ROOT, nativePath);
       if (!existsSync(candidate)) errors.push(`${rel}: ${k} path does not exist: ${p}`);
     }
   }

@@ -7,7 +7,7 @@
  *  - every path referenced in any agent or workflow file exists on disk
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 const ROOT = process.cwd();
 const errors = [];
@@ -83,7 +83,7 @@ function checkPathsIn(f, key, opts) {
   while ((m = re.exec(text)) !== null) {
     for (const p of m[1].split(",").map((s) => s.trim()).filter(Boolean)) {
       if (opts && opts.skip && opts.skip(p)) continue;
-      const candidate = join(ROOT, p.replace(/\//g, "\\"));
+      const candidate = join(ROOT, p.split("/").join(sep));
       if (!existsSync(candidate)) errors.push(`${f}: ${key} path missing: ${p}`);
     }
   }
@@ -101,7 +101,7 @@ function checkBlockPathsIn(f, key, opts) {
       if (!m) break j;
       const p = m[1];
       if (opts && opts.skip && opts.skip(p)) continue;
-      const candidate = join(ROOT, p.replace(/\//g, "\\"));
+      const candidate = join(ROOT, p.split("/").join(sep));
       if (!existsSync(candidate)) errors.push(`${f}: ${key} path missing: ${p}`);
     }
   }

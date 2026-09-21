@@ -9,7 +9,7 @@
  *                               to the upstream under vendor/.
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { createHash } from "node:crypto";
 
 const ROOT = process.cwd();
@@ -75,7 +75,7 @@ const files = TARGETS.flatMap(walk);
 console.log(`[skill-frontmatter] checking ${files.length} skill(s)`);
 
 for (const f of files) {
-  const rel = f.replace(ROOT + "\\", "").replace(/\\/g, "/");
+  const rel = relative(ROOT, f).split(sep).join("/");
   const dir = f.replace(/SKILL\.md$/, "");
   const sidecar = join(dir, "skill.meta.yaml");
   const text = readFileSync(f, "utf8");
@@ -126,7 +126,7 @@ for (const f of files) {
         const r = search(full); if (r) return r;
       } else if (e === "SKILL.md") {
         const sha = createHash("sha256").update(readFileSync(full)).digest("hex");
-        if (sha === localSha) return full.replace(ROOT + "\\", "").replace(/\\/g, "/");
+        if (sha === localSha) return relative(ROOT, full).split(sep).join("/");
       }
     }
     return null;
