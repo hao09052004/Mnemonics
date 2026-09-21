@@ -10,7 +10,7 @@ import { ApiClient } from './lib/api-client';
 
 interface Item {
   id: string;
-  type: string;
+  kind: string;
   title: string;
   snippet?: string;
   score?: number;
@@ -37,7 +37,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<{
-    type?: string[];
+    kind?: string[];
     tags?: string[];
   }>({});
 
@@ -79,7 +79,7 @@ export function App() {
       const result = await api.search({
         q: searchQuery || '*',
         filters: {
-          kind: filters.type,
+          kind: filters.kind,
           tags: filters.tags
         },
         limit: 50
@@ -163,12 +163,12 @@ export function App() {
       {/* Filters */}
       <div style={{ marginBottom: 24, display: 'flex', gap: 12 }}>
         <select
-          value={filters.type?.[0] || 'all'}
+          value={filters.kind?.[0] || 'all'}
           onChange={(e) => {
             const value = e.target.value;
             setFilters({
               ...filters,
-              type: value === 'all' ? undefined : [value]
+              kind: value === 'all' ? undefined : [value]
             });
           }}
           style={{ padding: '6px 12px', border: '1px solid #ddd', borderRadius: 4 }}

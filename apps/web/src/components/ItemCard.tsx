@@ -4,7 +4,7 @@
 
 interface Item {
   id: string;
-  type: string;
+  kind: string;
   title: string;
   snippet?: string;
   score?: number;
@@ -51,7 +51,7 @@ export function ItemCard({ item, onDelete }: ItemCardProps) {
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <span style={{ fontSize: 20 }}>{getTypeIcon(item.type)}</span>
+        <span style={{ fontSize: 20 }}>{getTypeIcon(item.kind)}</span>
         <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatDate(item.captured_at)}</span>
       </div>
 
