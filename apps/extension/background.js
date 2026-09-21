@@ -61,12 +61,22 @@ async function getValidAccessToken() {
   }
   let payload = {};
   try { payload = await response.json(); } catch (_) { payload = {}; }
-  if (!response.ok || !payload.data || !payload.data.accessToken) {
+  // API envelope is `{ data: { user, session } }`; the legacy code was
+  // reading `payload.data.accessToken` (undefined) and silently
+  // re-using the previous access token, which is why refresh appeared
+  // to "do nothing" until the JWT fully expired.
+  const session = payload && payload.data && payload.data.session;
+  if (!response.ok || !session || !session.accessToken || !session.refreshToken) {
     // Refresh failed — wipe the stale session so the user has to re-login.
     chrome.storage.local.remove('mnemonics_session', function() {});
     throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
   }
-  const next = Object.assign({}, stored, payload.data);
+  const next = Object.assign({}, stored, {
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    expiresAt: session.expiresAt || stored.expiresAt,
+    user: (payload.data && payload.data.user) || stored.user
+  });
   await new Promise(function(resolve) {
     chrome.storage.local.set({ mnemonics_session: next }, function() { resolve(); });
   });
@@ -90,6 +100,31 @@ function rewriteUploadedImageUrl(originalImageUrl, serverResult) {
   const signedUrl = serverResult && serverResult.data && serverResult.data.signedUrl;
   if (signedUrl) return signedUrl;
   return originalImageUrl;
+}
+
+// Delete an item on the server. The caller is responsible for handling
+// the 401 → refresh-token retry cycle (we just receive a valid token).
+// A 204 response means success and we MUST NOT try to JSON.parse the
+// body — older revisions of this module threw "Unexpected end of JSON"
+// on the empty 204 body.
+function deleteItemOnServer(itemId, accessToken) {
+  return fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+    method: 'DELETE',
+    headers: accessToken ? { Authorization: 'Bearer ' + accessToken } : {}
+  }).then(function(response) {
+    if (response.status === 204) return; // success, no body
+    if (!response.ok) {
+      return response.text().then(function(body) {
+        let msg = 'API xóa thất bại';
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
+        } catch (_) { /* keep default */ }
+        throw new Error(msg);
+      });
+    }
+    return response.text().catch(function() { null });
+  });
 }
 
 function setCaptureBadge(text, color) {
@@ -345,6 +380,31 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
   });
 }
 
+// Delete an item server-side. The refresh-on-401 logic lives in
+// `getValidAccessToken`; we reuse it so DELETE works the same as
+// CAPTURE/PATCH. A 204 is success — we must not parse JSON.
+function deleteItemOnServer(itemId, accessToken) {
+  return fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+    method: 'DELETE',
+    headers: accessToken ? { Authorization: 'Bearer ' + accessToken } : {}
+  }).then(function(response) {
+    if (!response.ok && response.status !== 204) {
+      return response.text().then(function(body) {
+        let msg = 'API xóa thất bại';
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
+        } catch (_) { /* leave default */ }
+        throw new Error(msg);
+      });
+    }
+    // Don't attempt to parse 204 No Content.
+    if (response.status === 204) return;
+    return response.text().catch(function() { return null; });
+  });
+}
+
+// Lắng nghe message DELETE_ITEM từ dashboard.
 // Upload a non-image capture (link or text/quote) to the API. Returns
 // the parsed JSON body on success. Throws with a human-readable message
 // on network failure / 4xx so callers can show it.
@@ -756,6 +816,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .catch(function(error) {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
+      });
+    return true;
+  }
+
+  // Delete an item on the server. The dashboard optimistically drops
+  // the row locally before sending this; if the call fails it re-adds.
+  // We handle the 401-refresh-retry cycle by going through
+  // `getValidAccessToken` (same as every other write path).
+  if (msg && msg.type === 'DELETE_ITEM') {
+    const itemId = msg.itemId;
+    if (!itemId) {
+      sendResponse({ ok: false, error: 'itemId is required' });
+      return true;
+    }
+    getValidAccessToken()
+      .then(function(accessToken) {
+        return deleteItemOnServer(itemId, accessToken);
+      })
+      .then(function() {
+        // Drop the cached API snapshot for the current user so the
+        // next loadFromExtension() call shows the deletion immediately.
+        chrome.storage.local.get(['mnemonics_session'], function(sess) {
+          const uid = sess && sess.mnemonics_session && sess.mnemonics_session.user
+            ? sess.mnemonics_session.user.id
+            : null;
+          const apiKey = 'mnemonics_api_items_' + (uid || 'guest');
+          chrome.storage.local.get([apiKey], function(r) {
+            const list = Array.isArray(r[apiKey]) ? r[apiKey] : [];
+            const filtered = list.filter(function(it) { return String(it.id) !== String(itemId); });
+            chrome.storage.local.set({ [apiKey]: filtered }, function() {});
+          });
+        });
+        sendResponse({ ok: true });
+      })
+      .catch(function(error) {
+        sendResponse({ ok: false, error: error && error.message ? error.message : 'Delete failed' });
       });
     return true;
   }

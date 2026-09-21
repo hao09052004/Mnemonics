@@ -1,21 +1,16 @@
 /**
  * LoginForm Component
+ *
+ * Talks to the API through `ApiClient` and surfaces the difference
+ * between "login failed", "registered but email verification required"
+ * and "registered and logged in" — only the last two paths should yield
+ * a usable dashboard session.
  */
 
 import { useState } from 'react';
-import type { ApiClient } from '../lib/api-client';
+import { ApiClient, ApiError, type Session } from '../lib/api-client';
 
-interface Session {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-  user: {
-    id: string;
-    email: string;
-    name?: string;
-    role: string;
-  };
-}
+type Mode = 'login' | 'register';
 
 interface LoginFormProps {
   api: ApiClient;
@@ -23,34 +18,48 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ api, onLogin }: LoginFormProps) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const reset = () => {
+    setError(null);
+    setInfo(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    reset();
 
     try {
-      let response;
-      if (mode === 'login') {
-        response = await api.login({ email, password });
-      } else {
-        response = await api.register({ email, password, name: name || undefined });
+      const result = mode === 'login'
+        ? await api.login({ email, password })
+        : await api.register({ email, password, name: name || undefined });
+
+      if (result.session) {
+        onLogin(result.session);
+        return;
       }
 
-      if (response.data?.accessToken) {
-        onLogin(response.data);
+      // No session but a user object → signup successful, awaiting email
+      // verification. Treat this as informational, not as a login error.
+      if (mode === 'register') {
+        setInfo('Đăng ký thành công. Hãy kiểm tra email để xác minh tài khoản rồi đăng nhập.');
       } else {
-        setError('Đăng nhập thất bại - không nhận được session');
+        setError('Không nhận được phiên đăng nhập. Hãy thử lại.');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
+      if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
+        setInfo('Tài khoản chưa xác minh email. Hãy mở hộp thư và xác nhận trước khi đăng nhập.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -92,12 +101,25 @@ export function LoginForm({ api, onLogin }: LoginFormProps) {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Mật khẩu"
           required
-          minLength={6}
+          minLength={10}
           style={{ padding: '12px 16px', border: '1px solid #ddd', borderRadius: 8 }}
         />
 
+        {info && (
+          <div
+            role="status"
+            data-testid="login-info"
+            style={{ padding: 12, background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 8, color: '#047857', fontSize: 13 }}
+          >
+            {info}
+          </div>
+        )}
+
         {error && (
-          <div style={{ padding: 12, background: '#fee', border: '1px solid #fcc', borderRadius: 8, color: '#dc2626', fontSize: 13 }}>
+          <div
+            role="alert"
+            style={{ padding: 12, background: '#fee', border: '1px solid #fcc', borderRadius: 8, color: '#dc2626', fontSize: 13 }}
+          >
             {error}
           </div>
         )}
@@ -123,7 +145,7 @@ export function LoginForm({ api, onLogin }: LoginFormProps) {
           type="button"
           onClick={() => {
             setMode(mode === 'login' ? 'register' : 'login');
-            setError(null);
+            reset();
           }}
           style={{
             padding: '8px',

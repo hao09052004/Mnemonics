@@ -58,7 +58,12 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
     }
   };
 
-  // GET /api/v1/items - List items
+  // GET /api/v1/items - List items (the primary dashboard endpoint).
+  // The response is wrapped in `{ data: { items, total, ... } }` to keep
+  // the same envelope shape as every other endpoint under `/api/v1/`.
+  // Each row is enriched with `kind` (= legacy `type`), `tags`, and a
+  // signed `image_url` so the web dashboard and extension can render the
+  // list without a follow-up `/items/:id` round-trip per row.
   router.get(
     '/items',
     requireAuth,
@@ -70,7 +75,8 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
 
         const result = await pool.query<Record<string, unknown>>(
           `SELECT id, type, title, source_url, raw_text, ocr_text,
-                  status, captured_at, created_at, updated_at
+                  status, captured_at, created_at, updated_at,
+                  (SELECT storage_key FROM assets WHERE assets.item_id = items.id LIMIT 1) AS asset_storage_key
            FROM items
            WHERE user_id = $1
            ORDER BY created_at DESC
@@ -78,27 +84,68 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           [userId, limit, offset]
         );
 
+        const itemIds = result.rows.map((row) => String(row.id));
+        const tagsByItem = new Map<string, string[]>();
+        if (itemIds.length > 0) {
+          const tagsResult = await pool.query<{ item_id: string; name: string }>(
+            `SELECT it.item_id::text AS item_id, t.name
+             FROM tags t
+             JOIN item_tags it ON it.tag_id = t.id
+             WHERE it.item_id = ANY($1::uuid[])
+               AND t.user_id = $2`,
+            [itemIds, userId]
+          );
+          for (const row of tagsResult.rows) {
+            const list = tagsByItem.get(row.item_id) ?? [];
+            list.push(row.name);
+            tagsByItem.set(row.item_id, list);
+          }
+        }
+
+        // Build a signed URL for each image so the renderer never has to
+        // call the API per row. We use the same bucket as the upload
+        // pipeline; if signing is unavailable the renderer falls back to
+        // a storage-key-aware placeholder.
+        async function signedUrlFor(storageKey: string | null): Promise<string | null> {
+          if (!storageKey) return null;
+          if (supabase) {
+            try {
+              const { data } = await supabase.storage.from('mnemonics-assets').createSignedUrl(storageKey, 60 * 60);
+              return data?.signedUrl ?? null;
+            } catch {
+              return null;
+            }
+          }
+          return null;
+        }
+
+        const items = await Promise.all(result.rows.map(async (row) => ({
+          id: row.id,
+          kind: row.type,
+          title: row.title,
+          source_url: row.source_url,
+          raw_text: row.raw_text,
+          ocr_text: row.ocr_text,
+          status: row.status,
+          captured_at: row.captured_at,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          tags: tagsByItem.get(String(row.id)) ?? [],
+          image_url: await signedUrlFor(row.asset_storage_key as string | null)
+        })));
+
         const total = await pool.query<{ count: string }>(
           `SELECT COUNT(*) as count FROM items WHERE user_id = $1`,
           [userId]
         );
 
         res.json({
-          items: result.rows.map(row => ({
-            id: row.id,
-            type: row.type,
-            title: row.title,
-            source_url: row.source_url,
-            raw_text: row.raw_text,
-            ocr_text: row.ocr_text,
-            status: row.status,
-            captured_at: row.captured_at,
-            created_at: row.created_at,
-            updated_at: row.updated_at
-          })),
-          total: parseInt(total.rows[0].count, 10),
-          limit,
-          offset
+          data: {
+            items,
+            total: parseInt(total.rows[0].count, 10),
+            limit,
+            offset
+          }
         });
       } catch (error) {
         next(error);

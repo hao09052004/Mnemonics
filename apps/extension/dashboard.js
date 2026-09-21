@@ -1,41 +1,41 @@
 // ===== DATA =====
-// (Sample/demo data was removed in task 19 — it confused users into thinking
+// (Sample/demo data was removed in task 19 ? it confused users into thinking
 // their items leaked across accounts.)
 const SPACES_DATA = [
   {
     id: 'design-inspiration',
-    icon: '🎨',
-    name: 'CẢM HỨNG THIẾT KẾ',
-    desc: 'Ảnh chụp màn hình, bảng màu và các mẫu UI được thu thập trong quá trình duyệt web.',
+    icon: '??',
+    name: 'C?M H?NG THI?T K?',
+    desc: '?nh ch?p m?n h?nh, b?ng m?u v? c?c m?u UI ???c thu th?p trong qu? tr?nh duy?t web.',
     count: 42,
-    keywords: ['cảm hứng', 'thiết kế', 'design', 'inspiration', 'ui', 'ux', 'ảnh', 'image'],
+    keywords: ['c?m h?ng', 'thi?t k?', 'design', 'inspiration', 'ui', 'ux', '?nh', 'image'],
     updatedAt: '2026-06-25T08:00:00.000Z'
   },
   {
     id: 'tech-notes',
-    icon: '⚙️',
-    name: 'GHI CHÚ CÔNG NGHỆ',
-    desc: 'Các bài báo, đoạn mã và tin tức công nghệ từ quá trình duyệt web.',
+    icon: '??',
+    name: 'GHI CH? C?NG NGH?',
+    desc: 'C?c b?i b?o, ?o?n m? v? tin t?c c?ng ngh? t? qu? tr?nh duy?t web.',
     count: 128,
-    keywords: ['công nghệ', 'tech', 'code', 'css', 'frontend', 'backend', 'spatial', 'hci'],
+    keywords: ['c?ng ngh?', 'tech', 'code', 'css', 'frontend', 'backend', 'spatial', 'hci'],
     updatedAt: '2026-06-24T10:00:00.000Z'
   },
   {
     id: 'japan-trip',
-    icon: '✈️',
-    name: 'CHUYẾN ĐI NHẬT BẢN 2024',
-    desc: 'Lịch trình bay, đặt phòng khách sạn và các địa điểm dự kiến tham quan.',
+    icon: '??',
+    name: 'CHUY?N ?I NH?T B?N 2024',
+    desc: 'L?ch tr?nh bay, ??t ph?ng kh?ch s?n v? c?c ??a ?i?m d? ki?n tham quan.',
     count: 15,
-    keywords: ['nhật bản', 'japan', 'trip', 'travel', 'chuyến đi', 'khách sạn', 'lịch trình'],
+    keywords: ['nh?t b?n', 'japan', 'trip', 'travel', 'chuy?n ?i', 'kh?ch s?n', 'l?ch tr?nh'],
     updatedAt: '2026-06-20T10:00:00.000Z'
   },
   {
     id: 'study-materials',
-    icon: '📚',
-    name: 'TÀI LIỆU HỌC TẬP',
-    desc: 'Các bài báo nghiên cứu, nội dung nổi bật từ sách giáo khoa và ghi chú học tập.',
+    icon: '??',
+    name: 'T?I LI?U H?C T?P',
+    desc: 'C?c b?i b?o nghi?n c?u, n?i dung n?i b?t t? s?ch gi?o khoa v? ghi ch? h?c t?p.',
     count: 89,
-    keywords: ['học tập', 'tài liệu', 'research', 'nghiên cứu', 'article', 'study', 'book'],
+    keywords: ['h?c t?p', 't?i li?u', 'research', 'nghi?n c?u', 'article', 'study', 'book'],
     updatedAt: '2026-06-22T10:00:00.000Z'
   },
 ];
@@ -51,27 +51,27 @@ const DEFAULT_REMINDERS = [
   {
     id: 'sample-meeting-1',
     kind: 'meeting',
-    title: 'Chuẩn bị họp: Kiến trúc hệ thống',
+    title: 'Chu?n b? h?p: Ki?n tr?c h? th?ng',
     tasks: [
-      { text: 'Xem lại chiến lược bộ nhớ đệm cho chế độ ngoại tuyến', done: false },
-      { text: 'Thảo luận về WebSockets so với SSE', done: true },
-      { text: 'Kiểm tra giới hạn tần suất API trên các endpoint mới', done: false }
+      { text: 'Xem l?i chi?n l??c b? nh? ??m cho ch? ?? ngo?i tuy?n', done: false },
+      { text: 'Th?o lu?n v? WebSockets so v?i SSE', done: true },
+      { text: 'Ki?m tra gi?i h?n t?n su?t API tr?n c?c endpoint m?i', done: false }
     ],
-    date: 'Hôm qua',
-    space: 'Công việc',
+    date: 'H?m qua',
+    space: 'C?ng vi?c',
     createdAt: new Date().toISOString()
   },
   {
     id: 'sample-todo-1',
     kind: 'todo',
-    title: 'Todo list hôm nay',
+    title: 'Todo list h?m nay',
     tasks: [
-      { text: 'Tổng hợp tài liệu đã lưu trong tuần', done: false },
-      { text: 'Gắn tags cho các note quan trọng', done: false },
-      { text: 'Xem lại 2 mục cần ôn tập', done: true }
+      { text: 'T?ng h?p t?i li?u ?? l?u trong tu?n', done: false },
+      { text: 'G?n tags cho c?c note quan tr?ng', done: false },
+      { text: 'Xem l?i 2 m?c c?n ?n t?p', done: true }
     ],
-    date: 'Hôm nay',
-    space: 'Học tập',
+    date: 'H?m nay',
+    space: 'H?c t?p',
     createdAt: new Date().toISOString()
   }
 ];
@@ -168,9 +168,9 @@ function loadAuthState(cb) {
     currentUser = session && session.user && session.accessToken ? session.user : null;
     updateAuthUI();
     // If the user is already signed in when the dashboard opens, skip
-    // the marketing landing page entirely — landing is only meaningful
+    // the marketing landing page entirely ? landing is only meaningful
     // for first-time / logged-out visitors. Otherwise we'd render
-    // "Bắt đầu miễn phí" while the avatar pill in the header is
+    // "B?t ??u mi?n ph?" while the avatar pill in the header is
     // already showing the logged-in user, which is contradictory.
     if (currentUser) {
       const activePage = document.querySelector('.page.active');
@@ -207,7 +207,7 @@ async function authRequest(path, body) {
     if (path === 'refresh' && response.status === 401) {
       saveSession(null);
     }
-    throw new Error(payload.error && payload.error.message ? payload.error.message : 'Không thể xác thực.');
+    throw new Error(payload.error && payload.error.message ? payload.error.message : 'Kh?ng th? x?c th?c.');
   }
   return payload.data;
 }
@@ -220,11 +220,11 @@ async function handleSignup() {
   setAuthError('signup-error', '');
 
   if (!name || !email || !password || !confirm) {
-    setAuthError('signup-error', 'Vui lòng nhập đầy đủ thông tin.');
+    setAuthError('signup-error', 'Vui l?ng nh?p ??y ?? th?ng tin.');
     return;
   }
   if (!/^\S+@\S+\.\S+$/.test(email)) {
-    setAuthError('signup-error', 'Email chưa đúng định dạng.');
+    setAuthError('signup-error', 'Email ch?a ??ng ??nh d?ng.');
     return;
   }
   if (
@@ -234,19 +234,19 @@ async function handleSignup() {
     !/\d/.test(password) ||
     !/[^A-Za-z0-9]/.test(password)
   ) {
-    setAuthError('signup-error', 'Mật khẩu cần tối thiểu 10 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.');
+    setAuthError('signup-error', 'M?t kh?u c?n t?i thi?u 10 k? t?, g?m ch? hoa, ch? th??ng, s? v? k? t? ??c bi?t.');
     return;
   }
   if (password !== confirm) {
-    setAuthError('signup-error', 'Mật khẩu nhập lại chưa khớp.');
+    setAuthError('signup-error', 'M?t kh?u nh?p l?i ch?a kh?p.');
     return;
   }
 
   try {
     const data = await authRequest('register', { name, email, password });
-    if (!data.session) throw new Error('Tài khoản đã tạo. Hãy xác nhận email rồi đăng nhập.');
+    if (!data.session) throw new Error('T?i kho?n ?? t?o. H?y x?c nh?n email r?i ??ng nh?p.');
     saveSession({ ...data.session, user: data.user }, function() {
-      showToast('Đã tạo tài khoản Mnemonics');
+      showToast('?? t?o t?i kho?n Mnemonics');
       loadFromExtension(function() { showPage('dashboard'); });
     });
   } catch (error) {
@@ -260,14 +260,14 @@ async function handleLogin() {
   setAuthError('login-error', '');
 
   if (!email || !password) {
-    setAuthError('login-error', 'Vui lòng nhập email và mật khẩu.');
+    setAuthError('login-error', 'Vui l?ng nh?p email v? m?t kh?u.');
     return;
   }
 
   try {
     const data = await authRequest('login', { email, password });
     saveSession({ ...data.session, user: data.user }, function() {
-      showToast('Đăng nhập thành công');
+      showToast('??ng nh?p th?nh c?ng');
       loadFromExtension(function() { showPage('dashboard'); });
     });
   } catch (error) {
@@ -284,16 +284,16 @@ function logoutUser() {
     body: ''
   }).catch(() => undefined);
   saveSession(null, function() {
-    showToast('Đã đăng xuất');
+    showToast('?? ??ng xu?t');
     showPage('landing');
   });
 }
 
 // Demo login helper used by the optional "auth-demo-login" button.
-// In production we don't ship demo credentials — this is a no-op fallback so
+// In production we don't ship demo credentials ? this is a no-op fallback so
 // the listener at `DOMContentLoaded` doesn't throw `ReferenceError`.
 async function loginDemoUser() {
-  showToast('Tài khoản demo đã bị tắt — hãy đăng ký hoặc đăng nhập.');
+  showToast('T?i kho?n demo ?? b? t?t ? h?y ??ng k? ho?c ??ng nh?p.');
   showPage('login');
 }
 
@@ -305,7 +305,7 @@ async function silentRefresh(refreshToken) {
     const data = await authRequest('refresh', { refreshToken });
     if (data && data.session) {
       saveSession({ ...data.session, user: data.user || currentUser }, function() {
-        showToast('Đã tự động gia hạn phiên');
+        showToast('?? t? ??ng gia h?n phi?n');
       });
     }
   } catch (e) {
@@ -323,10 +323,10 @@ let currentSortBy = 'newest';
 let currentFormatFilter = 'all';
 let currentTimeFilter = 'all';
 
-// Phân loại một item về nhóm định dạng chuẩn để lọc/sắp xếp
+// Ph?n lo?i m?t item v? nh?m ??nh d?ng chu?n ?? l?c/s?p x?p
 function getItemFormat(item) {
   // Visual captures (uploaded images + cropped screenshots) share the same
-  // "Ảnh" tab — splitting them would force users to click two tabs to find
+  // "?nh" tab ? splitting them would force users to click two tabs to find
   // what they just saved, which feels broken.
   if (item.type === 'image' || item.type === 'screenshot') return 'image';
   if (item.type === 'file') return 'file';
@@ -335,7 +335,7 @@ function getItemFormat(item) {
   return 'text';
 }
 
-// Lấy mốc thời gian (ms) của item để lọc theo ngày/tháng/năm
+// L?y m?c th?i gian (ms) c?a item ?? l?c theo ng?y/th?ng/n?m
 function getItemTimestamp(item) {
   if (item.savedAt) {
     var t = new Date(item.savedAt).getTime();
@@ -374,7 +374,7 @@ function applySortFilter(list) {
   return out;
 }
 
-// Render cards có áp dụng sort/filter + ô tìm kiếm hiện tại
+// Render cards c? ?p d?ng sort/filter + ? t?m ki?m hi?n t?i
 function renderDashboard() {
   var searchVal = '';
   var searchEl = document.getElementById('search-input');
@@ -385,62 +385,62 @@ function renderDashboard() {
 
 // ===== BOOK / COURSE SUGGESTIONS (collab) =====
 const TOPIC_OPTIONS = [
-  { id: 'marketing', label: 'Marketing', keywords: ['marketing','mkt','brand','thương hiệu','quảng cáo','ads','seo','content','khách hàng','sản phẩm','product'] },
-  { id: 'design', label: 'Thiết kế', keywords: ['design','thiết kế','ui','ux','inspiration','cảm hứng','màu','typography'] },
-  { id: 'tech', label: 'Công nghệ', keywords: ['tech','công nghệ','code','css','frontend','backend','ai','spatial','hci'] },
-  { id: 'business', label: 'Kinh doanh', keywords: ['business','kinh doanh','startup','khởi nghiệp','finance','tài chính','quản lý'] },
-  { id: 'psychology', label: 'Tâm lý học', keywords: ['psychology','tâm lý','habit','thói quen','behavior','hành vi'] },
-  { id: 'productivity', label: 'Năng suất', keywords: ['productivity','năng suất','habit','ghi chú','study','học tập','focus'] },
-  { id: 'language', label: 'Ngoại ngữ', keywords: ['english','tiếng anh','language','ngoại ngữ','ielts','toeic'] },
-  { id: 'writing', label: 'Viết lách', keywords: ['writing','viết','content','copywriting','storytelling'] }
+  { id: 'marketing', label: 'Marketing', keywords: ['marketing','mkt','brand','th??ng hi?u','qu?ng c?o','ads','seo','content','kh?ch h?ng','s?n ph?m','product'] },
+  { id: 'design', label: 'Thi?t k?', keywords: ['design','thi?t k?','ui','ux','inspiration','c?m h?ng','m?u','typography'] },
+  { id: 'tech', label: 'C?ng ngh?', keywords: ['tech','c?ng ngh?','code','css','frontend','backend','ai','spatial','hci'] },
+  { id: 'business', label: 'Kinh doanh', keywords: ['business','kinh doanh','startup','kh?i nghi?p','finance','t?i ch?nh','qu?n l?'] },
+  { id: 'psychology', label: 'T?m l? h?c', keywords: ['psychology','t?m l?','habit','th?i quen','behavior','h?nh vi'] },
+  { id: 'productivity', label: 'N?ng su?t', keywords: ['productivity','n?ng su?t','habit','ghi ch?','study','h?c t?p','focus'] },
+  { id: 'language', label: 'Ngo?i ng?', keywords: ['english','ti?ng anh','language','ngo?i ng?','ielts','toeic'] },
+  { id: 'writing', label: 'Vi?t l?ch', keywords: ['writing','vi?t','content','copywriting','storytelling'] }
 ];
 
 const BOOK_CATALOG = {
   marketing: [
-    { title: 'This Is Marketing', author: 'Seth Godin', badge: 'Sách', color: '#5B3FE4', icon: '📕' },
-    { title: 'Contagious: Why Things Catch On', author: 'Jonah Berger', badge: 'Sách', color: '#e0447a', icon: '📗' },
-    { title: 'Khóa học Digital Marketing 4.0', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#f59e0b', icon: '🎓' }
+    { title: 'This Is Marketing', author: 'Seth Godin', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
+    { title: 'Contagious: Why Things Catch On', author: 'Jonah Berger', badge: 'S?ch', color: '#e0447a', icon: '??' },
+    { title: 'Kh?a h?c Digital Marketing 4.0', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#f59e0b', icon: '??' }
   ],
   design: [
-    { title: 'The Design of Everyday Things', author: 'Don Norman', badge: 'Sách', color: '#0ea5e9', icon: '📘' },
-    { title: 'Refactoring UI', author: 'Wathan & Schoger', badge: 'Sách', color: '#5B3FE4', icon: '📕' },
-    { title: 'UI/UX Design Foundations', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#10b981', icon: '🎓' }
+    { title: 'The Design of Everyday Things', author: 'Don Norman', badge: 'S?ch', color: '#0ea5e9', icon: '??' },
+    { title: 'Refactoring UI', author: 'Wathan & Schoger', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
+    { title: 'UI/UX Design Foundations', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#10b981', icon: '??' }
   ],
   tech: [
-    { title: 'Clean Code', author: 'Robert C. Martin', badge: 'Sách', color: '#334155', icon: '📗' },
-    { title: 'Pragmatic Programmer', author: 'Hunt & Thomas', badge: 'Sách', color: '#f59e0b', icon: '📙' },
-    { title: 'Frontend Masters Path', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#5B3FE4', icon: '🎓' }
+    { title: 'Clean Code', author: 'Robert C. Martin', badge: 'S?ch', color: '#334155', icon: '??' },
+    { title: 'Pragmatic Programmer', author: 'Hunt & Thomas', badge: 'S?ch', color: '#f59e0b', icon: '??' },
+    { title: 'Frontend Masters Path', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#5B3FE4', icon: '??' }
   ],
   business: [
-    { title: 'The Lean Startup', author: 'Eric Ries', badge: 'Sách', color: '#0ea5e9', icon: '📘' },
-    { title: 'Zero to One', author: 'Peter Thiel', badge: 'Sách', color: '#334155', icon: '📕' },
-    { title: 'Khởi nghiệp tinh gọn', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#e0447a', icon: '🎓' }
+    { title: 'The Lean Startup', author: 'Eric Ries', badge: 'S?ch', color: '#0ea5e9', icon: '??' },
+    { title: 'Zero to One', author: 'Peter Thiel', badge: 'S?ch', color: '#334155', icon: '??' },
+    { title: 'Kh?i nghi?p tinh g?n', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#e0447a', icon: '??' }
   ],
   psychology: [
-    { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman', badge: 'Sách', color: '#5B3FE4', icon: '📕' },
-    { title: 'Atomic Habits', author: 'James Clear', badge: 'Sách', color: '#10b981', icon: '📗' },
-    { title: 'Tâm lý học hành vi', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#f59e0b', icon: '🎓' }
+    { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
+    { title: 'Atomic Habits', author: 'James Clear', badge: 'S?ch', color: '#10b981', icon: '??' },
+    { title: 'T?m l? h?c h?nh vi', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#f59e0b', icon: '??' }
   ],
   productivity: [
-    { title: 'Deep Work', author: 'Cal Newport', badge: 'Sách', color: '#334155', icon: '📘' },
-    { title: 'Atomic Habits', author: 'James Clear', badge: 'Sách', color: '#10b981', icon: '📗' },
-    { title: 'Làm chủ năng suất cá nhân', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#5B3FE4', icon: '🎓' }
+    { title: 'Deep Work', author: 'Cal Newport', badge: 'S?ch', color: '#334155', icon: '??' },
+    { title: 'Atomic Habits', author: 'James Clear', badge: 'S?ch', color: '#10b981', icon: '??' },
+    { title: 'L?m ch? n?ng su?t c? nh?n', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#5B3FE4', icon: '??' }
   ],
   language: [
-    { title: 'English Grammar in Use', author: 'Raymond Murphy', badge: 'Sách', color: '#0ea5e9', icon: '📘' },
-    { title: 'Word Power Made Easy', author: 'Norman Lewis', badge: 'Sách', color: '#e0447a', icon: '📕' },
-    { title: 'IELTS 7.0+ Roadmap', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#10b981', icon: '🎓' }
+    { title: 'English Grammar in Use', author: 'Raymond Murphy', badge: 'S?ch', color: '#0ea5e9', icon: '??' },
+    { title: 'Word Power Made Easy', author: 'Norman Lewis', badge: 'S?ch', color: '#e0447a', icon: '??' },
+    { title: 'IELTS 7.0+ Roadmap', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#10b981', icon: '??' }
   ],
   writing: [
-    { title: 'On Writing Well', author: 'William Zinsser', badge: 'Sách', color: '#f59e0b', icon: '📙' },
-    { title: 'Everybody Writes', author: 'Ann Handley', badge: 'Sách', color: '#5B3FE4', icon: '📕' },
-    { title: 'Content & Copywriting', author: 'Mnemonics Academy', badge: 'Khóa học', color: '#e0447a', icon: '🎓' }
+    { title: 'On Writing Well', author: 'William Zinsser', badge: 'S?ch', color: '#f59e0b', icon: '??' },
+    { title: 'Everybody Writes', author: 'Ann Handley', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
+    { title: 'Content & Copywriting', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#e0447a', icon: '??' }
   ]
 };
 
 let userTopics = [];
 
-// Đoán lĩnh vực quan tâm từ dữ liệu đã lưu nếu user chưa chọn thủ công
+// ?o?n l?nh v?c quan t?m t? d? li?u ?? l?u n?u user ch?a ch?n th? c?ng
 function detectTopicFromItems() {
   var text = items.map(getSearchText).join(' ');
   var best = null, bestScore = 0;
@@ -470,9 +470,9 @@ function renderBookRail() {
 
   rail.innerHTML = `<div class="book-panel">
     <div class="book-panel-head">
-      <div class="book-panel-eyebrow">✦ Gợi ý cho bạn</div>
-      <div class="book-panel-title">Sách & khóa học nổi bật</div>
-      <div class="book-panel-topic">Dựa trên lĩnh vực: <b>${escapeHtml(topic.label)}</b></div>
+      <div class="book-panel-eyebrow">? G?i ? cho b?n</div>
+      <div class="book-panel-title">S?ch & kh?a h?c n?i b?t</div>
+      <div class="book-panel-topic">D?a tr?n l?nh v?c: <b>${escapeHtml(topic.label)}</b></div>
     </div>
     <div class="book-list">
       ${books.map(function(b) {
@@ -487,14 +487,14 @@ function renderBookRail() {
       }).join('')}
     </div>
     <div class="book-topic-pick">
-      <label>Đổi lĩnh vực</label>
+      <label>??i l?nh v?c</label>
       <div class="format-chips">
         ${otherTopics.map(function(t) {
           return `<div class="format-chip" data-book-topic="${escapeHtml(t.id)}">${escapeHtml(t.label)}</div>`;
         }).join('')}
       </div>
     </div>
-    <div class="book-panel-foot">Mnemonics hợp tác cùng các nhà bán sách & nền tảng khóa học.<br>Chọn lĩnh vực trong <b>Cài đặt</b> để cá nhân hóa.</div>
+    <div class="book-panel-foot">Mnemonics h?p t?c c?ng c?c nh? b?n s?ch & n?n t?ng kh?a h?c.<br>Ch?n l?nh v?c trong <b>C?i ??t</b> ?? c? nh?n h?a.</div>
   </div>`;
 }
 
@@ -502,7 +502,7 @@ function reminderToMemoryItem(reminder) {
   const tasks = Array.isArray(reminder.tasks) ? reminder.tasks : [];
   const doneCount = tasks.filter(function(t) { return t.done; }).length;
   const totalCount = tasks.length;
-  const kindLabel = reminder.kind === 'meeting' ? 'Biên bản họp' : 'Todo list';
+  const kindLabel = reminder.kind === 'meeting' ? 'Bi?n b?n h?p' : 'Todo list';
   return {
     id: 'reminder-' + String(reminder.id),
     sourceType: 'reminder',
@@ -510,11 +510,11 @@ function reminderToMemoryItem(reminder) {
     type: 'note',
     title: reminder.title || kindLabel,
     note: tasks.map(function(t) { return t.text; }).join('\n'),
-    excerpt: `${kindLabel} · ${doneCount}/${totalCount} hoàn thành`,
+    excerpt: `${kindLabel} ? ${doneCount}/${totalCount} ho?n th?nh`,
     checks: tasks.map(function(t) { return { text: t.text, done: Boolean(t.done) }; }),
-    tags: ['nhắc nhở', reminder.kind === 'meeting' ? 'biên bản họp' : 'todo'],
-    date: reminder.date || 'Hôm nay',
-    space: reminder.space || 'Nhắc nhở',
+    tags: ['nh?c nh?', reminder.kind === 'meeting' ? 'bi?n b?n h?p' : 'todo'],
+    date: reminder.date || 'H?m nay',
+    space: reminder.space || 'Nh?c nh?',
     savedAt: reminder.createdAt || new Date().toISOString()
   };
 }
@@ -544,31 +544,218 @@ function refreshDashboardItems() {
   if (currentSpaceId) renderSpaces();
 }
 
-// ===== SYNC VỚI EXTENSION =====
-function loadFromExtension(cb) {
-  const itemsKey = userItemsKey();
+// ===== SYNC V?I EXTENSION =====
+//
+// Two storage layers exist:
+//   1) `mnemonics_items_<uid>` ? local cache, including items the user
+//      saved while the network/upload pipeline was failing (`pendingUpload`
+//      rows must survive a refresh; they get cleared locally only after
+//      a successful server-side resync).
+//   2) `/api/v1/items`        ? the source of truth for everything that
+//      made it to the server.
+//
+// `loadFromExtension` is now the dashboard's *only* entry point. It
+// always reads the local cache first (instant render), then reconciles
+// in the background against the API. The reconciliation is keyed by the
+// *current* user id; if the user switches accounts mid-flight, the
+// in-flight response is dropped via `requestEpoch` so a stale payload
+// can never repopulate the wrong user's view.
+//
+// Items returned by the server are LOSER. If a row already exists
+// locally (because the user saved it offline and the upload is still
+// pending), the local copy wins ? its `pendingUpload` flag stays set
+// until the user clicks "??ng b? l?n database" or the resync succeeds.
+const API_ITEMS_FETCH_KEY = 'mnemonics_api_items_v1';
+let apiRequestEpoch = 0;
 
-  function finish(ext) {
-    // Show only the user's own items. Demo data was removed in task 19
-    // because it confused new users into thinking their items leaked.
-    baseMemoryItems = ext || [];
+function userCacheKey(uid) {
+  return 'mnemonics_items_' + (uid || 'guest');
+}
+
+function userApiCacheKey(uid) {
+  return 'mnemonics_api_items_' + (uid || 'guest');
+}
+
+function userRemindersKey() {
+  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+  return 'mnemonics_reminders_' + uid;
+}
+
+function isPendingItem(item) {
+  return item && item.pendingUpload === true;
+}
+
+function apiItemToLocalShape(item) {
+  // Map server-side row to the local card shape. We keep `kind` and
+  // `type` in sync (legacy code reads either) and pull text from
+  // `raw_text`/`ocr_text` so snippet missing doesn't render empty.
+  if (!item) return null;
+  const kind = item.kind || item.type || 'text';
+  const title = item.title || (kind === 'link' ? 'Link ?? l?u' : 'M?c ?? l?u');
+  return {
+    id: item.id,
+    kind,
+    type: kind,
+    title,
+    excerpt: item.snippet || item.raw_text || item.ocr_text || '',
+    note: item.raw_text || item.ocr_text || '',
+    sourceUrl: item.source_url || '',
+    url: item.source_url || '',
+    imageUrl: item.image_url || '',
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    capturedAt: item.captured_at || item.created_at || null,
+    savedAt: item.captured_at || item.created_at || new Date().toISOString(),
+    date: 'V?a xong',
+    space: '?? ??ng b?',
+    serverSynced: true,
+    pendingUpload: false
+  };
+}
+
+function indexLocalById(list) {
+  const map = new Map();
+  for (const item of list || []) {
+    if (item && item.id !== undefined && item.id !== null) {
+      map.set(String(item.id), item);
+    }
+  }
+  return map;
+}
+
+async function fetchItemsFromApi(uid, accessToken) {
+  if (!uid || !accessToken) return null;
+  const epoch = ++apiRequestEpoch;
+  try {
+    const response = await fetch('http://localhost:4000/api/v1/items?limit=50', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    if (response.status === 401) {
+      // Token rejected ? drop the session so the dashboard asks for login.
+      saveSession(null);
+      return null;
+    }
+    if (!response.ok) return null;
+    const json = await response.json().catch(() => null);
+    if (!json || !json.data || !Array.isArray(json.data.items)) return null;
+    if (epoch !== apiRequestEpoch) return null; // user switched accounts
+    return json.data.items.map(apiItemToLocalShape).filter(Boolean);
+  } catch (_) {
+    return null;
+  }
+}
+
+function getAccessTokenAsync() {
+  return new Promise(function(resolve) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get('mnemonics_session', function(r) {
+        const session = r && r.mnemonics_session;
+        if (!session || !session.accessToken) return resolve(null);
+        resolve(session.accessToken);
+      });
+      return;
+    }
+    try {
+      const raw = localStorage.getItem('mnemonics_session');
+      if (!raw) return resolve(null);
+      const parsed = JSON.parse(raw);
+      resolve(parsed && parsed.accessToken ? parsed.accessToken : null);
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+function loadFromExtension(cb) {
+  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+  const itemsKey = userCacheKey(uid);
+  const apiCacheKey = userApiCacheKey(uid);
+
+  function applyLocal(local) {
+    baseMemoryItems = local || [];
     refreshDashboardItems();
     if (cb) cb();
   }
 
-  // Dashboard chạy như extension tab → dùng chrome.storage trực tiếp
+  // 1) Read the local cache immediately so the dashboard renders without
+  //    waiting on the network. If we have nothing cached, we still kick
+  //    off the network fetch below.
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(itemsKey, function(r) {
-      finish(r[itemsKey] || []);
+    chrome.storage.local.get([itemsKey, apiCacheKey], function(r) {
+      const local = r[itemsKey] || [];
+      const cachedApi = r[apiCacheKey] || [];
+      // Prefer the most-recent snapshot: if we have a non-empty API
+      // cache, prefer it for the initial render ? that's what the user
+      // expects to see after a refresh.
+      const useCachedApi = cachedApi.length > 0 || local.length === 0;
+      applyLocal(useCachedApi ? cachedApi : local);
+      // 2) Kick off the API reconciliation in the background. This
+      //    call mutates `baseMemoryItems` only if it completes with a
+      //    result for the *current* user ? see `apiRequestEpoch`.
+      getAccessTokenAsync().then(function(accessToken) {
+        if (!accessToken) return;
+        fetchItemsFromApi(uid, accessToken).then(function(serverItems) {
+          if (!serverItems) return;
+          mergeServerItems(serverItems);
+        });
+      });
     });
   } else {
-    // Fallback khi chạy ngoài extension (dev mode)
-    const ext = JSON.parse(localStorage.getItem(itemsKey) || '[]');
-    finish(ext);
+    const local = JSON.parse(localStorage.getItem(itemsKey) || '[]');
+    const cachedApi = JSON.parse(localStorage.getItem(apiCacheKey) || '[]');
+    const useCachedApi = cachedApi.length > 0 || local.length === 0;
+    applyLocal(useCachedApi ? cachedApi : local);
   }
 }
 
-// Lắng nghe khi extension popup lưu item mới → reload ngay
+// Reconcile the server list with whatever we already have cached
+// locally. Local-only (offline-saved) items keep their place; server
+// items replace anything that was previously synced (matched by id),
+// and new server items appear at the top.
+//
+// Split into a pure helper (no DOM access) and a thin renderer so the
+// merge rules can be unit-tested without a DOM.
+function reconcileServerItems(local, serverItems) {
+  const localIndex = indexLocalById(local);
+  const serverIds = new Set();
+
+  const merged = serverItems.map(function(serverItem) {
+    serverIds.add(String(serverItem.id));
+    const existing = localIndex.get(String(serverItem.id));
+    if (existing && isPendingItem(existing)) {
+      // Server already has the row (maybe a retry succeeded). Drop the
+      // pending flag but keep the user's local edits if any.
+      return Object.assign({}, existing, serverItem, { pendingUpload: false, serverSynced: true });
+    }
+    return serverItem;
+  });
+
+  // Anything still local-only (no matching server id) keeps its place.
+  for (const item of local) {
+    if (!item || item.id === undefined || item.id === null) continue;
+    if (serverIds.has(String(item.id))) continue;
+    if (isPendingItem(item)) merged.unshift(item);
+  }
+
+  return merged.slice(0, 80);
+}
+
+function mergeServerItems(serverItems) {
+  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+  const itemsKey = userCacheKey(uid);
+  const apiCacheKey = userApiCacheKey(uid);
+
+  baseMemoryItems = reconcileServerItems(baseMemoryItems || [], serverItems);
+  refreshDashboardItems();
+  // Persist both the merged view and the API snapshot so subsequent
+  // reloads render from server data even when offline.
+  const payload = {};
+  payload[itemsKey] = baseMemoryItems;
+  payload[apiCacheKey] = serverItems;
+  setStorageValues(payload, function() {});
+}
+
+// L?ng nghe khi extension popup l?u item m?i ? reload ngay
 if (typeof chrome !== 'undefined' && chrome.runtime) {
   chrome.runtime.onMessage.addListener(function(msg) {
     if (msg.type === 'RELOAD_ITEMS' || msg.type === 'ITEM_SAVED') {
@@ -577,12 +764,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
   });
 }
 
-// Fallback: poll mỗi 3 giây để chắc chắn sync
+// Fallback: poll m?i 3 gi?y ?? ch?c ch?n sync
 setInterval(loadFromExtension, 3000);
 
 function updateCount() {
   const el = document.getElementById('item-count');
-  if (el) el.textContent = items.length + ' ký ức đã được lưu trong tháng này.';
+  if (el) el.textContent = items.length + ' k? ?c ?? ???c l?u trong th?ng n?y.';
 }
 
 let searchTimeout = null;
@@ -614,9 +801,9 @@ function showPage(page) {
 // ===== RENDER CARDS =====
 function renderCards(data) {
   const container = document.getElementById('cards-container');
-  document.getElementById('item-count').textContent = `${data.length} ký ức đã được lưu trong tháng này.`;
+  document.getElementById('item-count').textContent = `${data.length} k? ?c ?? ???c l?u trong th?ng n?y.`;
 
-  // Build the "Đồng bộ lên database" pill used by image/link/quote cards
+  // Build the "??ng b? l?n database" pill used by image/link/quote cards
   // that failed to upload the first time. Pass the matching payload
   // fields through data-* so the click handler can re-trigger the right
   // pipeline (image vs link vs text).
@@ -627,25 +814,25 @@ function renderCards(data) {
     const sourceUrl = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
     const noteText = escapeHtml(item.note || item.selectedText || '');
     const capturedAt = escapeHtml(item.savedAt || '');
-    return `<button type="button" class="resync-btn" data-resync-id="${id}" data-resync-type="${escapeHtml(item.type || '')}" data-resync-title="${title}" data-resync-source="${sourceUrl}" data-resync-note="${noteText}" data-resync-captured="${capturedAt}" title="Upload lên Supabase">
-      <span class="resync-dot"></span>Đồng bộ lên database
+    return `<button type="button" class="resync-btn" data-resync-id="${id}" data-resync-type="${escapeHtml(item.type || '')}" data-resync-title="${title}" data-resync-source="${sourceUrl}" data-resync-note="${noteText}" data-resync-captured="${capturedAt}" title="Upload l?n Supabase">
+      <span class="resync-dot"></span>??ng b? l?n database
     </button>`;
   }
 
   if (data.length === 0) {
     container.innerHTML = `<div class="empty-state" style="column-span:all">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="24" cy="24" r="20"/><path d="M16 20h16M16 28h10"/></svg>
-      <h3>Không tìm thấy kết quả</h3>
-      <p>Hãy thử từ khóa khác hoặc thêm ký ức mới</p>
+      <h3>Kh?ng t?m th?y k?t qu?</h3>
+      <p>H?y th? t? kh?a kh?c ho?c th?m k? ?c m?i</p>
     </div>`;
     return;
   }
 
   container.innerHTML = data.map(item => {
-    const isNew = item.date === 'Vừa xong' || item.date === 'Hôm nay';
+    const isNew = item.date === 'V?a xong' || item.date === 'H?m nay';
     const typeLabel = item.sourceType === 'reminder'
-      ? (item.tags && item.tags.includes('biên bản họp') ? 'BIÊN BẢN HỌP' : 'TODO LIST')
-      : {article:'BÀI VIẾT', image:'CẢM HỨNG', note:'GHI CHÚ NHANH', quote:'TRÍCH DẪN', code:'MÃ NGUỒN', link:'LINK', file:'TỆP', screenshot:'ẢNH CHỤP MH'}[item.type] || 'MỤC LƯU';
+      ? (item.tags && item.tags.includes('bi?n b?n h?p') ? 'BI?N B?N H?P' : 'TODO LIST')
+      : {article:'B?I VI?T', image:'C?M H?NG', note:'GHI CH? NHANH', quote:'TR?CH D?N', code:'M? NGU?N', link:'LINK', file:'T?P', screenshot:'?NH CH?P MH'}[item.type] || 'M?C L?U';
     const typeClass = item.type;
 
     let body = '';
@@ -653,13 +840,13 @@ function renderCards(data) {
       body = `<div class="card-quote">${item.quote || item.note || item.excerpt || ''}</div>
         ${pendingBadgeHtml(item)}`;
     } else if ((item.type === 'image' || item.type === 'screenshot') && item.imageUrl) {
-      const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Ảnh chụp màn hình' : 'Ảnh đã lưu'));
+      const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? '?nh ch?p m?n h?nh' : '?nh ?? l?u'));
       const imageSrc = escapeHtml(imageSrcForRender(item.imageUrl));
       const pageSrc = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
       const pendingBadge = pendingBadgeHtml(item);
-      body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="Bấm để xem ảnh">
+      body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="B?m ?? xem ?nh">
         <img src="${imageSrc}" alt="${imageTitle}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;">
-        <div class="image-click-badge">${item.type === 'screenshot' ? 'Xem ảnh chụp' : 'Xem ảnh'}</div>
+        <div class="image-click-badge">${item.type === 'screenshot' ? 'Xem ?nh ch?p' : 'Xem ?nh'}</div>
         ${item.title ? `<div class="card-title" style="margin-top:8px">${imageTitle}</div>` : ''}
         ${pendingBadge}
       </div>`;
@@ -667,19 +854,19 @@ function renderCards(data) {
       const linkUrl = escapeHtml(normalizeExternalUrl(item.sourceUrl || item.url || item.note || ''));
       const displayUrl = escapeHtml((item.url || item.note || '').replace(/^https?:\/\//, '').slice(0, 60));
       body = `<div class="card-body">
-        <div class="card-title">${escapeHtml(item.title || 'Link đã lưu')}</div>
+        <div class="card-title">${escapeHtml(item.title || 'Link ?? l?u')}</div>
         ${item.excerpt ? `<p class="card-excerpt">${escapeHtml(item.excerpt)}</p>` : ''}
-        ${linkUrl ? `<a href="${linkUrl}" target="_blank" rel="noopener" data-open-link="${linkUrl}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:4px">🔗 ${displayUrl || 'Mở link'} →</a>` : ''}
+        ${linkUrl ? `<a href="${linkUrl}" target="_blank" rel="noopener" data-open-link="${linkUrl}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:4px">?? ${displayUrl || 'M? link'} ?</a>` : ''}
         ${item.tags ? `<div class="card-tags">${item.tags.map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
         ${pendingBadgeHtml(item)}
       </div>`;
     } else if (item.type === 'file') {
-      const fileName = escapeHtml(item.fileName || item.title || 'Tệp đính kèm');
+      const fileName = escapeHtml(item.fileName || item.title || 'T?p ??nh k?m');
       const fileSize = item.fileSize ? `<span style="color:var(--gray-mid);font-size:11px">${escapeHtml(item.fileSize)}</span>` : '';
-      const dl = item.fileData ? `<a href="${escapeHtml(item.fileData)}" download="${fileName}" data-file-download="1" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:8px">⬇ Tải về</a>` : '';
+      const dl = item.fileData ? `<a href="${escapeHtml(item.fileData)}" download="${fileName}" data-file-download="1" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:8px">? T?i v?</a>` : '';
       body = `<div class="card-body">
         <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;background:var(--gray-bg)">
-          <div style="width:40px;height:40px;border-radius:8px;background:var(--purple-light);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📎</div>
+          <div style="width:40px;height:40px;border-radius:8px;background:var(--purple-light);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">??</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fileName}</div>
             ${fileSize}
@@ -695,7 +882,7 @@ function renderCards(data) {
         const doneCount = item.checks.filter(c => c.done).length;
         const totalCount = item.checks.length;
         const reminderBadge = item.sourceType === 'reminder'
-          ? `<div class="card-reminder-meta">${typeLabel} · ${doneCount}/${totalCount} hoàn thành</div>`
+          ? `<div class="card-reminder-meta">${typeLabel} ? ${doneCount}/${totalCount} ho?n th?nh</div>`
           : '';
         const reminderId = item.sourceType === 'reminder' ? escapeHtml(item.reminderId) : '';
         body = `<div class="card-checklist ${item.sourceType === 'reminder' ? 'dashboard-reminder-card' : ''}">
@@ -703,15 +890,15 @@ function renderCards(data) {
           ${reminderBadge}
           ${item.checks.map(function(c, index) {
             const taskAttrs = item.sourceType === 'reminder'
-              ? ` data-dashboard-reminder-id="${reminderId}" data-dashboard-task-index="${index}" title="Bấm để tick / bỏ tick"`
+              ? ` data-dashboard-reminder-id="${reminderId}" data-dashboard-task-index="${index}" title="B?m ?? tick / b? tick"`
               : '';
             return `<div class="check-item ${c.done?'done':''} ${item.sourceType === 'reminder' ? 'reminder-clickable' : ''}"${taskAttrs}>
               <div class="check-box ${c.done?'checked':''}"></div><span>${escapeHtml(c.text)}</span>
             </div>`;
           }).join('')}
           ${item.sourceType === 'reminder' ? `<div class="dashboard-reminder-actions">
-            <button class="dashboard-reminder-open" data-open-reminders="1">Mở Nhắc nhở</button>
-            <button class="dashboard-reminder-delete" data-dashboard-reminder-delete="${reminderId}">Xóa</button>
+            <button class="dashboard-reminder-open" data-open-reminders="1">M? Nh?c nh?</button>
+            <button class="dashboard-reminder-delete" data-dashboard-reminder-delete="${reminderId}">X?a</button>
           </div>` : ''}
         </div>`;
       } else {
@@ -729,11 +916,11 @@ function renderCards(data) {
     return `<div class="memory-card">
       ${item.type !== 'note' ? `<div class="card-header">
         <span class="card-type ${typeClass}">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
-        <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">MỚI</span>' : ''}
+        <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">M?I</span>' : ''}
           <div class="card-menu-wrap">
-            <span class="card-menu" data-menuid="${item.id}">···</span>
+            <span class="card-menu" data-menuid="${item.id}">???</span>
             <div class="card-dropdown" id="dropdown-${item.id}">
-              <div class="card-dropdown-item danger" data-deleteid="${item.id}">🗑 Xóa</div>
+              <div class="card-dropdown-item danger" data-deleteid="${item.id}">?? X?a</div>
             </div>
           </div>
         </div>
@@ -753,7 +940,7 @@ function normalizeText(value) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd');
+    .replace(/\u0111/g, 'd');
 }
 
 function getSpaceById(id) {
@@ -792,7 +979,7 @@ function getSpaceItems(space) {
     ].map(normalizeText).join(' ');
 
     if (normalizeText(item.space) && spaceName.includes(normalizeText(item.space))) return true;
-    // "Cảm hứng" space shows both uploaded images AND cropped screenshots
+    // "C?m h?ng" space shows both uploaded images AND cropped screenshots
     // so users see all visual captures together, not split across tabs.
     if (space.id === 'design-inspiration' && (item.type === 'image' || item.type === 'screenshot')) return true;
     if (space.id === 'tech-notes' && item.type === 'code') return true;
@@ -850,8 +1037,8 @@ function renderSpaces() {
   const data = getFilteredSpaces();
   if (data.length === 0) {
     grid.innerHTML = `<div class="spaces-empty">
-      <h3>Chưa có không gian yêu thích</h3>
-      <p>Bấm biểu tượng ngôi sao trên một không gian để đưa vào mục Yêu thích.</p>
+      <h3>Ch?a c? kh?ng gian y?u th?ch</h3>
+      <p>B?m bi?u t??ng ng?i sao tr?n m?t kh?ng gian ?? ??a v?o m?c Y?u th?ch.</p>
     </div>`;
     return;
   }
@@ -862,15 +1049,15 @@ function renderSpaces() {
     return `<div class="space-card" data-space-id="${escapeHtml(s.id)}">
       <div class="space-card-top">
         <div class="space-icon">${s.icon}</div>
-        <button class="space-star ${isFavorite ? 'active' : ''}" data-space-favorite="${escapeHtml(s.id)}" title="${isFavorite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}">★</button>
+        <button class="space-star ${isFavorite ? 'active' : ''}" data-space-favorite="${escapeHtml(s.id)}" title="${isFavorite ? 'B? y?u th?ch' : 'Th?m y?u th?ch'}">?</button>
       </div>
       <div class="space-name">${escapeHtml(s.name)}</div>
       <p class="space-desc">${escapeHtml(s.desc)}</p>
       <div class="space-count">
-        <span>${getSpaceCount(s)} MỤC DỮ LIỆU · ${relatedCount} mục khớp</span>
+        <span>${getSpaceCount(s)} M?C D? LI?U ? ${relatedCount} m?c kh?p</span>
         <span class="space-ai">AI</span>
       </div>
-      <div class="space-open-hint">Mở không gian →</div>
+      <div class="space-open-hint">M? kh?ng gian ?</div>
     </div>`;
   }).join('');
 }
@@ -893,10 +1080,10 @@ function toggleFavoriteSpace(spaceId) {
   if (!spaceId) return;
   if (favoriteSpaceIds.includes(spaceId)) {
     favoriteSpaceIds = favoriteSpaceIds.filter(function(id) { return id !== spaceId; });
-    showToast('Đã bỏ khỏi Yêu thích');
+    showToast('?? b? kh?i Y?u th?ch');
   } else {
     favoriteSpaceIds.push(spaceId);
-    showToast('★ Đã thêm vào Yêu thích');
+    showToast('? ?? th?m v?o Y?u th?ch');
   }
   saveFavoriteSpaces(renderSpaces);
 }
@@ -914,7 +1101,7 @@ function renderSpaceDetail(spaceId) {
   grid.classList.add('hidden');
 
   detail.innerHTML = `<div class="space-detail-head">
-    <button class="space-back-btn" id="space-detail-back">← Quay lại</button>
+    <button class="space-back-btn" id="space-detail-back">? Quay l?i</button>
     <div class="space-detail-title-row">
       <div class="space-detail-icon">${space.icon}</div>
       <div>
@@ -923,18 +1110,18 @@ function renderSpaceDetail(spaceId) {
       </div>
     </div>
     <div class="space-detail-actions">
-      <button class="space-detail-btn ${isFavorite ? 'active' : ''}" id="space-detail-favorite" data-space-favorite="${escapeHtml(space.id)}">${isFavorite ? '★ Đã yêu thích' : '☆ Yêu thích'}</button>
-      <button class="space-detail-btn" id="space-detail-open-dashboard">Xem trong lưu trữ</button>
+      <button class="space-detail-btn ${isFavorite ? 'active' : ''}" id="space-detail-favorite" data-space-favorite="${escapeHtml(space.id)}">${isFavorite ? '? ?? y?u th?ch' : '? Y?u th?ch'}</button>
+      <button class="space-detail-btn" id="space-detail-open-dashboard">Xem trong l?u tr?</button>
     </div>
   </div>
   <div class="space-detail-meta">
-    <span>${getSpaceCount(space)} mục dữ liệu</span>
-    <span>${getSpaceItems(space).length} mục đang khớp với dữ liệu demo/lưu thật</span>
-    <span>Cập nhật gần đây</span>
+    <span>${getSpaceCount(space)} m?c d? li?u</span>
+    <span>${getSpaceItems(space).length} m?c ?ang kh?p v?i d? li?u demo/l?u th?t</span>
+    <span>C?p nh?t g?n ??y</span>
   </div>
   <div class="space-detail-search">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M12 12l3 3"/></svg>
-    <input id="space-detail-search-input" type="text" placeholder="Tìm trong không gian này...">
+    <input id="space-detail-search-input" type="text" placeholder="T?m trong kh?ng gian n?y...">
   </div>
   <div class="space-items" id="space-items"></div>`;
 
@@ -957,16 +1144,16 @@ function renderSpaceItems(space, query) {
 
   if (data.length === 0) {
     container.innerHTML = `<div class="space-items-empty">
-      <h3>Chưa có mục nào trong không gian này</h3>
-      <p>Lưu thêm ảnh, bài viết hoặc ghi chú có tag liên quan để chúng tự hiện ở đây.</p>
+      <h3>Ch?a c? m?c n?o trong kh?ng gian n?y</h3>
+      <p>L?u th?m ?nh, b?i vi?t ho?c ghi ch? c? tag li?n quan ?? ch?ng t? hi?n ? ??y.</p>
     </div>`;
     return;
   }
 
   container.innerHTML = data.map(function(item) {
-    const typeLabel = { article:'Bài viết', image:'Ảnh', note:'Ghi chú', quote:'Trích dẫn', code:'Mã nguồn' }[item.type] || 'Mục lưu';
-    const title = item.title || item.quote || item.note || 'Ký ức đã lưu';
-    const body = item.excerpt || item.note || item.quote || item.url || (item.checks || []).map(function(c) { return c.text; }).join(' · ') || '';
+    const typeLabel = { article:'B?i vi?t', image:'?nh', note:'Ghi ch?', quote:'Tr?ch d?n', code:'M? ngu?n' }[item.type] || 'M?c l?u';
+    const title = item.title || item.quote || item.note || 'K? ?c ?? l?u';
+    const body = item.excerpt || item.note || item.quote || item.url || (item.checks || []).map(function(c) { return c.text; }).join(' ? ') || '';
     const url = normalizeExternalUrl(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
     const image = item.type === 'image' && item.imageUrl ? `<img class="space-item-thumb" src="${escapeHtml(imageSrcForRender(item.imageUrl))}" data-image-preview="${escapeHtml(imageSrcForRender(item.imageUrl))}" data-image-title="${escapeHtml(title)}" data-page-url="${escapeHtml(url)}" alt="${escapeHtml(title)}">` : `<div class="space-item-type-icon">${typeLabel.slice(0,1)}</div>`;
     return `<div class="space-item">
@@ -980,7 +1167,7 @@ function renderSpaceItems(space, query) {
         ${body ? `<div class="space-item-excerpt">${escapeHtml(body).slice(0, 180)}</div>` : ''}
         ${(item.tags || []).length ? `<div class="space-item-tags">${(item.tags || []).slice(0,4).map(function(t){ return `<span>#${escapeHtml(t)}</span>`; }).join('')}</div>` : ''}
       </div>
-      ${url ? `<button class="space-item-open" data-space-open-url="${escapeHtml(url)}">Mở nguồn</button>` : ''}
+      ${url ? `<button class="space-item-open" data-space-open-url="${escapeHtml(url)}">M? ngu?n</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -1065,7 +1252,7 @@ function updateReminderStats() {
   const openEl = document.getElementById('reminder-open-count');
   if (openEl) openEl.textContent = openCount;
   const listCount = document.getElementById('reminder-list-count');
-  if (listCount) listCount.textContent = `${getFilteredReminders().length} mục nhắc nhở`;
+  if (listCount) listCount.textContent = `${getFilteredReminders().length} m?c nh?c nh?`;
 }
 
 function renderReminders() {
@@ -1075,7 +1262,7 @@ function renderReminders() {
   updateReminderStats();
 
   if (data.length === 0) {
-    grid.innerHTML = `<div class="reminder-empty"><h3>Chưa có nhắc nhở phù hợp</h3><p>Tạo checklist mới hoặc đổi bộ lọc khác.</p></div>`;
+    grid.innerHTML = `<div class="reminder-empty"><h3>Ch?a c? nh?c nh? ph? h?p</h3><p>T?o checklist m?i ho?c ??i b? l?c kh?c.</p></div>`;
     return;
   }
 
@@ -1083,7 +1270,7 @@ function renderReminders() {
     const tasks = item.tasks || [];
     const doneCount = tasks.filter(t => t.done).length;
     const totalCount = tasks.length;
-    const kindLabel = item.kind === 'meeting' ? 'BIÊN BẢN HỌP' : 'TODO LIST';
+    const kindLabel = item.kind === 'meeting' ? 'BI?N B?N H?P' : 'TODO LIST';
     const kindClass = item.kind === 'meeting' ? 'meeting' : 'todo';
     const safeId = String(item.id);
 
@@ -1093,7 +1280,7 @@ function renderReminders() {
           <div class="reminder-card-title">${escapeHtml(item.title)}</div>
           <span class="reminder-kind ${kindClass}">${kindLabel}</span>
         </div>
-        <div class="reminder-progress">${doneCount}/${totalCount} hoàn thành</div>
+        <div class="reminder-progress">${doneCount}/${totalCount} ho?n th?nh</div>
         <div class="reminder-tasks">
           ${tasks.map(function(task, index) {
             return `<div class="reminder-task ${task.done ? 'done' : ''}" data-reminder-id="${escapeHtml(safeId)}" data-task-index="${index}">
@@ -1105,12 +1292,12 @@ function renderReminders() {
       </div>
       <div class="reminder-card-footer">
         <div>
-          <span class="reminder-date">${escapeHtml(item.date || 'Hôm nay')}</span>
-          <span style="color:#ddd;margin:0 6px">·</span>
-          <span class="reminder-space">${escapeHtml(item.space || 'Công việc')}</span>
+          <span class="reminder-date">${escapeHtml(item.date || 'H?m nay')}</span>
+          <span style="color:#ddd;margin:0 6px">?</span>
+          <span class="reminder-space">${escapeHtml(item.space || 'C?ng vi?c')}</span>
         </div>
         <div class="reminder-actions">
-          <button class="reminder-delete" data-reminder-delete="${escapeHtml(safeId)}">Xóa</button>
+          <button class="reminder-delete" data-reminder-delete="${escapeHtml(safeId)}">X?a</button>
         </div>
       </div>
     </div>`;
@@ -1127,10 +1314,10 @@ function addReminder() {
   const kind = kindEl.value || 'todo';
   const title = titleEl.value.trim();
   const taskLines = tasksEl.value.split('\n').map(t => t.trim()).filter(Boolean);
-  const space = spaceEl ? spaceEl.value.trim() : 'Công việc';
+  const space = spaceEl ? spaceEl.value.trim() : 'C?ng vi?c';
 
   if (!title || taskLines.length === 0) {
-    showToast('Nhập tiêu đề và ít nhất 1 checklist nhé!');
+    showToast('Nh?p ti?u ?? v? ?t nh?t 1 checklist nh?!');
     return;
   }
 
@@ -1139,8 +1326,8 @@ function addReminder() {
     kind,
     title,
     tasks: taskLines.map(text => ({ text, done: false })),
-    date: 'Vừa xong',
-    space: space || 'Công việc',
+    date: 'V?a xong',
+    space: space || 'C?ng vi?c',
     createdAt: new Date().toISOString()
   };
 
@@ -1148,11 +1335,11 @@ function addReminder() {
   saveReminders(function() {
     titleEl.value = '';
     tasksEl.value = '';
-    if (spaceEl) spaceEl.value = space || 'Công việc';
+    if (spaceEl) spaceEl.value = space || 'C?ng vi?c';
     reminderFilter = 'all';
     document.querySelectorAll('.reminder-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.reminderFilter === 'all'));
     renderReminders();
-    showToast('✦ Đã lưu nhắc nhở');
+    showToast('? ?? l?u nh?c nh?');
   });
 }
 
@@ -1167,7 +1354,7 @@ function deleteReminder(id) {
   reminders = reminders.filter(r => String(r.id) !== String(id));
   saveReminders(function() {
     renderReminders();
-    showToast('🗑 Đã xóa nhắc nhở');
+    showToast('?? ?? x?a nh?c nh?');
   });
 }
 
@@ -1180,7 +1367,7 @@ function handleSearch(val) {
     hideAIResult();
     return;
   }
-  // Kết hợp search với sort/filter hiện tại
+  // K?t h?p search v?i sort/filter hi?n t?i
   renderDashboard();
 
   // AI search after delay
@@ -1191,13 +1378,13 @@ function handleSearch(val) {
 async function doAISearch() {
   const query = document.getElementById('search-input').value.trim();
   if (!query) return;
-  // Tìm kiếm thủ công, không cần AI
+  // T?m ki?m th? c?ng, kh?ng c?n AI
   const q = query.toLowerCase();
   const matched = items.filter(item => getSearchText(item).includes(q));
   if (matched.length > 0) {
-    showAIResult(`Tìm thấy <b>${matched.length}</b> kết quả liên quan đến "<b>${query}</b>". Các mục liên quan nhất hiển thị bên dưới.`);
+    showAIResult(`T?m th?y <b>${matched.length}</b> k?t qu? li?n quan ??n "<b>${query}</b>". C?c m?c li?n quan nh?t hi?n th? b?n d??i.`);
   } else {
-    showAIResult(`Không tìm thấy kết quả nào cho "<b>${query}</b>". Thử từ khóa khác nhé!`);
+    showAIResult(`Kh?ng t?m th?y k?t qu? n?o cho "<b>${query}</b>". Th? t? kh?a kh?c nh?!`);
   }
 }
 
@@ -1229,7 +1416,7 @@ function imageSrcForRender(imageUrl) {
   if (!imageUrl) return '';
   if (/^(data:|blob:|chrome-extension:)/i.test(imageUrl)) return imageUrl;
   // Supabase Storage signed URLs (`?token=...`) already authorize the
-  // browser — proxying them just strips the token and breaks the load.
+  // browser ? proxying them just strips the token and breaks the load.
   if (/^https?:\/\/[^/]*\.supabase\.co\/storage\//i.test(imageUrl)) return imageUrl;
   if (/^https?:\/\//i.test(imageUrl)) {
     var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : (window.MNEMONICS_API_URL || 'http://localhost:4000'));
@@ -1249,7 +1436,7 @@ function openImagePreview(imageUrl, title, pageUrl) {
   var safeImageUrl = normalizeExternalUrl(imageUrl);
   var safePageUrl = normalizeExternalUrl(pageUrl);
   img.src = safeImageUrl || imageUrl || '';
-  titleEl.textContent = title || 'Ảnh đã lưu';
+  titleEl.textContent = title || '?nh ?? l?u';
   openImageBtn.dataset.url = safeImageUrl || imageUrl || '';
   openPageBtn.dataset.url = safePageUrl;
   openPageBtn.style.display = safePageUrl ? 'inline-flex' : 'none';
@@ -1277,10 +1464,10 @@ function openOriginalImage(imageUrl, title) {
   if (!imageUrl) return;
 
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.runtime && chrome.tabs) {
-    var payload = { url: imageUrl, title: title || 'Ảnh gốc' };
+    var payload = { url: imageUrl, title: title || '?nh g?c' };
     chrome.storage.local.set({ mnemonics_original_image: payload }, function() {
       if (chrome.runtime.lastError) {
-        showToast('Không thể mở ảnh gốc');
+        showToast('Kh?ng th? m? ?nh g?c');
         return;
       }
       chrome.tabs.create({ url: chrome.runtime.getURL('original-image.html') });
@@ -1292,7 +1479,7 @@ function openOriginalImage(imageUrl, title) {
 }
 
 // ===== ADD ITEM =====
-let modalFileData = null;    // base64 của file/ảnh đã chọn hoặc dán
+let modalFileData = null;    // base64 c?a file/?nh ?? ch?n ho?c d?n
 let modalFileName = '';
 let modalFileSize = '';
 
@@ -1304,14 +1491,14 @@ function openAddModal() {
   var fileEl = document.getElementById('new-file'); if (fileEl) fileEl.value = '';
   var prev = document.getElementById('modal-file-preview'); if (prev) prev.innerHTML = '';
   modalFileData = null; modalFileName = ''; modalFileSize = '';
-  document.getElementById('ai-tags-preview').innerHTML = '<span style="font-size:13px;color:var(--gray-text)">Nhập nội dung để AI tạo tags...</span>';
+  document.getElementById('ai-tags-preview').innerHTML = '<span style="font-size:13px;color:var(--gray-text)">Nh?p n?i dung ?? AI t?o tags...</span>';
   updateModalTypeFields(document.getElementById('new-type').value);
 }
 function closeModal() {
   document.getElementById('add-modal').classList.remove('open');
 }
 
-// Hiện/ẩn ô URL và ô file tùy theo loại đã chọn
+// Hi?n/?n ? URL v? ? file t?y theo lo?i ?? ch?n
 function updateModalTypeFields(type) {
   var urlField = document.getElementById('modal-url-field');
   var fileField = document.getElementById('modal-file-field');
@@ -1323,9 +1510,9 @@ function updateModalTypeFields(type) {
   if (fileField) fileField.style.display = showFile ? 'block' : 'none';
   if (fileInput) fileInput.accept = (type === 'file') ? '' : 'image/*';
   if (fileLabel) {
-    if (type === 'screenshot') fileLabel.textContent = 'Dán ảnh chụp màn hình (Ctrl/Cmd+V) vào đây, hoặc chọn tệp ảnh';
-    else if (type === 'image') fileLabel.textContent = 'Chọn ảnh từ máy';
-    else fileLabel.textContent = 'Chọn tệp đính kèm';
+    if (type === 'screenshot') fileLabel.textContent = 'D?n ?nh ch?p m?n h?nh (Ctrl/Cmd+V) v?o ??y, ho?c ch?n t?p ?nh';
+    else if (type === 'image') fileLabel.textContent = 'Ch?n ?nh t? m?y';
+    else fileLabel.textContent = 'Ch?n t?p ??nh k?m';
   }
 }
 
@@ -1338,15 +1525,15 @@ function formatFileSize(bytes) {
 
 function handleModalFile(file) {
   if (!file) return;
-  // Giới hạn ~4MB để vừa quota storage
+  // Gi?i h?n ~4MB ?? v?a quota storage
   if (file.size > 4 * 1024 * 1024) {
-    showToast('Tệp quá lớn (tối đa 4MB cho bản lưu offline)');
+    showToast('T?p qu? l?n (t?i ?a 4MB cho b?n l?u offline)');
     return;
   }
   var reader = new FileReader();
   reader.onload = function(e) {
     modalFileData = e.target.result;
-    modalFileName = file.name || 'tệp-đính-kèm';
+    modalFileName = file.name || 't?p-??nh-k?m';
     modalFileSize = formatFileSize(file.size);
     var titleEl = document.getElementById('new-title');
     if (titleEl && !titleEl.value.trim()) titleEl.value = modalFileName.slice(0, 80);
@@ -1355,14 +1542,14 @@ function handleModalFile(file) {
       if (/^data:image\//.test(modalFileData)) {
         prev.innerHTML = '<img src="' + modalFileData + '" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--gray-border)">';
       } else {
-        prev.innerHTML = '<div style="font-size:12px;color:var(--gray-text)">📎 ' + escapeHtml(modalFileName) + ' · ' + modalFileSize + '</div>';
+        prev.innerHTML = '<div style="font-size:12px;color:var(--gray-text)">?? ' + escapeHtml(modalFileName) + ' ? ' + modalFileSize + '</div>';
       }
     }
   };
   reader.readAsDataURL(file);
 }
 
-// Cho phép dán ảnh chụp màn hình trực tiếp vào modal
+// Cho ph?p d?n ?nh ch?p m?n h?nh tr?c ti?p v?o modal
 document.addEventListener('paste', function(e) {
   var modal = document.getElementById('add-modal');
   if (!modal || !modal.classList.contains('open')) return;
@@ -1375,7 +1562,7 @@ document.addEventListener('paste', function(e) {
         var typeSel = document.getElementById('new-type');
         if (typeSel && typeSel.value !== 'image') { typeSel.value = 'screenshot'; updateModalTypeFields('screenshot'); }
         handleModalFile(blob);
-        showToast('📸 Đã dán ảnh chụp màn hình');
+        showToast('?? ?? d?n ?nh ch?p m?n h?nh');
         e.preventDefault();
       }
       break;
@@ -1390,12 +1577,12 @@ let tagTimeout = null;
 async function generateTags(content) {
   if (!content || content.length < 10) return;
   const preview = document.getElementById('ai-tags-preview');
-  const words = content.toLowerCase().replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, '').split(/\s+/);
-  const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','có','của','và','với','từ','này','đó','cho','một','các','được','không','thì'];
+  const words = content.toLowerCase().replace(/[^a-zA-Z0-9\s???????????????????????????????????????????????????????????????????]/g, '').split(/\s+/);
+  const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','c?','c?a','v?','v?i','t?','n?y','??','cho','m?t','c?c','???c','kh?ng','th?'];
   const freq = {};
   words.filter(w => w.length > 3 && !stopwords.includes(w)).forEach(w => freq[w] = (freq[w]||0)+1);
   const tags = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>e[0]);
-  const finalTags = tags.length > 0 ? tags : ['ghi chú'];
+  const finalTags = tags.length > 0 ? tags : ['ghi ch?'];
   preview.innerHTML = finalTags.map(t => `<span class="ai-tag">${t}</span>`).join('');
   preview.dataset.tags = JSON.stringify(finalTags);
 }
@@ -1408,13 +1595,13 @@ function saveItem() {
     const urlEl = document.getElementById('new-url');
     const urlVal = urlEl ? urlEl.value.trim() : '';
 
-    // Kiểm tra dữ liệu tối thiểu theo từng loại
-    if (type === 'link' && !urlVal && !contentVal) { showToast('Nhập đường dẫn (URL) nhé!'); return; }
+    // Ki?m tra d? li?u t?i thi?u theo t?ng lo?i
+    if (type === 'link' && !urlVal && !contentVal) { showToast('Nh?p ???ng d?n (URL) nh?!'); return; }
     if ((type === 'file' || type === 'image' || type === 'screenshot') && !modalFileData && !urlVal) {
-      showToast('Hãy chọn/dán tệp hoặc ảnh nhé!'); return;
+      showToast('H?y ch?n/d?n t?p ho?c ?nh nh?!'); return;
     }
     if (type !== 'link' && type !== 'file' && type !== 'image' && type !== 'screenshot' && !title && !contentVal) {
-      showToast('Vui lòng nhập nội dung!'); return;
+      showToast('Vui l?ng nh?p n?i dung!'); return;
     }
 
     const tagsEl = document.getElementById('ai-tags-preview');
@@ -1422,8 +1609,8 @@ function saveItem() {
     try { tags = JSON.parse(tagsEl.dataset.tags || '[]'); } catch(e){}
     if (tags.length === 0) {
       const text = (title + ' ' + contentVal).toLowerCase();
-      const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','có','của','và','với','từ','này','đó','cho','một','các','được','không'];
-      const words = text.replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !stopwords.includes(w));
+      const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','c?','c?a','v?','v?i','t?','n?y','??','cho','m?t','c?c','???c','kh?ng'];
+      const words = text.replace(/[^a-zA-Z0-9\s???????????????????????????????????????????????????????????????????]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !stopwords.includes(w));
       const freq = {};
       words.forEach(w => freq[w] = (freq[w]||0)+1);
       tags = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).slice(0,3);
@@ -1431,31 +1618,31 @@ function saveItem() {
 
     const newItem = {
       id: Date.now(), type,
-      tags: tags.length ? tags : ['ghi chú'],
-      date: 'Vừa xong', space: 'Mới lưu',
+      tags: tags.length ? tags : ['ghi ch?'],
+      date: 'V?a xong', space: 'M?i l?u',
       savedAt: new Date().toISOString()
     };
 
     if (type === 'link') {
       const link = normalizeExternalUrl(urlVal || contentVal);
-      newItem.title = title || (link.replace(/^https?:\/\//, '').slice(0, 60)) || 'Link đã lưu';
+      newItem.title = title || (link.replace(/^https?:\/\//, '').slice(0, 60)) || 'Link ?? l?u';
       newItem.url = link;
       newItem.sourceUrl = link;
       newItem.excerpt = contentVal || '';
       if ((!tags || tags.length === 0)) newItem.tags = ['link'];
     } else if (type === 'image' || type === 'screenshot') {
-      newItem.title = title || (type === 'screenshot' ? 'Ảnh chụp màn hình' : 'Ảnh đã lưu');
+      newItem.title = title || (type === 'screenshot' ? '?nh ch?p m?n h?nh' : '?nh ?? l?u');
       newItem.imageUrl = modalFileData || normalizeExternalUrl(urlVal);
       newItem.sourceUrl = normalizeExternalUrl(urlVal) || '';
       newItem.note = contentVal;
-      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = type === 'screenshot' ? ['ảnh chụp'] : ['ảnh'];
+      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = type === 'screenshot' ? ['?nh ch?p'] : ['?nh'];
     } else if (type === 'file') {
-      newItem.title = title || modalFileName || 'Tệp đính kèm';
+      newItem.title = title || modalFileName || 'T?p ??nh k?m';
       newItem.fileName = modalFileName;
       newItem.fileData = modalFileData;
       newItem.fileSize = modalFileSize;
       newItem.excerpt = contentVal || '';
-      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = ['tệp'];
+      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = ['t?p'];
     } else {
       newItem.title = title || contentVal.slice(0, 60);
       newItem.note = contentVal;
@@ -1471,7 +1658,7 @@ function saveItem() {
       closeModal();
       renderDashboard();
       renderBookRail();
-      showToast('✦ Đã lưu ký ức thành công!');
+      showToast('? ?? l?u k? ?c th?nh c?ng!');
     };
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -1503,7 +1690,7 @@ function saveItem() {
       }
     }
   } catch(err) {
-    showToast('Lỗi khi lưu: ' + err.message);
+    showToast('L?i khi l?u: ' + err.message);
   }
 }
 
@@ -1548,7 +1735,7 @@ function applyTheme() {
   document.body.classList.toggle('dark', isDark);
 }
 
-// Tự đổi theo hệ thống khi đang ở chế độ 'system'
+// T? ??i theo h? th?ng khi ?ang ? ch? ?? 'system'
 if (window.matchMedia) {
   try {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
@@ -1562,7 +1749,7 @@ function applyFontSize() {
   document.body.classList.add('font-' + (appSettings.fontSize || 'md'));
 }
 
-// Đồng bộ giao diện trang Cài đặt với state
+// ??ng b? giao di?n trang C?i ??t v?i state
 function syncSettingsUI() {
   document.querySelectorAll('#theme-toggle button').forEach(function(b) {
     b.classList.toggle('active', b.dataset.theme === appSettings.theme);
@@ -1607,10 +1794,10 @@ function syncAccountSettings() {
   var btnEl = document.getElementById('settings-account-btn');
   var planEl = document.getElementById('settings-plan-name');
   var loggedIn = Boolean(currentUser && currentUser.email);
-  if (nameEl) nameEl.textContent = loggedIn ? (currentUser.name || currentUser.email) : 'Khách';
-  if (emailEl) emailEl.textContent = loggedIn ? currentUser.email : 'Chưa đăng nhập';
-  if (btnEl) btnEl.textContent = loggedIn ? 'Đăng xuất' : 'Đăng nhập';
-  if (planEl) planEl.textContent = loggedIn ? ((currentUser.plan || 'Memory') + ' (miễn phí)') : 'Memory (miễn phí)';
+  if (nameEl) nameEl.textContent = loggedIn ? (currentUser.name || currentUser.email) : 'Kh?ch';
+  if (emailEl) emailEl.textContent = loggedIn ? currentUser.email : 'Ch?a ??ng nh?p';
+  if (btnEl) btnEl.textContent = loggedIn ? '??ng xu?t' : '??ng nh?p';
+  if (planEl) planEl.textContent = loggedIn ? ((currentUser.plan || 'Memory') + ' (mi?n ph?)') : 'Memory (mi?n ph?)';
 }
 
 // ---- Data export / import / clear ----
@@ -1633,7 +1820,7 @@ function exportData() {
       a.click();
       document.body.removeChild(a);
       setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-      showToast('⬇ Đã xuất dữ liệu thành công');
+      showToast('? ?? xu?t d? li?u th?nh c?ng');
     });
   });
 }
@@ -1645,7 +1832,7 @@ function importData(file) {
     try {
       var data = JSON.parse(e.target.result);
       var newItems = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : null);
-      if (!newItems) { showToast('Tệp không hợp lệ!'); return; }
+      if (!newItems) { showToast('T?p kh?ng h?p l?!'); return; }
       var values = {};
       values[userItemsKey()] = newItems.slice(0, 200);
       if (Array.isArray(data.reminders)) values[userRemindersKey()] = data.reminders;
@@ -1655,20 +1842,20 @@ function importData(file) {
           loadReminders(function() {
             loadFromExtension(function() {
               syncSettingsUI();
-              showToast('⬆ Đã nhập ' + newItems.length + ' mục thành công');
+              showToast('? ?? nh?p ' + newItems.length + ' m?c th?nh c?ng');
             });
           });
         });
       });
     } catch (err) {
-      showToast('Lỗi đọc tệp: ' + err.message);
+      showToast('L?i ??c t?p: ' + err.message);
     }
   };
   reader.readAsText(file);
 }
 
 function clearAllData() {
-  var ok = window.confirm('Xóa TOÀN BỘ ký ức và nhắc nhở? Hành động này không thể hoàn tác.\n\nGợi ý: hãy Xuất dữ liệu trước để sao lưu.');
+  var ok = window.confirm('X?a TO?N B? k? ?c v? nh?c nh?? H?nh ??ng n?y kh?ng th? ho?n t?c.\n\nG?i ?: h?y Xu?t d? li?u tr??c ?? sao l?u.');
   if (!ok) return;
   var values = {};
   values[userItemsKey()] = [];
@@ -1681,7 +1868,7 @@ function clearAllData() {
     renderReminders();
     renderBookRail();
     updateReminderStats();
-    showToast('🗑 Đã xóa toàn bộ dữ liệu');
+    showToast('?? ?? x?a to?n b? d? li?u');
   });
 }
 
@@ -1790,7 +1977,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     var bookCard = e.target.closest('[data-book-open]');
     if (bookCard) {
-      showToast('📚 ' + bookCard.dataset.bookOpen + ' — mở trang đối tác (demo)');
+      showToast('?? ' + bookCard.dataset.bookOpen + ' ? m? trang ??i t?c (demo)');
     }
   });
 
@@ -1850,7 +2037,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var upgradeBtn = document.getElementById('settings-upgrade-btn');
   if (upgradeBtn) upgradeBtn.addEventListener('click', function() { showPage('pricing'); });
 
-  // ---- Modal: đổi loại → hiện ô URL / file ----
+  // ---- Modal: ??i lo?i ? hi?n ? URL / file ----
   var newType = document.getElementById('new-type');
   if (newType) newType.addEventListener('change', function() { updateModalTypeFields(this.value); });
 
@@ -1873,7 +2060,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (btnCurrentPlan) btnCurrentPlan.addEventListener('click', function() { showPage('dashboard'); });
 
   var btnUpgrade = document.getElementById('btn-upgrade');
-  if (btnUpgrade) btnUpgrade.addEventListener('click', function() { showToast('🎉 Chuyển hướng đến thanh toán...'); });
+  if (btnUpgrade) btnUpgrade.addEventListener('click', function() { showToast('?? Chuy?n h??ng ??n thanh to?n...'); });
 
   var btnModalCancel = document.getElementById('btn-modal-cancel');
   if (btnModalCancel) btnModalCancel.addEventListener('click', closeModal);
@@ -1885,7 +2072,7 @@ document.addEventListener('DOMContentLoaded', function() {
     saveItem();
   });
 
-  // Fallback: event delegation cho toàn modal
+  // Fallback: event delegation cho to?n modal
   var addModal = document.getElementById('add-modal');
   if (addModal) {
     addModal.addEventListener('click', function(e) {
@@ -1986,8 +2173,8 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // "Đồng bộ lên database" — re-run the upload pipeline for an item that
-    // failed the first attempt (token expired, network down, …). We block
+    // "??ng b? l?n database" ? re-run the upload pipeline for an item that
+    // failed the first attempt (token expired, network down, ?). We block
     // the click so it doesn't bubble up to the surrounding image-preview
     // handler.
     var resyncBtn = e.target.closest('[data-resync-id]');
@@ -2088,14 +2275,14 @@ function toggleDropdown(e, id) {
   if (dropdown) dropdown.classList.toggle('open');
 }
 
-// Click ra ngoài → đóng dropdown
+// Click ra ngo?i ? ??ng dropdown
 document.addEventListener('click', function() {
   document.querySelectorAll('.card-dropdown.open').forEach(d => d.classList.remove('open'));
 });
 
-// Event delegation cho toàn bộ cards container
+// Event delegation cho to?n b? cards container
 document.addEventListener('click', function(e) {
-  // Bấm vào ···
+  // B?m v?o ???
   var menuBtn = e.target.closest('[data-menuid]');
   if (menuBtn) {
     e.stopPropagation();
@@ -2108,7 +2295,7 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // Bấm vào Xóa
+  // B?m v?o X?a
   var deleteBtn = e.target.closest('[data-deleteid]');
   if (deleteBtn) {
     e.stopPropagation();
@@ -2116,7 +2303,7 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // Bấm mở link
+  // B?m m? link
   var linkBtn = e.target.closest('[data-open-link]');
   if (linkBtn) {
     e.preventDefault();
@@ -2127,6 +2314,15 @@ document.addEventListener('click', function(e) {
 });
 
 // ===== DELETE ITEM =====
+//
+// Two cases:
+//   1. The row was already synced to the server (`serverSynced === true`
+//      or, for legacy rows, no `pendingUpload` flag). We issue the
+//      DELETE through the background script (which handles 401 ? refresh
+//      ? retry) and only remove the local row on success. A 204 from
+//      the API is the success signal; clients MUST NOT try to parse a
+//      JSON body off a 204.
+//   2. The row is purely local (pendingUpload). We just drop it.
 function deleteItem(id) {
   const target = items.find(function(i) { return String(i.id) === String(id); });
   if (target && target.sourceType === 'reminder') {
@@ -2134,23 +2330,78 @@ function deleteItem(id) {
     return;
   }
 
+  const isPending = target && target.pendingUpload === true;
+  const looksServerId = target && /^[0-9a-f-]{8,}/i.test(String(target.id));
+
+  if (isPending || !looksServerId) {
+    baseMemoryItems = baseMemoryItems.filter(function(i) { return String(i.id) !== String(id); });
+    items = composeDashboardItems();
+    var toStorePending = baseMemoryItems.filter(function(i) { return i.savedAt; });
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ [userItemsKey()]: toStorePending }, function() {
+        renderDashboard();
+        showToast('?? ?? x?a k? ?c');
+      });
+    } else {
+      localStorage.setItem(userItemsKey(), JSON.stringify(toStorePending));
+      renderDashboard();
+      showToast('?? ?? x?a k? ?c');
+    }
+    return;
+  }
+
+  // Optimistic local removal so the UI feels instant; we'll re-add if
+  // the network call fails so the user can retry.
   baseMemoryItems = baseMemoryItems.filter(function(i) { return String(i.id) !== String(id); });
   items = composeDashboardItems();
+  renderDashboard();
+
+  sendDeleteToServer(id).then(function() {
+    persistBaseMemoryItems();
+    showToast('?? ?? x?a k? ?c');
+  }).catch(function(err) {
+    // Re-add the row so the user doesn't think it's gone.
+    if (target) {
+      baseMemoryItems.unshift(target);
+      items = composeDashboardItems();
+      renderDashboard();
+    }
+    showToast('Kh?ng x?a ???c: ' + (err && err.message ? err.message : 'l?i'));
+  });
+}
+
+function persistBaseMemoryItems() {
   var toStore = baseMemoryItems.filter(function(i) { return i.savedAt; });
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ [userItemsKey()]: toStore }, function() {
-      renderDashboard();
-      showToast('🗑 Đã xóa ký ức');
-    });
+    chrome.storage.local.set({ [userItemsKey()]: toStore }, function() {});
   } else {
     localStorage.setItem(userItemsKey(), JSON.stringify(toStore));
-    renderDashboard();
-    showToast('🗑 Đã xóa ký ức');
   }
 }
 
+// Issue DELETE /api/v1/items/:id. The background script handles token
+// refresh; we only ever see a resolved promise (success or final
+// failure). 204 No Content is the success case and we MUST NOT parse
+// the body ? older code threw here when the response was empty.
+function sendDeleteToServer(id) {
+  return new Promise(function(resolve, reject) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      reject(new Error('Trang n?y c?n ch?y trong extension context ?? x?a tr?n server.'));
+      return;
+    }
+    chrome.runtime.sendMessage({ type: 'DELETE_ITEM', itemId: id }, function(response) {
+      if (chrome.runtime && chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message || 'Kh?ng g?i ???c background script.'));
+        return;
+      }
+      if (response && response.ok) resolve();
+      else reject(new Error((response && response.error) || 'API x?a th?t b?i.'));
+    });
+  });
+}
+
 // Re-upload a single item that the initial save couldn't push to
-// Supabase (token expired, network down, …). The pending pill disappears
+// Supabase (token expired, network down, ?). The pending pill disappears
 // as soon as the upload returns 201; otherwise we keep the pill visible
 // and surface the error so the user knows what to fix.
 function resyncItem(btn) {
@@ -2158,17 +2409,17 @@ function resyncItem(btn) {
   var type = btn.dataset.resyncType || 'image';
   var item = items.find(function(i) { return String(i.id) === String(id); });
   if (!item) {
-    showToast('Không tìm thấy trong dashboard để đồng bộ.');
+    showToast('Kh?ng t?m th?y trong dashboard ?? ??ng b?.');
     return;
   }
   var originalLabel = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="resync-dot"></span>Đang upload...';
+  btn.innerHTML = '<span class="resync-dot"></span>?ang upload...';
 
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
     btn.disabled = false;
     btn.innerHTML = originalLabel;
-    showToast('Trang này cần chạy trong extension context để đồng bộ.');
+    showToast('Trang n?y c?n ch?y trong extension context ?? ??ng b?.');
     return;
   }
 
@@ -2200,17 +2451,22 @@ function resyncItem(btn) {
     btn.disabled = false;
     if (chrome.runtime && chrome.runtime.lastError) {
       btn.innerHTML = originalLabel;
-      showToast('Không đồng bộ được: ' + chrome.runtime.lastError.message);
+      showToast('Kh?ng ??ng b? ???c: ' + chrome.runtime.lastError.message);
       return;
     }
     if (response && response.ok) {
       item.pendingUpload = false;
       renderDashboard();
-      showToast('✅ Đã upload lên Supabase');
+      showToast('? ?? upload l?n Supabase');
     } else {
       btn.innerHTML = originalLabel;
-      var msg = (response && response.error) ? response.error : 'Upload thất bại';
-      showToast('Không đồng bộ được: ' + msg);
+      var msg = (response && response.error) ? response.error : 'Upload th?t b?i';
+      showToast('Kh?ng ??ng b? ???c: ' + msg);
     }
   });
+}
+
+// Test-only exports ? stripped from the bundled extension by the build step.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { userCacheKey, userApiCacheKey, apiItemToLocalShape, isPendingItem, mergeServerItems, fetchItemsFromApi, loadFromExtension, reconcileServerItems };
 }
