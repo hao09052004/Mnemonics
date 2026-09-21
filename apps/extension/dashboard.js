@@ -5,37 +5,37 @@ const SPACES_DATA = [
   {
     id: 'design-inspiration',
     icon: '??',
-    name: 'C?M H?NG THI?T K?',
-    desc: '?nh ch?p m?n h?nh, b?ng m?u v? c?c m?u UI ???c thu th?p trong qu? tr?nh duy?t web.',
+    name: 'DESIGN INSPIRATION',
+    desc: 'Screenshots, palette swatches and UI patterns captured while browsing the web.',
     count: 42,
-    keywords: ['c?m h?ng', 'thi?t k?', 'design', 'inspiration', 'ui', 'ux', '?nh', 'image'],
+    keywords: ['inspiration','design','inspiration','design','ui','ux','image','image'],
     updatedAt: '2026-06-25T08:00:00.000Z'
   },
   {
     id: 'tech-notes',
     icon: '??',
-    name: 'GHI CH? C?NG NGH?',
-    desc: 'C?c b?i b?o, ?o?n m? v? tin t?c c?ng ngh? t? qu? tr?nh duy?t web.',
+    name: 'TECH NOTES',
+    desc: 'Articles, snippets and tech news saved while reading online.',
     count: 128,
-    keywords: ['c?ng ngh?', 'tech', 'code', 'css', 'frontend', 'backend', 'spatial', 'hci'],
+    keywords: ['tech','tech','code','css','frontend','backend','spatial','hci'],
     updatedAt: '2026-06-24T10:00:00.000Z'
   },
   {
     id: 'japan-trip',
     icon: '??',
-    name: 'CHUY?N ?I NH?T B?N 2024',
-    desc: 'L?ch tr?nh bay, ??t ph?ng kh?ch s?n v? c?c ??a ?i?m d? ki?n tham quan.',
+    name: 'JAPAN TRIP 2024',
+    desc: 'Flight itineraries, hotel bookings and places on the to-visit list.',
     count: 15,
-    keywords: ['nh?t b?n', 'japan', 'trip', 'travel', 'chuy?n ?i', 'kh?ch s?n', 'l?ch tr?nh'],
+    keywords: ['japan','japan','trip','travel','trip','hotel','itinerary'],
     updatedAt: '2026-06-20T10:00:00.000Z'
   },
   {
     id: 'study-materials',
     icon: '??',
-    name: 'T?I LI?U H?C T?P',
-    desc: 'C?c b?i b?o nghi?n c?u, n?i dung n?i b?t t? s?ch gi?o khoa v? ghi ch? h?c t?p.',
+    name: 'STUDY MATERIALS',
+    desc: 'Research articles, highlights from textbooks and study notes.',
     count: 89,
-    keywords: ['h?c t?p', 't?i li?u', 'research', 'nghi?n c?u', 'article', 'study', 'book'],
+    keywords: ['study','materials','research','research','article','study','book'],
     updatedAt: '2026-06-22T10:00:00.000Z'
   },
 ];
@@ -51,27 +51,27 @@ const DEFAULT_REMINDERS = [
   {
     id: 'sample-meeting-1',
     kind: 'meeting',
-    title: 'Chu?n b? h?p: Ki?n tr?c h? th?ng',
+    title: 'Prep meeting: System architecture',
     tasks: [
-      { text: 'Xem l?i chi?n l??c b? nh? ??m cho ch? ?? ngo?i tuy?n', done: false },
-      { text: 'Th?o lu?n v? WebSockets so v?i SSE', done: true },
-      { text: 'Ki?m tra gi?i h?n t?n su?t API tr?n c?c endpoint m?i', done: false }
+      { text: 'Review caching strategy for offline mode', done: false },
+      { text: 'Discuss WebSockets vs SSE', done: true },
+      { text: 'Check API rate limits on the new endpoints', done: false }
     ],
-    date: 'H?m qua',
-    space: 'C?ng vi?c',
+    date: 'Yesterday',
+    space: 'Work',
     createdAt: new Date().toISOString()
   },
   {
     id: 'sample-todo-1',
     kind: 'todo',
-    title: 'Todo list h?m nay',
+    title: 'Today\'s todo list',
     tasks: [
-      { text: 'T?ng h?p t?i li?u ?? l?u trong tu?n', done: false },
-      { text: 'G?n tags cho c?c note quan tr?ng', done: false },
-      { text: 'Xem l?i 2 m?c c?n ?n t?p', done: true }
+      { text: 'Review all items saved this week', done: false },
+      { text: 'Tag important notes', done: false },
+      { text: 'Review 2 items that need revisiting', done: true }
     ],
-    date: 'H?m nay',
-    space: 'H?c t?p',
+    date: 'Today',
+    space: 'Study',
     createdAt: new Date().toISOString()
   }
 ];
@@ -170,7 +170,7 @@ function loadAuthState(cb) {
     // If the user is already signed in when the dashboard opens, skip
     // the marketing landing page entirely ? landing is only meaningful
     // for first-time / logged-out visitors. Otherwise we'd render
-    // "B?t ??u mi?n ph?" while the avatar pill in the header is
+    // "Get started for free" while the avatar pill in the header is
     // already showing the logged-in user, which is contradictory.
     if (currentUser) {
       const activePage = document.querySelector('.page.active');
@@ -207,7 +207,7 @@ async function authRequest(path, body) {
     if (path === 'refresh' && response.status === 401) {
       saveSession(null);
     }
-    throw new Error(payload.error && payload.error.message ? payload.error.message : 'Kh?ng th? x?c th?c.');
+    throw new Error(payload.error && payload.error.message ? payload.error.message : 'Authentication failed.');
   }
   return payload.data;
 }
@@ -220,11 +220,11 @@ async function handleSignup() {
   setAuthError('signup-error', '');
 
   if (!name || !email || !password || !confirm) {
-    setAuthError('signup-error', 'Vui l?ng nh?p ??y ?? th?ng tin.');
+    setAuthError('signup-error', 'Please fill in all fields.');
     return;
   }
   if (!/^\S+@\S+\.\S+$/.test(email)) {
-    setAuthError('signup-error', 'Email ch?a ??ng ??nh d?ng.');
+    setAuthError('signup-error', 'Email is not in a valid format.');
     return;
   }
   if (
@@ -234,19 +234,19 @@ async function handleSignup() {
     !/\d/.test(password) ||
     !/[^A-Za-z0-9]/.test(password)
   ) {
-    setAuthError('signup-error', 'M?t kh?u c?n t?i thi?u 10 k? t?, g?m ch? hoa, ch? th??ng, s? v? k? t? ??c bi?t.');
+    setAuthError('signup-error', 'Password must be at least 10 chars with upper/lower/digit/symbol.');
     return;
   }
   if (password !== confirm) {
-    setAuthError('signup-error', 'M?t kh?u nh?p l?i ch?a kh?p.');
+    setAuthError('signup-error', 'Password confirmation does not match.');
     return;
   }
 
   try {
     const data = await authRequest('register', { name, email, password });
-    if (!data.session) throw new Error('T?i kho?n ?? t?o. H?y x?c nh?n email r?i ??ng nh?p.');
+    if (!data.session) throw new Error('Account created ? please confirm your email before signing in.');
     saveSession({ ...data.session, user: data.user }, function() {
-      showToast('?? t?o t?i kho?n Mnemonics');
+      showToast('Mnemonics account created');
       loadFromExtension(function() { showPage('dashboard'); });
     });
   } catch (error) {
@@ -260,14 +260,14 @@ async function handleLogin() {
   setAuthError('login-error', '');
 
   if (!email || !password) {
-    setAuthError('login-error', 'Vui l?ng nh?p email v? m?t kh?u.');
+    setAuthError('login-error', 'Please enter email and password.');
     return;
   }
 
   try {
     const data = await authRequest('login', { email, password });
     saveSession({ ...data.session, user: data.user }, function() {
-      showToast('??ng nh?p th?nh c?ng');
+      showToast('Signed in');
       loadFromExtension(function() { showPage('dashboard'); });
     });
   } catch (error) {
@@ -284,7 +284,7 @@ function logoutUser() {
     body: ''
   }).catch(() => undefined);
   saveSession(null, function() {
-    showToast('?? ??ng xu?t');
+    showToast('Signed out');
     showPage('landing');
   });
 }
@@ -293,7 +293,7 @@ function logoutUser() {
 // In production we don't ship demo credentials ? this is a no-op fallback so
 // the listener at `DOMContentLoaded` doesn't throw `ReferenceError`.
 async function loginDemoUser() {
-  showToast('T?i kho?n demo ?? b? t?t ? h?y ??ng k? ho?c ??ng nh?p.');
+  showToast('Demo accounts are disabled ? please sign up or sign in.');
   showPage('login');
 }
 
@@ -305,7 +305,7 @@ async function silentRefresh(refreshToken) {
     const data = await authRequest('refresh', { refreshToken });
     if (data && data.session) {
       saveSession({ ...data.session, user: data.user || currentUser }, function() {
-        showToast('?? t? ??ng gia h?n phi?n');
+        showToast('Session automatically renewed');
       });
     }
   } catch (e) {
@@ -323,10 +323,10 @@ let currentSortBy = 'newest';
 let currentFormatFilter = 'all';
 let currentTimeFilter = 'all';
 
-// Ph?n lo?i m?t item v? nh?m ??nh d?ng chu?n ?? l?c/s?p x?p
+// Classify an item by format for filtering/sorting
 function getItemFormat(item) {
   // Visual captures (uploaded images + cropped screenshots) share the same
-  // "?nh" tab ? splitting them would force users to click two tabs to find
+  // Image tab ? splitting them would force users to click two tabs to find
   // what they just saved, which feels broken.
   if (item.type === 'image' || item.type === 'screenshot') return 'image';
   if (item.type === 'file') return 'file';
@@ -335,7 +335,7 @@ function getItemFormat(item) {
   return 'text';
 }
 
-// L?y m?c th?i gian (ms) c?a item ?? l?c theo ng?y/th?ng/n?m
+// Get timestamp for an item so we can filter by day/month/year
 function getItemTimestamp(item) {
   if (item.savedAt) {
     var t = new Date(item.savedAt).getTime();
@@ -374,7 +374,7 @@ function applySortFilter(list) {
   return out;
 }
 
-// Render cards c? ?p d?ng sort/filter + ? t?m ki?m hi?n t?i
+// Render cards with sort/filter and the current search query
 function renderDashboard() {
   var searchVal = '';
   var searchEl = document.getElementById('search-input');
@@ -385,62 +385,62 @@ function renderDashboard() {
 
 // ===== BOOK / COURSE SUGGESTIONS (collab) =====
 const TOPIC_OPTIONS = [
-  { id: 'marketing', label: 'Marketing', keywords: ['marketing','mkt','brand','th??ng hi?u','qu?ng c?o','ads','seo','content','kh?ch h?ng','s?n ph?m','product'] },
-  { id: 'design', label: 'Thi?t k?', keywords: ['design','thi?t k?','ui','ux','inspiration','c?m h?ng','m?u','typography'] },
-  { id: 'tech', label: 'C?ng ngh?', keywords: ['tech','c?ng ngh?','code','css','frontend','backend','ai','spatial','hci'] },
-  { id: 'business', label: 'Kinh doanh', keywords: ['business','kinh doanh','startup','kh?i nghi?p','finance','t?i ch?nh','qu?n l?'] },
-  { id: 'psychology', label: 'T?m l? h?c', keywords: ['psychology','t?m l?','habit','th?i quen','behavior','h?nh vi'] },
-  { id: 'productivity', label: 'N?ng su?t', keywords: ['productivity','n?ng su?t','habit','ghi ch?','study','h?c t?p','focus'] },
-  { id: 'language', label: 'Ngo?i ng?', keywords: ['english','ti?ng anh','language','ngo?i ng?','ielts','toeic'] },
-  { id: 'writing', label: 'Vi?t l?ch', keywords: ['writing','vi?t','content','copywriting','storytelling'] }
+  { id: 'marketing', label: 'Marketing', keywords: ['marketing','mkt','brand','brand','ads','ads','seo','content','customer','product','product'] },
+  { id: 'design', label: 'Design', keywords: ['design','design','ui','ux','inspiration','inspiration','pattern','typography'] },
+  { id: 'tech', label: 'Tech', keywords: ['tech','tech','code','css','frontend','backend','ai','spatial','hci'] },
+  { id: 'business', label: 'Business', keywords: ['business','business','startup','startup','finance','finance','management'] },
+  { id: 'psychology', label: 'Psychology', keywords: ['psychology','psychology','habit','habit','behavior','behavior'] },
+  { id: 'productivity', label: 'Productivity', keywords: ['productivity','productivity','habit','note','study','study','focus'] },
+  { id: 'language', label: 'Language', keywords: ['english','english','language','language','ielts','toeic'] },
+  { id: 'writing', label: 'Writing', keywords: ['writing','writing','content','copywriting','storytelling'] }
 ];
 
 const BOOK_CATALOG = {
   marketing: [
-    { title: 'This Is Marketing', author: 'Seth Godin', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
-    { title: 'Contagious: Why Things Catch On', author: 'Jonah Berger', badge: 'S?ch', color: '#e0447a', icon: '??' },
-    { title: 'Kh?a h?c Digital Marketing 4.0', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#f59e0b', icon: '??' }
+    { title: 'This Is Marketing', author: 'Seth Godin', badge: 'Book', color: '#5B3FE4', icon: '??' },
+    { title: 'Contagious: Why Things Catch On', author: 'Jonah Berger', badge: 'Book', color: '#e0447a', icon: '??' },
+    { title: 'Digital Marketing 4.0 course', author: 'Mnemonics Academy', badge: 'Course', color: '#f59e0b', icon: '??' }
   ],
   design: [
-    { title: 'The Design of Everyday Things', author: 'Don Norman', badge: 'S?ch', color: '#0ea5e9', icon: '??' },
-    { title: 'Refactoring UI', author: 'Wathan & Schoger', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
-    { title: 'UI/UX Design Foundations', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#10b981', icon: '??' }
+    { title: 'The Design of Everyday Things', author: 'Don Norman', badge: 'Book', color: '#0ea5e9', icon: '??' },
+    { title: 'Refactoring UI', author: 'Wathan & Schoger', badge: 'Book', color: '#5B3FE4', icon: '??' },
+    { title: 'UI/UX Design Foundations', author: 'Mnemonics Academy', badge: 'Course', color: '#10b981', icon: '??' }
   ],
   tech: [
-    { title: 'Clean Code', author: 'Robert C. Martin', badge: 'S?ch', color: '#334155', icon: '??' },
-    { title: 'Pragmatic Programmer', author: 'Hunt & Thomas', badge: 'S?ch', color: '#f59e0b', icon: '??' },
-    { title: 'Frontend Masters Path', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#5B3FE4', icon: '??' }
+    { title: 'Clean Code', author: 'Robert C. Martin', badge: 'Book', color: '#334155', icon: '??' },
+    { title: 'Pragmatic Programmer', author: 'Hunt & Thomas', badge: 'Book', color: '#f59e0b', icon: '??' },
+    { title: 'Frontend Masters Path', author: 'Mnemonics Academy', badge: 'Course', color: '#5B3FE4', icon: '??' }
   ],
   business: [
-    { title: 'The Lean Startup', author: 'Eric Ries', badge: 'S?ch', color: '#0ea5e9', icon: '??' },
-    { title: 'Zero to One', author: 'Peter Thiel', badge: 'S?ch', color: '#334155', icon: '??' },
-    { title: 'Kh?i nghi?p tinh g?n', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#e0447a', icon: '??' }
+    { title: 'The Lean Startup', author: 'Eric Ries', badge: 'Book', color: '#0ea5e9', icon: '??' },
+    { title: 'Zero to One', author: 'Peter Thiel', badge: 'Book', color: '#334155', icon: '??' },
+    { title: 'Lean startup', author: 'Mnemonics Academy', badge: 'Course', color: '#e0447a', icon: '??' }
   ],
   psychology: [
-    { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
-    { title: 'Atomic Habits', author: 'James Clear', badge: 'S?ch', color: '#10b981', icon: '??' },
-    { title: 'T?m l? h?c h?nh vi', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#f59e0b', icon: '??' }
+    { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman', badge: 'Book', color: '#5B3FE4', icon: '??' },
+    { title: 'Atomic Habits', author: 'James Clear', badge: 'Book', color: '#10b981', icon: '??' },
+    { title: 'Behavioral psychology', author: 'Mnemonics Academy', badge: 'Course', color: '#f59e0b', icon: '??' }
   ],
   productivity: [
-    { title: 'Deep Work', author: 'Cal Newport', badge: 'S?ch', color: '#334155', icon: '??' },
-    { title: 'Atomic Habits', author: 'James Clear', badge: 'S?ch', color: '#10b981', icon: '??' },
-    { title: 'L?m ch? n?ng su?t c? nh?n', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#5B3FE4', icon: '??' }
+    { title: 'Deep Work', author: 'Cal Newport', badge: 'Book', color: '#334155', icon: '??' },
+    { title: 'Atomic Habits', author: 'James Clear', badge: 'Book', color: '#10b981', icon: '??' },
+    { title: 'Master personal productivity', author: 'Mnemonics Academy', badge: 'Course', color: '#5B3FE4', icon: '??' }
   ],
   language: [
-    { title: 'English Grammar in Use', author: 'Raymond Murphy', badge: 'S?ch', color: '#0ea5e9', icon: '??' },
-    { title: 'Word Power Made Easy', author: 'Norman Lewis', badge: 'S?ch', color: '#e0447a', icon: '??' },
-    { title: 'IELTS 7.0+ Roadmap', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#10b981', icon: '??' }
+    { title: 'English Grammar in Use', author: 'Raymond Murphy', badge: 'Book', color: '#0ea5e9', icon: '??' },
+    { title: 'Word Power Made Easy', author: 'Norman Lewis', badge: 'Book', color: '#e0447a', icon: '??' },
+    { title: 'IELTS 7.0+ Roadmap', author: 'Mnemonics Academy', badge: 'Course', color: '#10b981', icon: '??' }
   ],
   writing: [
-    { title: 'On Writing Well', author: 'William Zinsser', badge: 'S?ch', color: '#f59e0b', icon: '??' },
-    { title: 'Everybody Writes', author: 'Ann Handley', badge: 'S?ch', color: '#5B3FE4', icon: '??' },
-    { title: 'Content & Copywriting', author: 'Mnemonics Academy', badge: 'Kh?a h?c', color: '#e0447a', icon: '??' }
+    { title: 'On Writing Well', author: 'William Zinsser', badge: 'Book', color: '#f59e0b', icon: '??' },
+    { title: 'Everybody Writes', author: 'Ann Handley', badge: 'Book', color: '#5B3FE4', icon: '??' },
+    { title: 'Content & Copywriting', author: 'Mnemonics Academy', badge: 'Course', color: '#e0447a', icon: '??' }
   ]
 };
 
 let userTopics = [];
 
-// ?o?n l?nh v?c quan t?m t? d? li?u ?? l?u n?u user ch?a ch?n th? c?ng
+// Infer topic of interest from saved items if user hasn't picked manually
 function detectTopicFromItems() {
   var text = items.map(getSearchText).join(' ');
   var best = null, bestScore = 0;
@@ -470,9 +470,9 @@ function renderBookRail() {
 
   rail.innerHTML = `<div class="book-panel">
     <div class="book-panel-head">
-      <div class="book-panel-eyebrow">? G?i ? cho b?n</div>
-      <div class="book-panel-title">S?ch & kh?a h?c n?i b?t</div>
-      <div class="book-panel-topic">D?a tr?n l?nh v?c: <b>${escapeHtml(topic.label)}</b></div>
+      <div class="book-panel-eyebrow">? Suggested for you</div>
+      <div class="book-panel-title">Featured books & courses</div>
+      <div class="book-panel-topic">Based on interest: <b>${escapeHtml(topic.label)}</b></div>
     </div>
     <div class="book-list">
       ${books.map(function(b) {
@@ -487,14 +487,14 @@ function renderBookRail() {
       }).join('')}
     </div>
     <div class="book-topic-pick">
-      <label>??i l?nh v?c</label>
+      <label>Change topic</label>
       <div class="format-chips">
         ${otherTopics.map(function(t) {
           return `<div class="format-chip" data-book-topic="${escapeHtml(t.id)}">${escapeHtml(t.label)}</div>`;
         }).join('')}
       </div>
     </div>
-    <div class="book-panel-foot">Mnemonics h?p t?c c?ng c?c nh? b?n s?ch & n?n t?ng kh?a h?c.<br>Ch?n l?nh v?c trong <b>C?i ??t</b> ?? c? nh?n h?a.</div>
+    <div class="book-panel-foot">Mnemonics partners with bookshops & learning platforms.<br>Pick a topic in <b>Settings</b> to personalize.</div>
   </div>`;
 }
 
@@ -502,7 +502,7 @@ function reminderToMemoryItem(reminder) {
   const tasks = Array.isArray(reminder.tasks) ? reminder.tasks : [];
   const doneCount = tasks.filter(function(t) { return t.done; }).length;
   const totalCount = tasks.length;
-  const kindLabel = reminder.kind === 'meeting' ? 'Bi?n b?n h?p' : 'Todo list';
+  const kindLabel = reminder.kind === 'meeting' ? 'Meeting minutes' : 'Todo list';
   return {
     id: 'reminder-' + String(reminder.id),
     sourceType: 'reminder',
@@ -510,11 +510,11 @@ function reminderToMemoryItem(reminder) {
     type: 'note',
     title: reminder.title || kindLabel,
     note: tasks.map(function(t) { return t.text; }).join('\n'),
-    excerpt: `${kindLabel} ? ${doneCount}/${totalCount} ho?n th?nh`,
+    excerpt: `${kindLabel} ? ${doneCount}/${totalCount} done`,
     checks: tasks.map(function(t) { return { text: t.text, done: Boolean(t.done) }; }),
-    tags: ['nh?c nh?', reminder.kind === 'meeting' ? 'bi?n b?n h?p' : 'todo'],
-    date: reminder.date || 'H?m nay',
-    space: reminder.space || 'Nh?c nh?',
+    tags: ['reminder', reminder.kind === 'meeting' ? 'meeting' : 'todo'],
+    date: reminder.date || 'Today',
+    space: reminder.space || 'Reminders',
     savedAt: reminder.createdAt || new Date().toISOString()
   };
 }
@@ -544,7 +544,7 @@ function refreshDashboardItems() {
   if (currentSpaceId) renderSpaces();
 }
 
-// ===== SYNC V?I EXTENSION =====
+// ===== SYNC WITH EXTENSION =====
 //
 // Two storage layers exist:
 //   1) `mnemonics_items_<uid>` ? local cache, including items the user
@@ -564,7 +564,7 @@ function refreshDashboardItems() {
 // Items returned by the server are LOSER. If a row already exists
 // locally (because the user saved it offline and the upload is still
 // pending), the local copy wins ? its `pendingUpload` flag stays set
-// until the user clicks "??ng b? l?n database" or the resync succeeds.
+// until the user clicks "Sync to database" or the resync succeeds.
 const API_ITEMS_FETCH_KEY = 'mnemonics_api_items_v1';
 let apiRequestEpoch = 0;
 
@@ -574,11 +574,6 @@ function userCacheKey(uid) {
 
 function userApiCacheKey(uid) {
   return 'mnemonics_api_items_' + (uid || 'guest');
-}
-
-function userRemindersKey() {
-  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
-  return 'mnemonics_reminders_' + uid;
 }
 
 function isPendingItem(item) {
@@ -591,7 +586,7 @@ function apiItemToLocalShape(item) {
   // `raw_text`/`ocr_text` so snippet missing doesn't render empty.
   if (!item) return null;
   const kind = item.kind || item.type || 'text';
-  const title = item.title || (kind === 'link' ? 'Link ?? l?u' : 'M?c ?? l?u');
+  const title = item.title || (kind === 'link' ? 'Saved link' : 'Saved item');
   return {
     id: item.id,
     kind,
@@ -605,8 +600,8 @@ function apiItemToLocalShape(item) {
     tags: Array.isArray(item.tags) ? item.tags : [],
     capturedAt: item.captured_at || item.created_at || null,
     savedAt: item.captured_at || item.created_at || new Date().toISOString(),
-    date: 'V?a xong',
-    space: '?? ??ng b?',
+    date: 'Just now',
+    space: 'Pending sync',
     serverSynced: true,
     pendingUpload: false
   };
@@ -755,7 +750,7 @@ function mergeServerItems(serverItems) {
   setStorageValues(payload, function() {});
 }
 
-// L?ng nghe khi extension popup l?u item m?i ? reload ngay
+// Listen for new items from the popup and reload
 if (typeof chrome !== 'undefined' && chrome.runtime) {
   chrome.runtime.onMessage.addListener(function(msg) {
     if (msg.type === 'RELOAD_ITEMS' || msg.type === 'ITEM_SAVED') {
@@ -764,12 +759,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
   });
 }
 
-// Fallback: poll m?i 3 gi?y ?? ch?c ch?n sync
+// Fallback: poll every 3 seconds to make sure we stay in sync
 setInterval(loadFromExtension, 3000);
 
 function updateCount() {
   const el = document.getElementById('item-count');
-  if (el) el.textContent = items.length + ' k? ?c ?? ???c l?u trong th?ng n?y.';
+  if (el) el.textContent = items.length + ' memories saved this month.';
 }
 
 let searchTimeout = null;
@@ -801,9 +796,9 @@ function showPage(page) {
 // ===== RENDER CARDS =====
 function renderCards(data) {
   const container = document.getElementById('cards-container');
-  document.getElementById('item-count').textContent = `${data.length} k? ?c ?? ???c l?u trong th?ng n?y.`;
+  document.getElementById('item-count').textContent = `${data.length} memories saved this month.`;
 
-  // Build the "??ng b? l?n database" pill used by image/link/quote cards
+  // Build the "Sync to database" pill used by image/link/quote cards
   // that failed to upload the first time. Pass the matching payload
   // fields through data-* so the click handler can re-trigger the right
   // pipeline (image vs link vs text).
@@ -814,25 +809,25 @@ function renderCards(data) {
     const sourceUrl = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
     const noteText = escapeHtml(item.note || item.selectedText || '');
     const capturedAt = escapeHtml(item.savedAt || '');
-    return `<button type="button" class="resync-btn" data-resync-id="${id}" data-resync-type="${escapeHtml(item.type || '')}" data-resync-title="${title}" data-resync-source="${sourceUrl}" data-resync-note="${noteText}" data-resync-captured="${capturedAt}" title="Upload l?n Supabase">
-      <span class="resync-dot"></span>??ng b? l?n database
+    return `<button type="button" class="resync-btn" data-resync-id="${id}" data-resync-type="${escapeHtml(item.type || '')}" data-resync-title="${title}" data-resync-source="${sourceUrl}" data-resync-note="${noteText}" data-resync-captured="${capturedAt}" title="Upload to Supabase">
+      <span class="resync-dot"></span>Sync to database
     </button>`;
   }
 
   if (data.length === 0) {
     container.innerHTML = `<div class="empty-state" style="column-span:all">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="24" cy="24" r="20"/><path d="M16 20h16M16 28h10"/></svg>
-      <h3>Kh?ng t?m th?y k?t qu?</h3>
-      <p>H?y th? t? kh?a kh?c ho?c th?m k? ?c m?i</p>
+      <h3>No results found</h3>
+      <p>Try a different keyword or add a new memory</p>
     </div>`;
     return;
   }
 
   container.innerHTML = data.map(item => {
-    const isNew = item.date === 'V?a xong' || item.date === 'H?m nay';
+    const isNew = item.date === 'Just now' || item.date === 'Today';
     const typeLabel = item.sourceType === 'reminder'
-      ? (item.tags && item.tags.includes('bi?n b?n h?p') ? 'BI?N B?N H?P' : 'TODO LIST')
-      : {article:'B?I VI?T', image:'C?M H?NG', note:'GHI CH? NHANH', quote:'TR?CH D?N', code:'M? NGU?N', link:'LINK', file:'T?P', screenshot:'?NH CH?P MH'}[item.type] || 'M?C L?U';
+      ? (item.tags && item.tags.includes('meeting') ? 'MEETING MINUTES' : 'TODO LIST')
+      : {article:'ARTICLE', image:'INSPIRATION', note:'QUICK NOTE', quote:'QUOTE', code:'CODE', link:'LINK', file:'FILE', screenshot:'SCREENSHOT'}[item.type] || 'ITEM';
     const typeClass = item.type;
 
     let body = '';
@@ -840,13 +835,13 @@ function renderCards(data) {
       body = `<div class="card-quote">${item.quote || item.note || item.excerpt || ''}</div>
         ${pendingBadgeHtml(item)}`;
     } else if ((item.type === 'image' || item.type === 'screenshot') && item.imageUrl) {
-      const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? '?nh ch?p m?n h?nh' : '?nh ?? l?u'));
+      const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Screenshot' : 'Saved image'));
       const imageSrc = escapeHtml(imageSrcForRender(item.imageUrl));
       const pageSrc = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
       const pendingBadge = pendingBadgeHtml(item);
-      body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="B?m ?? xem ?nh">
+      body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="Click to view image">
         <img src="${imageSrc}" alt="${imageTitle}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;">
-        <div class="image-click-badge">${item.type === 'screenshot' ? 'Xem ?nh ch?p' : 'Xem ?nh'}</div>
+        <div class="image-click-badge">${item.type === 'screenshot' ? 'View screenshot' : 'View image'}</div>
         ${item.title ? `<div class="card-title" style="margin-top:8px">${imageTitle}</div>` : ''}
         ${pendingBadge}
       </div>`;
@@ -854,16 +849,16 @@ function renderCards(data) {
       const linkUrl = escapeHtml(normalizeExternalUrl(item.sourceUrl || item.url || item.note || ''));
       const displayUrl = escapeHtml((item.url || item.note || '').replace(/^https?:\/\//, '').slice(0, 60));
       body = `<div class="card-body">
-        <div class="card-title">${escapeHtml(item.title || 'Link ?? l?u')}</div>
+        <div class="card-title">${escapeHtml(item.title || 'Saved link')}</div>
         ${item.excerpt ? `<p class="card-excerpt">${escapeHtml(item.excerpt)}</p>` : ''}
-        ${linkUrl ? `<a href="${linkUrl}" target="_blank" rel="noopener" data-open-link="${linkUrl}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:4px">?? ${displayUrl || 'M? link'} ?</a>` : ''}
+        ${linkUrl ? `<a href="${linkUrl}" target="_blank" rel="noopener" data-open-link="${linkUrl}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:4px">? ${displayUrl || 'Open link'} ?</a>` : ''}
         ${item.tags ? `<div class="card-tags">${item.tags.map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
         ${pendingBadgeHtml(item)}
       </div>`;
     } else if (item.type === 'file') {
-      const fileName = escapeHtml(item.fileName || item.title || 'T?p ??nh k?m');
+      const fileName = escapeHtml(item.fileName || item.title || 'Attachment');
       const fileSize = item.fileSize ? `<span style="color:var(--gray-mid);font-size:11px">${escapeHtml(item.fileSize)}</span>` : '';
-      const dl = item.fileData ? `<a href="${escapeHtml(item.fileData)}" download="${fileName}" data-file-download="1" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:8px">? T?i v?</a>` : '';
+      const dl = item.fileData ? `<a href="${escapeHtml(item.fileData)}" download="${fileName}" data-file-download="1" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:8px">? Download</a>` : '';
       body = `<div class="card-body">
         <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1.5px solid var(--gray-border);border-radius:10px;background:var(--gray-bg)">
           <div style="width:40px;height:40px;border-radius:8px;background:var(--purple-light);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">??</div>
@@ -882,7 +877,7 @@ function renderCards(data) {
         const doneCount = item.checks.filter(c => c.done).length;
         const totalCount = item.checks.length;
         const reminderBadge = item.sourceType === 'reminder'
-          ? `<div class="card-reminder-meta">${typeLabel} ? ${doneCount}/${totalCount} ho?n th?nh</div>`
+          ? `<div class="card-reminder-meta">${typeLabel} ? ${doneCount}/${totalCount} done</div>`
           : '';
         const reminderId = item.sourceType === 'reminder' ? escapeHtml(item.reminderId) : '';
         body = `<div class="card-checklist ${item.sourceType === 'reminder' ? 'dashboard-reminder-card' : ''}">
@@ -890,15 +885,15 @@ function renderCards(data) {
           ${reminderBadge}
           ${item.checks.map(function(c, index) {
             const taskAttrs = item.sourceType === 'reminder'
-              ? ` data-dashboard-reminder-id="${reminderId}" data-dashboard-task-index="${index}" title="B?m ?? tick / b? tick"`
+              ? ` data-dashboard-reminder-id="${reminderId}" data-dashboard-task-index="${index}" title="Click to tick / untick"`
               : '';
             return `<div class="check-item ${c.done?'done':''} ${item.sourceType === 'reminder' ? 'reminder-clickable' : ''}"${taskAttrs}>
               <div class="check-box ${c.done?'checked':''}"></div><span>${escapeHtml(c.text)}</span>
             </div>`;
           }).join('')}
           ${item.sourceType === 'reminder' ? `<div class="dashboard-reminder-actions">
-            <button class="dashboard-reminder-open" data-open-reminders="1">M? Nh?c nh?</button>
-            <button class="dashboard-reminder-delete" data-dashboard-reminder-delete="${reminderId}">X?a</button>
+            <button class="dashboard-reminder-open" data-open-reminders="1">Open Reminders</button>
+            <button class="dashboard-reminder-delete" data-dashboard-reminder-delete="${reminderId}">Delete</button>
           </div>` : ''}
         </div>`;
       } else {
@@ -916,11 +911,11 @@ function renderCards(data) {
     return `<div class="memory-card">
       ${item.type !== 'note' ? `<div class="card-header">
         <span class="card-type ${typeClass}">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
-        <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">M?I</span>' : ''}
+        <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">NEW</span>' : ''}
           <div class="card-menu-wrap">
-            <span class="card-menu" data-menuid="${item.id}">???</span>
+            <span class="card-menu" data-menuid="${item.id}">?</span>
             <div class="card-dropdown" id="dropdown-${item.id}">
-              <div class="card-dropdown-item danger" data-deleteid="${item.id}">?? X?a</div>
+              <div class="card-dropdown-item danger" data-deleteid="${item.id}">? Delete</div>
             </div>
           </div>
         </div>
@@ -979,7 +974,7 @@ function getSpaceItems(space) {
     ].map(normalizeText).join(' ');
 
     if (normalizeText(item.space) && spaceName.includes(normalizeText(item.space))) return true;
-    // "C?m h?ng" space shows both uploaded images AND cropped screenshots
+    // Inspiration space shows both uploaded images AND cropped screenshots
     // so users see all visual captures together, not split across tabs.
     if (space.id === 'design-inspiration' && (item.type === 'image' || item.type === 'screenshot')) return true;
     if (space.id === 'tech-notes' && item.type === 'code') return true;
@@ -1037,8 +1032,8 @@ function renderSpaces() {
   const data = getFilteredSpaces();
   if (data.length === 0) {
     grid.innerHTML = `<div class="spaces-empty">
-      <h3>Ch?a c? kh?ng gian y?u th?ch</h3>
-      <p>B?m bi?u t??ng ng?i sao tr?n m?t kh?ng gian ?? ??a v?o m?c Y?u th?ch.</p>
+      <h3>No favorite spaces yet</h3>
+      <p>Click the star icon on any space to put it in your Favorites.</p>
     </div>`;
     return;
   }
@@ -1049,15 +1044,15 @@ function renderSpaces() {
     return `<div class="space-card" data-space-id="${escapeHtml(s.id)}">
       <div class="space-card-top">
         <div class="space-icon">${s.icon}</div>
-        <button class="space-star ${isFavorite ? 'active' : ''}" data-space-favorite="${escapeHtml(s.id)}" title="${isFavorite ? 'B? y?u th?ch' : 'Th?m y?u th?ch'}">?</button>
+        <button class="space-star ${isFavorite ? 'active' : ''}" data-space-favorite="${escapeHtml(s.id)}" title="${isFavorite ? 'Remove favorite' : 'Add favorite'}">?</button>
       </div>
       <div class="space-name">${escapeHtml(s.name)}</div>
       <p class="space-desc">${escapeHtml(s.desc)}</p>
       <div class="space-count">
-        <span>${getSpaceCount(s)} M?C D? LI?U ? ${relatedCount} m?c kh?p</span>
+        <span>${getSpaceCount(s)} items ? ${relatedCount} matches</span>
         <span class="space-ai">AI</span>
       </div>
-      <div class="space-open-hint">M? kh?ng gian ?</div>
+      <div class="space-open-hint">Open space ?</div>
     </div>`;
   }).join('');
 }
@@ -1080,10 +1075,10 @@ function toggleFavoriteSpace(spaceId) {
   if (!spaceId) return;
   if (favoriteSpaceIds.includes(spaceId)) {
     favoriteSpaceIds = favoriteSpaceIds.filter(function(id) { return id !== spaceId; });
-    showToast('?? b? kh?i Y?u th?ch');
+    showToast('Removed from Favorites');
   } else {
     favoriteSpaceIds.push(spaceId);
-    showToast('? ?? th?m v?o Y?u th?ch');
+    showToast('Added to Favorites');
   }
   saveFavoriteSpaces(renderSpaces);
 }
@@ -1101,7 +1096,7 @@ function renderSpaceDetail(spaceId) {
   grid.classList.add('hidden');
 
   detail.innerHTML = `<div class="space-detail-head">
-    <button class="space-back-btn" id="space-detail-back">? Quay l?i</button>
+    <button class="space-back-btn" id="space-detail-back">? Back</button>
     <div class="space-detail-title-row">
       <div class="space-detail-icon">${space.icon}</div>
       <div>
@@ -1110,18 +1105,18 @@ function renderSpaceDetail(spaceId) {
       </div>
     </div>
     <div class="space-detail-actions">
-      <button class="space-detail-btn ${isFavorite ? 'active' : ''}" id="space-detail-favorite" data-space-favorite="${escapeHtml(space.id)}">${isFavorite ? '? ?? y?u th?ch' : '? Y?u th?ch'}</button>
-      <button class="space-detail-btn" id="space-detail-open-dashboard">Xem trong l?u tr?</button>
+      <button class="space-detail-btn ${isFavorite ? 'active' : ''}" id="space-detail-favorite" data-space-favorite="${escapeHtml(space.id)}">${isFavorite ? '? Favorited' : '? Favorite'}</button>
+      <button class="space-detail-btn" id="space-detail-open-dashboard">Open in dashboard</button>
     </div>
   </div>
   <div class="space-detail-meta">
-    <span>${getSpaceCount(space)} m?c d? li?u</span>
-    <span>${getSpaceItems(space).length} m?c ?ang kh?p v?i d? li?u demo/l?u th?t</span>
-    <span>C?p nh?t g?n ??y</span>
+    <span>${getSpaceCount(space)} items</span>
+    <span>${getSpaceItems(space).length} items matching your saved data</span>
+    <span>Recently updated</span>
   </div>
   <div class="space-detail-search">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M12 12l3 3"/></svg>
-    <input id="space-detail-search-input" type="text" placeholder="T?m trong kh?ng gian n?y...">
+    <input id="space-detail-search-input" type="text" placeholder="Search inside this space...">
   </div>
   <div class="space-items" id="space-items"></div>`;
 
@@ -1144,15 +1139,15 @@ function renderSpaceItems(space, query) {
 
   if (data.length === 0) {
     container.innerHTML = `<div class="space-items-empty">
-      <h3>Ch?a c? m?c n?o trong kh?ng gian n?y</h3>
-      <p>L?u th?m ?nh, b?i vi?t ho?c ghi ch? c? tag li?n quan ?? ch?ng t? hi?n ? ??y.</p>
+      <h3>No items in this space yet</h3>
+      <p>Save images, articles or notes with related tags and they will show up here.</p>
     </div>`;
     return;
   }
 
   container.innerHTML = data.map(function(item) {
-    const typeLabel = { article:'B?i vi?t', image:'?nh', note:'Ghi ch?', quote:'Tr?ch d?n', code:'M? ngu?n' }[item.type] || 'M?c l?u';
-    const title = item.title || item.quote || item.note || 'K? ?c ?? l?u';
+    const typeLabel = { article:'Article', image:'Image', note:'Note', quote:'Quote', code:'Code' }[item.type] || 'Saved item';
+    const title = item.title || item.quote || item.note || 'Saved memory';
     const body = item.excerpt || item.note || item.quote || item.url || (item.checks || []).map(function(c) { return c.text; }).join(' ? ') || '';
     const url = normalizeExternalUrl(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
     const image = item.type === 'image' && item.imageUrl ? `<img class="space-item-thumb" src="${escapeHtml(imageSrcForRender(item.imageUrl))}" data-image-preview="${escapeHtml(imageSrcForRender(item.imageUrl))}" data-image-title="${escapeHtml(title)}" data-page-url="${escapeHtml(url)}" alt="${escapeHtml(title)}">` : `<div class="space-item-type-icon">${typeLabel.slice(0,1)}</div>`;
@@ -1167,7 +1162,7 @@ function renderSpaceItems(space, query) {
         ${body ? `<div class="space-item-excerpt">${escapeHtml(body).slice(0, 180)}</div>` : ''}
         ${(item.tags || []).length ? `<div class="space-item-tags">${(item.tags || []).slice(0,4).map(function(t){ return `<span>#${escapeHtml(t)}</span>`; }).join('')}</div>` : ''}
       </div>
-      ${url ? `<button class="space-item-open" data-space-open-url="${escapeHtml(url)}">M? ngu?n</button>` : ''}
+      ${url ? `<button class="space-item-open" data-space-open-url="${escapeHtml(url)}">Open source</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -1252,7 +1247,7 @@ function updateReminderStats() {
   const openEl = document.getElementById('reminder-open-count');
   if (openEl) openEl.textContent = openCount;
   const listCount = document.getElementById('reminder-list-count');
-  if (listCount) listCount.textContent = `${getFilteredReminders().length} m?c nh?c nh?`;
+  if (listCount) listCount.textContent = `${getFilteredReminders().length} reminders`;
 }
 
 function renderReminders() {
@@ -1262,7 +1257,7 @@ function renderReminders() {
   updateReminderStats();
 
   if (data.length === 0) {
-    grid.innerHTML = `<div class="reminder-empty"><h3>Ch?a c? nh?c nh? ph? h?p</h3><p>T?o checklist m?i ho?c ??i b? l?c kh?c.</p></div>`;
+    grid.innerHTML = `<div class="reminder-empty"><h3>No matching reminders</h3><p>Create a new checklist or change the filter.</p></div>`;
     return;
   }
 
@@ -1270,7 +1265,7 @@ function renderReminders() {
     const tasks = item.tasks || [];
     const doneCount = tasks.filter(t => t.done).length;
     const totalCount = tasks.length;
-    const kindLabel = item.kind === 'meeting' ? 'BI?N B?N H?P' : 'TODO LIST';
+    const kindLabel = item.kind === 'meeting' ? 'MEETING MINUTES' : 'TODO LIST';
     const kindClass = item.kind === 'meeting' ? 'meeting' : 'todo';
     const safeId = String(item.id);
 
@@ -1280,7 +1275,7 @@ function renderReminders() {
           <div class="reminder-card-title">${escapeHtml(item.title)}</div>
           <span class="reminder-kind ${kindClass}">${kindLabel}</span>
         </div>
-        <div class="reminder-progress">${doneCount}/${totalCount} ho?n th?nh</div>
+        <div class="reminder-progress">${doneCount}/${totalCount} done</div>
         <div class="reminder-tasks">
           ${tasks.map(function(task, index) {
             return `<div class="reminder-task ${task.done ? 'done' : ''}" data-reminder-id="${escapeHtml(safeId)}" data-task-index="${index}">
@@ -1292,12 +1287,12 @@ function renderReminders() {
       </div>
       <div class="reminder-card-footer">
         <div>
-          <span class="reminder-date">${escapeHtml(item.date || 'H?m nay')}</span>
+          <span class="reminder-date">${escapeHtml(item.date || 'Today')}</span>
           <span style="color:#ddd;margin:0 6px">?</span>
-          <span class="reminder-space">${escapeHtml(item.space || 'C?ng vi?c')}</span>
+          <span class="reminder-space">${escapeHtml(item.space || 'Work')}</span>
         </div>
         <div class="reminder-actions">
-          <button class="reminder-delete" data-reminder-delete="${escapeHtml(safeId)}">X?a</button>
+          <button class="reminder-delete" data-reminder-delete="${escapeHtml(safeId)}">Delete</button>
         </div>
       </div>
     </div>`;
@@ -1314,10 +1309,10 @@ function addReminder() {
   const kind = kindEl.value || 'todo';
   const title = titleEl.value.trim();
   const taskLines = tasksEl.value.split('\n').map(t => t.trim()).filter(Boolean);
-  const space = spaceEl ? spaceEl.value.trim() : 'C?ng vi?c';
+  const space = spaceEl ? spaceEl.value.trim() : 'Work';
 
   if (!title || taskLines.length === 0) {
-    showToast('Nh?p ti?u ?? v? ?t nh?t 1 checklist nh?!');
+    showToast('Enter a title and at least 1 checklist item!');
     return;
   }
 
@@ -1326,8 +1321,8 @@ function addReminder() {
     kind,
     title,
     tasks: taskLines.map(text => ({ text, done: false })),
-    date: 'V?a xong',
-    space: space || 'C?ng vi?c',
+    date: 'Just now',
+    space: space || 'Work',
     createdAt: new Date().toISOString()
   };
 
@@ -1335,11 +1330,11 @@ function addReminder() {
   saveReminders(function() {
     titleEl.value = '';
     tasksEl.value = '';
-    if (spaceEl) spaceEl.value = space || 'C?ng vi?c';
+    if (spaceEl) spaceEl.value = space || 'Work';
     reminderFilter = 'all';
     document.querySelectorAll('.reminder-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.reminderFilter === 'all'));
     renderReminders();
-    showToast('? ?? l?u nh?c nh?');
+    showToast('? Reminder saved');
   });
 }
 
@@ -1354,7 +1349,7 @@ function deleteReminder(id) {
   reminders = reminders.filter(r => String(r.id) !== String(id));
   saveReminders(function() {
     renderReminders();
-    showToast('?? ?? x?a nh?c nh?');
+    showToast('Reminder deleted');
   });
 }
 
@@ -1367,7 +1362,7 @@ function handleSearch(val) {
     hideAIResult();
     return;
   }
-  // K?t h?p search v?i sort/filter hi?n t?i
+  // Combine search with current sort/filter
   renderDashboard();
 
   // AI search after delay
@@ -1378,13 +1373,13 @@ function handleSearch(val) {
 async function doAISearch() {
   const query = document.getElementById('search-input').value.trim();
   if (!query) return;
-  // T?m ki?m th? c?ng, kh?ng c?n AI
+  // Manual search without AI
   const q = query.toLowerCase();
   const matched = items.filter(item => getSearchText(item).includes(q));
   if (matched.length > 0) {
-    showAIResult(`T?m th?y <b>${matched.length}</b> k?t qu? li?n quan ??n "<b>${query}</b>". C?c m?c li?n quan nh?t hi?n th? b?n d??i.`);
+    showAIResult(`Found <b>${matched.length}</b> results for "<b>${query}</b>". The closest matches are shown below.`);
   } else {
-    showAIResult(`Kh?ng t?m th?y k?t qu? n?o cho "<b>${query}</b>". Th? t? kh?a kh?c nh?!`);
+    showAIResult(`No results for "<b>${query}</b>". Try a different keyword!`);
   }
 }
 
@@ -1436,7 +1431,7 @@ function openImagePreview(imageUrl, title, pageUrl) {
   var safeImageUrl = normalizeExternalUrl(imageUrl);
   var safePageUrl = normalizeExternalUrl(pageUrl);
   img.src = safeImageUrl || imageUrl || '';
-  titleEl.textContent = title || '?nh ?? l?u';
+  titleEl.textContent = title || 'Saved image';
   openImageBtn.dataset.url = safeImageUrl || imageUrl || '';
   openPageBtn.dataset.url = safePageUrl;
   openPageBtn.style.display = safePageUrl ? 'inline-flex' : 'none';
@@ -1464,10 +1459,10 @@ function openOriginalImage(imageUrl, title) {
   if (!imageUrl) return;
 
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.runtime && chrome.tabs) {
-    var payload = { url: imageUrl, title: title || '?nh g?c' };
+    var payload = { url: imageUrl, title: title || 'Original image' };
     chrome.storage.local.set({ mnemonics_original_image: payload }, function() {
       if (chrome.runtime.lastError) {
-        showToast('Kh?ng th? m? ?nh g?c');
+        showToast('Could not open original image');
         return;
       }
       chrome.tabs.create({ url: chrome.runtime.getURL('original-image.html') });
@@ -1479,7 +1474,7 @@ function openOriginalImage(imageUrl, title) {
 }
 
 // ===== ADD ITEM =====
-let modalFileData = null;    // base64 c?a file/?nh ?? ch?n ho?c d?n
+let modalFileData = null;    // base64 of a file/image to paste or attach
 let modalFileName = '';
 let modalFileSize = '';
 
@@ -1491,14 +1486,14 @@ function openAddModal() {
   var fileEl = document.getElementById('new-file'); if (fileEl) fileEl.value = '';
   var prev = document.getElementById('modal-file-preview'); if (prev) prev.innerHTML = '';
   modalFileData = null; modalFileName = ''; modalFileSize = '';
-  document.getElementById('ai-tags-preview').innerHTML = '<span style="font-size:13px;color:var(--gray-text)">Nh?p n?i dung ?? AI t?o tags...</span>';
+  document.getElementById('ai-tags-preview').innerHTML = '<span style="font-size:13px;color:var(--gray-text)">Enter some content and AI will suggest tags...</span>';
   updateModalTypeFields(document.getElementById('new-type').value);
 }
 function closeModal() {
   document.getElementById('add-modal').classList.remove('open');
 }
 
-// Hi?n/?n ? URL v? ? file t?y theo lo?i ?? ch?n
+// Show/hide URL and file inputs based on the selected type
 function updateModalTypeFields(type) {
   var urlField = document.getElementById('modal-url-field');
   var fileField = document.getElementById('modal-file-field');
@@ -1510,9 +1505,9 @@ function updateModalTypeFields(type) {
   if (fileField) fileField.style.display = showFile ? 'block' : 'none';
   if (fileInput) fileInput.accept = (type === 'file') ? '' : 'image/*';
   if (fileLabel) {
-    if (type === 'screenshot') fileLabel.textContent = 'D?n ?nh ch?p m?n h?nh (Ctrl/Cmd+V) v?o ??y, ho?c ch?n t?p ?nh';
-    else if (type === 'image') fileLabel.textContent = 'Ch?n ?nh t? m?y';
-    else fileLabel.textContent = 'Ch?n t?p ??nh k?m';
+    if (type === 'screenshot') fileLabel.textContent = 'Paste a screenshot (Ctrl/Cmd+V) here, or pick an image file';
+    else if (type === 'image') fileLabel.textContent = 'Pick an image from your device';
+    else fileLabel.textContent = 'Pick an attachment';
   }
 }
 
@@ -1525,15 +1520,15 @@ function formatFileSize(bytes) {
 
 function handleModalFile(file) {
   if (!file) return;
-  // Gi?i h?n ~4MB ?? v?a quota storage
+  // Cap at ~4MB so we stay within the storage quota
   if (file.size > 4 * 1024 * 1024) {
-    showToast('T?p qu? l?n (t?i ?a 4MB cho b?n l?u offline)');
+    showToast('File too large (max 4MB for offline items)');
     return;
   }
   var reader = new FileReader();
   reader.onload = function(e) {
     modalFileData = e.target.result;
-    modalFileName = file.name || 't?p-??nh-k?m';
+    modalFileName = file.name || 'attachment';
     modalFileSize = formatFileSize(file.size);
     var titleEl = document.getElementById('new-title');
     if (titleEl && !titleEl.value.trim()) titleEl.value = modalFileName.slice(0, 80);
@@ -1549,7 +1544,7 @@ function handleModalFile(file) {
   reader.readAsDataURL(file);
 }
 
-// Cho ph?p d?n ?nh ch?p m?n h?nh tr?c ti?p v?o modal
+// Allow pasting screenshots directly into the modal
 document.addEventListener('paste', function(e) {
   var modal = document.getElementById('add-modal');
   if (!modal || !modal.classList.contains('open')) return;
@@ -1562,7 +1557,7 @@ document.addEventListener('paste', function(e) {
         var typeSel = document.getElementById('new-type');
         if (typeSel && typeSel.value !== 'image') { typeSel.value = 'screenshot'; updateModalTypeFields('screenshot'); }
         handleModalFile(blob);
-        showToast('?? ?? d?n ?nh ch?p m?n h?nh');
+        showToast('Screenshot pasted');
         e.preventDefault();
       }
       break;
@@ -1577,8 +1572,8 @@ let tagTimeout = null;
 async function generateTags(content) {
   if (!content || content.length < 10) return;
   const preview = document.getElementById('ai-tags-preview');
-  const words = content.toLowerCase().replace(/[^a-zA-Z0-9\s???????????????????????????????????????????????????????????????????]/g, '').split(/\s+/);
-  const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','c?','c?a','v?','v?i','t?','n?y','??','cho','m?t','c?c','???c','kh?ng','th?'];
+  const words = content.toLowerCase().replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/);
+  const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','the','of','and','with','of','this','or','for','one','the','be','not','and'];
   const freq = {};
   words.filter(w => w.length > 3 && !stopwords.includes(w)).forEach(w => freq[w] = (freq[w]||0)+1);
   const tags = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>e[0]);
@@ -1595,13 +1590,13 @@ function saveItem() {
     const urlEl = document.getElementById('new-url');
     const urlVal = urlEl ? urlEl.value.trim() : '';
 
-    // Ki?m tra d? li?u t?i thi?u theo t?ng lo?i
-    if (type === 'link' && !urlVal && !contentVal) { showToast('Nh?p ???ng d?n (URL) nh?!'); return; }
+    // Check minimum data for each capture type
+    if (type === 'link' && !urlVal && !contentVal) { showToast('Enter a URL!'); return; }
     if ((type === 'file' || type === 'image' || type === 'screenshot') && !modalFileData && !urlVal) {
-      showToast('H?y ch?n/d?n t?p ho?c ?nh nh?!'); return;
+      showToast('Please pick or paste a file or image!'); return;
     }
     if (type !== 'link' && type !== 'file' && type !== 'image' && type !== 'screenshot' && !title && !contentVal) {
-      showToast('Vui l?ng nh?p n?i dung!'); return;
+      showToast('Please enter some content!'); return;
     }
 
     const tagsEl = document.getElementById('ai-tags-preview');
@@ -1609,8 +1604,8 @@ function saveItem() {
     try { tags = JSON.parse(tagsEl.dataset.tags || '[]'); } catch(e){}
     if (tags.length === 0) {
       const text = (title + ' ' + contentVal).toLowerCase();
-      const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','c?','c?a','v?','v?i','t?','n?y','??','cho','m?t','c?c','???c','kh?ng'];
-      const words = text.replace(/[^a-zA-Z0-9\s???????????????????????????????????????????????????????????????????]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !stopwords.includes(w));
+      const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','the','of','and','with','of','this','or','for','one','the','be','not'];
+      const words = text.replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !stopwords.includes(w));
       const freq = {};
       words.forEach(w => freq[w] = (freq[w]||0)+1);
       tags = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).slice(0,3);
@@ -1619,30 +1614,30 @@ function saveItem() {
     const newItem = {
       id: Date.now(), type,
       tags: tags.length ? tags : ['ghi ch?'],
-      date: 'V?a xong', space: 'M?i l?u',
+      date: 'Just now', space: 'Just saved',
       savedAt: new Date().toISOString()
     };
 
     if (type === 'link') {
       const link = normalizeExternalUrl(urlVal || contentVal);
-      newItem.title = title || (link.replace(/^https?:\/\//, '').slice(0, 60)) || 'Link ?? l?u';
+      newItem.title = title || (link.replace(/^https?:\/\//, '').slice(0, 60)) || 'Saved link';
       newItem.url = link;
       newItem.sourceUrl = link;
       newItem.excerpt = contentVal || '';
       if ((!tags || tags.length === 0)) newItem.tags = ['link'];
     } else if (type === 'image' || type === 'screenshot') {
-      newItem.title = title || (type === 'screenshot' ? '?nh ch?p m?n h?nh' : '?nh ?? l?u');
+      newItem.title = title || (type === 'screenshot' ? 'Screenshot' : 'Saved image');
       newItem.imageUrl = modalFileData || normalizeExternalUrl(urlVal);
       newItem.sourceUrl = normalizeExternalUrl(urlVal) || '';
       newItem.note = contentVal;
-      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = type === 'screenshot' ? ['?nh ch?p'] : ['?nh'];
+      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = type === 'screenshot' ? ['screenshot'] : ['image'];
     } else if (type === 'file') {
-      newItem.title = title || modalFileName || 'T?p ??nh k?m';
+      newItem.title = title || modalFileName || 'Attachment';
       newItem.fileName = modalFileName;
       newItem.fileData = modalFileData;
       newItem.fileSize = modalFileSize;
       newItem.excerpt = contentVal || '';
-      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = ['t?p'];
+      if (!newItem.tags || newItem.tags.length === 0) newItem.tags = ['file'];
     } else {
       newItem.title = title || contentVal.slice(0, 60);
       newItem.note = contentVal;
@@ -1658,7 +1653,7 @@ function saveItem() {
       closeModal();
       renderDashboard();
       renderBookRail();
-      showToast('? ?? l?u k? ?c th?nh c?ng!');
+      showToast('? Memory saved successfully!');
     };
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -1690,7 +1685,7 @@ function saveItem() {
       }
     }
   } catch(err) {
-    showToast('L?i khi l?u: ' + err.message);
+    showToast('Save failed: ' + err.message);
   }
 }
 
@@ -1735,7 +1730,7 @@ function applyTheme() {
   document.body.classList.toggle('dark', isDark);
 }
 
-// T? ??i theo h? th?ng khi ?ang ? ch? ?? 'system'
+// Auto-switch with system when in 'system' mode
 if (window.matchMedia) {
   try {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
@@ -1749,7 +1744,7 @@ function applyFontSize() {
   document.body.classList.add('font-' + (appSettings.fontSize || 'md'));
 }
 
-// ??ng b? giao di?n trang C?i ??t v?i state
+// Sync settings page UI with current state
 function syncSettingsUI() {
   document.querySelectorAll('#theme-toggle button').forEach(function(b) {
     b.classList.toggle('active', b.dataset.theme === appSettings.theme);
@@ -1794,10 +1789,10 @@ function syncAccountSettings() {
   var btnEl = document.getElementById('settings-account-btn');
   var planEl = document.getElementById('settings-plan-name');
   var loggedIn = Boolean(currentUser && currentUser.email);
-  if (nameEl) nameEl.textContent = loggedIn ? (currentUser.name || currentUser.email) : 'Kh?ch';
-  if (emailEl) emailEl.textContent = loggedIn ? currentUser.email : 'Ch?a ??ng nh?p';
-  if (btnEl) btnEl.textContent = loggedIn ? '??ng xu?t' : '??ng nh?p';
-  if (planEl) planEl.textContent = loggedIn ? ((currentUser.plan || 'Memory') + ' (mi?n ph?)') : 'Memory (mi?n ph?)';
+  if (nameEl) nameEl.textContent = loggedIn ? (currentUser.name || currentUser.email) : 'Guest';
+  if (emailEl) emailEl.textContent = loggedIn ? currentUser.email : 'Not signed in';
+  if (btnEl) btnEl.textContent = loggedIn ? 'Sign out' : 'Sign in';
+  if (planEl) planEl.textContent = loggedIn ? ((currentUser.plan || 'Memory') + ' (free)') : 'Memory (free)';
 }
 
 // ---- Data export / import / clear ----
@@ -1820,7 +1815,7 @@ function exportData() {
       a.click();
       document.body.removeChild(a);
       setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-      showToast('? ?? xu?t d? li?u th?nh c?ng');
+      showToast('? Export complete');
     });
   });
 }
@@ -1832,7 +1827,7 @@ function importData(file) {
     try {
       var data = JSON.parse(e.target.result);
       var newItems = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : null);
-      if (!newItems) { showToast('T?p kh?ng h?p l?!'); return; }
+      if (!newItems) { showToast('Invalid file!'); return; }
       var values = {};
       values[userItemsKey()] = newItems.slice(0, 200);
       if (Array.isArray(data.reminders)) values[userRemindersKey()] = data.reminders;
@@ -1842,20 +1837,20 @@ function importData(file) {
           loadReminders(function() {
             loadFromExtension(function() {
               syncSettingsUI();
-              showToast('? ?? nh?p ' + newItems.length + ' m?c th?nh c?ng');
+              showToast('? Imported ' + newItems.length + ' items');
             });
           });
         });
       });
     } catch (err) {
-      showToast('L?i ??c t?p: ' + err.message);
+      showToast('Failed to read file: ' + err.message);
     }
   };
   reader.readAsText(file);
 }
 
 function clearAllData() {
-  var ok = window.confirm('X?a TO?N B? k? ?c v? nh?c nh?? H?nh ??ng n?y kh?ng th? ho?n t?c.\n\nG?i ?: h?y Xu?t d? li?u tr??c ?? sao l?u.');
+  var ok = window.confirm('Delete ALL memories and reminders? This cannot be undone.\n\nTip: Export your data first as a backup.');
   if (!ok) return;
   var values = {};
   values[userItemsKey()] = [];
@@ -1868,7 +1863,7 @@ function clearAllData() {
     renderReminders();
     renderBookRail();
     updateReminderStats();
-    showToast('?? ?? x?a to?n b? d? li?u');
+    showToast('All data has been deleted');
   });
 }
 
@@ -1977,7 +1972,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     var bookCard = e.target.closest('[data-book-open]');
     if (bookCard) {
-      showToast('?? ' + bookCard.dataset.bookOpen + ' ? m? trang ??i t?c (demo)');
+      showToast('Opening ' + bookCard.dataset.bookOpen + ' on the partner page (demo)');
     }
   });
 
@@ -2037,7 +2032,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var upgradeBtn = document.getElementById('settings-upgrade-btn');
   if (upgradeBtn) upgradeBtn.addEventListener('click', function() { showPage('pricing'); });
 
-  // ---- Modal: ??i lo?i ? hi?n ? URL / file ----
+  // ---- Modal: change type ? show URL/file input ----
   var newType = document.getElementById('new-type');
   if (newType) newType.addEventListener('change', function() { updateModalTypeFields(this.value); });
 
@@ -2060,7 +2055,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (btnCurrentPlan) btnCurrentPlan.addEventListener('click', function() { showPage('dashboard'); });
 
   var btnUpgrade = document.getElementById('btn-upgrade');
-  if (btnUpgrade) btnUpgrade.addEventListener('click', function() { showToast('?? Chuy?n h??ng ??n thanh to?n...'); });
+  if (btnUpgrade) btnUpgrade.addEventListener('click', function() { showToast('Redirecting to checkout?'); });
 
   var btnModalCancel = document.getElementById('btn-modal-cancel');
   if (btnModalCancel) btnModalCancel.addEventListener('click', closeModal);
@@ -2072,7 +2067,7 @@ document.addEventListener('DOMContentLoaded', function() {
     saveItem();
   });
 
-  // Fallback: event delegation cho to?n modal
+  // Fallback: event delegation across the entire modal
   var addModal = document.getElementById('add-modal');
   if (addModal) {
     addModal.addEventListener('click', function(e) {
@@ -2173,7 +2168,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // "??ng b? l?n database" ? re-run the upload pipeline for an item that
+    // Clicking Sync to database ? re-run upload pipeline for an item that
     // failed the first attempt (token expired, network down, ?). We block
     // the click so it doesn't bubble up to the surrounding image-preview
     // handler.
@@ -2275,14 +2270,14 @@ function toggleDropdown(e, id) {
   if (dropdown) dropdown.classList.toggle('open');
 }
 
-// Click ra ngo?i ? ??ng dropdown
+// Click outside to close dropdown
 document.addEventListener('click', function() {
   document.querySelectorAll('.card-dropdown.open').forEach(d => d.classList.remove('open'));
 });
 
-// Event delegation cho to?n b? cards container
+// Event delegation for the cards container
 document.addEventListener('click', function(e) {
-  // B?m v?o ???
+  // Click on a card
   var menuBtn = e.target.closest('[data-menuid]');
   if (menuBtn) {
     e.stopPropagation();
@@ -2295,7 +2290,7 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // B?m v?o X?a
+  // Click delete
   var deleteBtn = e.target.closest('[data-deleteid]');
   if (deleteBtn) {
     e.stopPropagation();
@@ -2303,7 +2298,7 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // B?m m? link
+  // Click to open link
   var linkBtn = e.target.closest('[data-open-link]');
   if (linkBtn) {
     e.preventDefault();
@@ -2340,12 +2335,12 @@ function deleteItem(id) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.set({ [userItemsKey()]: toStorePending }, function() {
         renderDashboard();
-        showToast('?? ?? x?a k? ?c');
+        showToast('Memory deleted');
       });
     } else {
       localStorage.setItem(userItemsKey(), JSON.stringify(toStorePending));
       renderDashboard();
-      showToast('?? ?? x?a k? ?c');
+      showToast('Memory deleted');
     }
     return;
   }
@@ -2358,7 +2353,7 @@ function deleteItem(id) {
 
   sendDeleteToServer(id).then(function() {
     persistBaseMemoryItems();
-    showToast('?? ?? x?a k? ?c');
+    showToast('Memory deleted');
   }).catch(function(err) {
     // Re-add the row so the user doesn't think it's gone.
     if (target) {
@@ -2366,7 +2361,7 @@ function deleteItem(id) {
       items = composeDashboardItems();
       renderDashboard();
     }
-    showToast('Kh?ng x?a ???c: ' + (err && err.message ? err.message : 'l?i'));
+    showToast('Could not delete: ' + (err && err.message ? err.message : 'unknown error'));
   });
 }
 
@@ -2386,16 +2381,16 @@ function persistBaseMemoryItems() {
 function sendDeleteToServer(id) {
   return new Promise(function(resolve, reject) {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-      reject(new Error('Trang n?y c?n ch?y trong extension context ?? x?a tr?n server.'));
+      reject(new Error('This page must run inside the extension to delete from the server.'));
       return;
     }
     chrome.runtime.sendMessage({ type: 'DELETE_ITEM', itemId: id }, function(response) {
       if (chrome.runtime && chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message || 'Kh?ng g?i ???c background script.'));
+        reject(new Error(chrome.runtime.lastError.message || 'Could not reach the background script.'));
         return;
       }
       if (response && response.ok) resolve();
-      else reject(new Error((response && response.error) || 'API x?a th?t b?i.'));
+      else reject(new Error((response && response.error) || 'Delete API failed.'));
     });
   });
 }
@@ -2409,17 +2404,17 @@ function resyncItem(btn) {
   var type = btn.dataset.resyncType || 'image';
   var item = items.find(function(i) { return String(i.id) === String(id); });
   if (!item) {
-    showToast('Kh?ng t?m th?y trong dashboard ?? ??ng b?.');
+    showToast('Not found in the dashboard to sync.');
     return;
   }
   var originalLabel = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="resync-dot"></span>?ang upload...';
+  btn.innerHTML = '<span class="resync-dot"></span>Uploading...';
 
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
     btn.disabled = false;
     btn.innerHTML = originalLabel;
-    showToast('Trang n?y c?n ch?y trong extension context ?? ??ng b?.');
+    showToast('This page must run inside the extension to sync.');
     return;
   }
 
@@ -2451,17 +2446,17 @@ function resyncItem(btn) {
     btn.disabled = false;
     if (chrome.runtime && chrome.runtime.lastError) {
       btn.innerHTML = originalLabel;
-      showToast('Kh?ng ??ng b? ???c: ' + chrome.runtime.lastError.message);
+      showToast('Sync failed: ' + chrome.runtime.lastError.message);
       return;
     }
     if (response && response.ok) {
       item.pendingUpload = false;
       renderDashboard();
-      showToast('? ?? upload l?n Supabase');
+      showToast('? Uploaded to Supabase');
     } else {
       btn.innerHTML = originalLabel;
-      var msg = (response && response.error) ? response.error : 'Upload th?t b?i';
-      showToast('Kh?ng ??ng b? ???c: ' + msg);
+      var msg = (response && response.error) ? response.error : 'Upload failed';
+      showToast('Sync failed: ' + msg);
     }
   });
 }

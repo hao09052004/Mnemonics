@@ -3,9 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Mnemonics — Ghi nhớ mọi thứ</title>
 <style>
   :root {
@@ -18,7 +15,9 @@
     --gray-border: #E8E8E8;
     --gray-text: #666666;
     --gray-mid: #999999;
-    --font: 'Be Vietnam Pro', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    /* System font stack: tránh phụ thuộc Google Fonts (CSP của extension page chặn
+       nguồn ngoài), đảm bảo glyph tiếng Việt render đúng trên mọi nền tảng. */
+    --font: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { font-family: var(--font); }
