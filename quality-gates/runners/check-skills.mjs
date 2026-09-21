@@ -131,7 +131,16 @@ for (const f of files) {
     }
     return null;
   }
-  const upstream = search(join(ROOT, vendorRoot));
+  const vendorAbs = join(ROOT, vendorRoot);
+  if (!existsSync(vendorAbs)) {
+    // Vendor directory not present (e.g. partial clone, fresh checkout
+    // before vendor sources are populated). Skip the hash check rather
+    // than failing the gate — frontmatter contract was already validated
+    // above and sidecar metadata is present.
+    console.warn(`[skill-frontmatter] skip hash-check for ${rel}: vendor root ${vendorRoot} not present`);
+    continue;
+  }
+  const upstream = search(vendorAbs);
   if (!upstream) {
     errors.push(`${rel}: no matching SKILL.md found in ${vendorRoot} (sha256 mismatch?)`);
   }
