@@ -13,6 +13,7 @@ const ALLOWED_HOST_SUFFIXES = [
   'scontent.xx.fbcdn.net',
   'scontent-',
   'ggpht.com',
+  'gstatic.com',
   'googleusercontent.com',
   'redd.it',
   'imgur.com',

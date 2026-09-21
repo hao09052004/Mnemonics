@@ -8,6 +8,15 @@ import { createSupabaseImageStorage } from './storage.js';
 import { createAudit } from './auth/audit.js';
 import { createThrottle } from './auth/throttle.js';
 import { createSupabaseUsers } from './auth/supabase-users.js';
+import { createJobRouter } from './jobs/router.js';
+import { createCaptureRouter } from './routes/capture.js';
+import { createSearchRouter } from './routes/search.js';
+import { createItemRouter } from './routes/items.js';
+import { createTagRouter } from './routes/tags.js';
+import { createMonitoringRouter } from './monitoring/monitoring-router.js';
+import { metricsMiddleware } from './monitoring/metrics.js';
+import { captureLimiter, searchLimiter } from './middleware/rate-limit.js';
+import { createGraphRouter } from './routes/graph.js';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(currentDirectory, '../../../.env') });
@@ -35,8 +44,10 @@ const authDeps = {
 	throttle: createThrottle(pool),
 	audit: createAudit(pool)
 };
+
+const repository = createItemRepository(pool);
 const app = createApp(
-	createItemRepository(pool),
+	repository,
 	process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
 	process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
 	imageStorage,
@@ -44,4 +55,69 @@ const app = createApp(
 	authDeps,
 	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true' }
 );
+
+// Set up job queue
+const { queue, router: jobRouter } = createJobRouter({
+	pool,
+	repository,
+	supabase: serviceSupabase,
+	openAiKey: process.env.OPENAI_API_KEY
+});
+
+// Create job function for capture routes
+const createJob = async (type: 'ocr' | 'tag' | 'embed', itemId: string, userId: string) => {
+	return queue.create({ type, itemId, userId });
+};
+
+// Mount capture routes with job queue integration
+const captureRouter = createCaptureRouter({
+	repository,
+	imageStorage,
+	createJob,
+	supabase,
+	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
+});
+
+// Mount search router
+const searchRouter = createSearchRouter({
+	pool,
+	supabase,
+	openAiKey: process.env.OPENAI_API_KEY
+});
+
+// Mount items router
+const itemRouter = createItemRouter({
+	pool,
+	repository,
+	supabase,
+	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
+});
+
+// Mount tags router
+const tagRouter = createTagRouter({
+	pool,
+	supabase
+});
+
+// Mount monitoring router (no auth required)
+const monitoringRouter = createMonitoringRouter({ pool });
+
+// Mount graph router
+const graphRouter = createGraphRouter({ pool, supabase });
+
+// Mount routes
+app.use(metricsMiddleware());
+app.use('/api/v1', jobRouter);
+app.use('/api/v1', captureRouter);
+app.use('/api/v1', searchLimiter, searchRouter);
+app.use('/api/v1', captureLimiter, itemRouter);
+app.use('/api/v1', tagRouter);
+app.use('/api/v1', graphRouter);
+app.use('/', monitoringRouter);
+
+// Start queue processor
+queue.start();
+
 app.listen(port, () => console.log(`Mnemonics API listening on port ${port}`));

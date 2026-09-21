@@ -1,7 +1,6 @@
 import cors from 'cors';
 import express, { type Application, type ErrorRequestHandler, type Request, type Response } from 'express';
-import multer from 'multer';
-import { authCredentialsSchema, captureInputSchema } from '@mnemonics/shared';
+import { authCredentialsSchema } from '@mnemonics/shared';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from './auth.js';
@@ -38,11 +37,6 @@ export function createApp(
   options?: { autoConfirmRegistration?: boolean }
 ): Application {
   const app = express();
-  const imageUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: (_request, file, callback) => callback(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype))
-  });
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
   app.use((request: Request, _response: Response, next) => {
@@ -50,11 +44,7 @@ export function createApp(
     next();
   });
 
-  // Mount the unified auth router if dependencies were provided. The
-  // pre-existing /auth/me, /register, /login routes in this file are kept
-  // for backwards compatibility but will be shadowed by the router when it
-  // is mounted (Express's `app.use` order matters: we mount the router
-  // before the legacy inline handlers, so the router wins).
+  // Mount the unified auth router if dependencies were provided.
   if (supabase && authDeps) {
     app.use('/api/v1/auth', createAuthRouter({
       users: authDeps.users,
@@ -76,12 +66,7 @@ export function createApp(
 
   app.get('/api/v1/health', (_request, response) => response.json({ data: { status: 'ok' } }));
 
-  // Image proxy for the browser extension. Extension background fetch gets
-  // blocked by CORS for cross-origin images (Facebook CDN, Instagram, etc.),
-  // so the extension sends the image URL here and we fetch server-to-server
-  // (no CORS) and stream the bytes back. Allow-listed by hostname to avoid
-  // SSRF. Intentionally NOT auth-gated because the extension only proxies
-  // images already visible on the user's current page.
+  // Image proxy for the browser extension
   app.get('/api/v1/proxy/image', imageProxyHandler);
 
   const authMiddleware = supabase
@@ -140,98 +125,11 @@ export function createApp(
     response.json({ data: { user: { id: request.userId, email: request.user?.email, name: request.user?.user_metadata?.name, role: request.userRole || 'user' } } });
   });
 
-  app.post(
-    '/api/v1/captures',
-    authMiddleware,
-    async (request: AuthenticatedRequest, response: Response, next) => {
-      try {
-        const parsed = captureInputSchema.safeParse(request.body);
-        if (!parsed.success) {
-          response.status(400).json({
-            error: { code: 'INVALID_CAPTURE_PAYLOAD', message: 'Dữ liệu lưu không hợp lệ', requestId: request.id }
-          });
-          return;
-        }
-
-        const userId = request.userId;
-        if (!userId) {
-          response.status(401).json({
-            error: { code: 'UNAUTHORIZED', message: 'Xác thực không hợp lệ', requestId: request.id }
-          });
-          return;
-        }
-
-        const capture = parsed.data;
-        const existing = await repository.findByClientRequestId(userId, capture.clientRequestId);
-        const item = existing ?? await repository.createPendingItem({ userId, capture });
-        response.status(existing ? 200 : 201).json({ data: { id: item.id, status: item.status } });
-      } catch (error) {
-        next(error);
-      }
-    }
-  );
-
-  app.post(
-    '/api/v1/captures/image',
-    authMiddleware,
-    imageUpload.single('file'),
-    async (request: AuthenticatedRequest, response: Response, next) => {
-      let storageKey: string | undefined;
-      try {
-        if (!imageStorage) {
-          response.status(503).json({ error: { code: 'IMAGE_STORAGE_NOT_CONFIGURED', message: 'Image storage chưa được cấu hình', requestId: request.id } });
-          return;
-        }
-        if (!request.file) {
-          response.status(400).json({ error: { code: 'IMAGE_FILE_REQUIRED', message: 'Cần gửi file ảnh', requestId: request.id } });
-          return;
-        }
-
-        const parsed = captureInputSchema.safeParse({
-          type: 'image',
-          title: request.body.title,
-          sourceUrl: request.body.sourceUrl || undefined,
-          selectedText: request.body.note || undefined,
-          capturedAt: request.body.capturedAt || undefined,
-          clientRequestId: request.body.clientRequestId,
-          image: {
-            storageKey: 'pending-upload',
-            mimeType: request.file.mimetype,
-            sizeBytes: request.file.size
-          }
-        });
-        if (!parsed.success) {
-          response.status(400).json({ error: { code: 'INVALID_IMAGE_CAPTURE_PAYLOAD', message: 'Thông tin ảnh không hợp lệ', requestId: request.id } });
-          return;
-        }
-
-        const itemId = crypto.randomUUID();
-        storageKey = `${request.userId}/${itemId}/${request.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        if (parsed.data.type !== 'image') {
-          response.status(400).json({ error: { code: 'INVALID_IMAGE_CAPTURE_PAYLOAD', message: 'Thông tin ảnh không hợp lệ', requestId: request.id } });
-          return;
-        }
-        const capture = { ...parsed.data, image: { ...parsed.data.image, storageKey } };
-        await imageStorage.upload({ storageKey, buffer: request.file.buffer, mimeType: request.file.mimetype as 'image/jpeg' | 'image/png' | 'image/webp' });
-        const item = await repository.createPendingImageItem({ userId: request.userId!, itemId, capture });
-        // Mint a long-lived signed URL the dashboard can <img src=...>
-        // directly. The bucket is private, so the public Supabase URL
-        // would 404 — but signed URLs work for any bucket as long as they
-        // haven't expired. 30 days keeps cached dashboard cards alive
-        // across browser restarts without being effectively permanent.
-        let signedUrl: string | undefined;
-        if (imageStorage && typeof (imageStorage as { createSignedUrl?: (key: string, expiresIn: number) => Promise<string | null> }).createSignedUrl === 'function') {
-          signedUrl = await (imageStorage as { createSignedUrl: (key: string, expiresIn: number) => Promise<string | null> })
-            .createSignedUrl(storageKey, 60 * 60 * 24 * 30)
-            .catch(() => undefined) ?? undefined;
-        }
-        response.status(201).json({ data: { id: item.id, status: item.status, storageKey, signedUrl } });
-      } catch (error) {
-        if (storageKey && imageStorage) await imageStorage.remove(storageKey).catch(() => undefined);
-        next(error);
-      }
-    }
-  );
+  // Note: /api/v1/captures and /api/v1/captures/image are mounted
+  // separately in server.ts via createCaptureRouter (so they can integrate
+  // with the job queue). Declaring placeholders here would shadow the
+  // capture router because Express matches the first registered route
+  // for an exact path; keep these paths unhandled at this layer.
 
   const errorHandler: ErrorRequestHandler = (error, request, response, _next) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

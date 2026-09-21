@@ -189,10 +189,20 @@ Full machine: [`workflows/state-machine.md`](workflows/state-machine.md).
 * [x] 4 system specs + 3 API specs + 2 data specs + 1 ADR
 * [x] 8 gates, 5 runners, 2 hooks, sha256 vendor-drift detection
 * [x] Auth facade (`/api/v1/auth/*`), hardening migration, e2e route test
+* [x] Job queue system (OCR, tag, embed workers)
+* [x] pgvector migration + hybrid search (lex + RRF)
+* [x] Item CRUD endpoints (list, get, delete, update)
+* [x] Tag management endpoints (list, suggest, filter)
+* [x] Knowledge graph basics (edges, related items)
+* [x] Web dashboard (React + Vite)
+* [x] Rate limiting, monitoring, metrics
+* [x] Deployment configs (Docker, Railway, Render)
+* [x] CI workflow (lint, typecheck, test, gates, build)
 * [ ] bootstrap a git repository and a first commit
-* [ ] CI workflow running `pnpm gates:all` on every PR
 * [ ] Knowledge-regression golden set (`quality-gates/.knowledge-regression/golden.jsonl`)
 * [ ] ADR-0002 (release-day policy) and ADR-0003 (spec-sync runner details)
+* [x] ADR-0006 (job queue architecture)
+* [x] ADR-0007 (search architecture)
 
 ## 9. See also
 

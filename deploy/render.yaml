@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: mnemonics-api
+    runtime: node
+    plan: starter
+    buildCommand: pnpm install --frozen-lockfile && pnpm --recursive build
+    startCommand: pnpm --filter @mnemonics/api start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mnemonics-db
+          property: connectionString
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+  - type: pserv
+    name: mnemonics-db
+    runtime: postgresql
+    plan: starter
+    postgresMajorVersion: 16
+    postgresqlExtensions:
+      - vector
+      - pgcrypto
