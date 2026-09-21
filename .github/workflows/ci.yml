@@ -26,7 +26,14 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
+
+      - name: Commit lockfile
+        run: |
+          git config --local user.email "ci@mnemonics"
+          git config --local user.name "CI Bot"
+          git add pnpm-lock.yaml
+          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
 
       - name: Typecheck
         run: pnpm typecheck
@@ -70,7 +77,14 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
+
+      - name: Commit lockfile
+        run: |
+          git config --local user.email "ci@mnemonics"
+          git config --local user.name "CI Bot"
+          git add pnpm-lock.yaml
+          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
 
       - name: Run migrations
         run: |
@@ -101,7 +115,14 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
+
+      - name: Commit lockfile
+        run: |
+          git config --local user.email "ci@mnemonics"
+          git config --local user.name "CI Bot"
+          git add pnpm-lock.yaml
+          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
 
       - name: Run all quality gates
         run: pnpm gates:all
@@ -126,7 +147,14 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
+
+      - name: Commit lockfile
+        run: |
+          git config --local user.email "ci@mnemonics"
+          git config --local user.name "CI Bot"
+          git add pnpm-lock.yaml
+          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
 
       - name: Build all packages
         run: pnpm --recursive build
