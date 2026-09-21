@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { CaptureInput } from '@mnemonics/shared';
 import type { ItemRepository, NewItem, StoredItem } from '@mnemonics/database';
 import { createApp } from './app.js';
+import { createCaptureRouter } from './routes/capture.js';
 import type { ImageStorage, ImageUpload } from './storage.js';
 import { normalizeSupabaseUrl } from './storage.js';
 
@@ -34,6 +35,29 @@ function createFakeStorage() {
   return { storage, uploads };
 }
 
+/**
+ * Create app with capture router mounted for testing.
+ * This mirrors how server.ts sets up the application.
+ */
+function createTestApp(repository: ItemRepository, expectedToken?: string, imageStorage?: ImageStorage) {
+  const app = createApp(
+    repository,
+    expectedToken || 'mnemonics-dev-token',
+    '00000000-0000-4000-8000-000000000001',
+    imageStorage
+  );
+
+  // Mount capture router (mirrors server.ts)
+  app.use(createCaptureRouter({
+    repository,
+    imageStorage,
+    expectedToken: expectedToken || 'mnemonics-dev-token',
+    developmentUserId: '00000000-0000-4000-8000-000000000001'
+  }));
+
+  return app;
+}
+
 const validCapture = {
   type: 'text',
   title: 'Test capture',
@@ -45,13 +69,13 @@ const validCapture = {
 
 describe('POST /api/v1/captures', () => {
   it('requires bearer authentication', async () => {
-    const response = await request(createApp(createFakeRepository())).post('/api/v1/captures').send(validCapture);
+    const response = await request(createTestApp(createFakeRepository())).post('/api/v1/captures').send(validCapture);
     expect(response.status).toBe(401);
     expect(response.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('rejects invalid payloads', async () => {
-    const response = await request(createApp(createFakeRepository()))
+    const response = await request(createTestApp(createFakeRepository()))
       .post('/api/v1/captures')
       .set('Authorization', 'Bearer mnemonics-dev-token')
       .send({ ...validCapture, selectedText: '' });
@@ -60,7 +84,7 @@ describe('POST /api/v1/captures', () => {
   });
 
   it('creates a pending item immediately', async () => {
-    const response = await request(createApp(createFakeRepository()))
+    const response = await request(createTestApp(createFakeRepository()))
       .post('/api/v1/captures')
       .set('Authorization', 'Bearer mnemonics-dev-token')
       .send(validCapture);
@@ -70,7 +94,8 @@ describe('POST /api/v1/captures', () => {
   });
 
   it('returns the existing item for a duplicate client request', async () => {
-    const app = createApp(createFakeRepository());
+    const repo = createFakeRepository();
+    const app = createTestApp(repo);
     const first = await request(app).post('/api/v1/captures').set('Authorization', 'Bearer mnemonics-dev-token').send(validCapture);
     const second = await request(app).post('/api/v1/captures').set('Authorization', 'Bearer mnemonics-dev-token').send(validCapture);
     expect(second.status).toBe(200);
@@ -78,7 +103,7 @@ describe('POST /api/v1/captures', () => {
   });
 
   it('rejects image data URLs', async () => {
-    const response = await request(createApp(createFakeRepository()))
+    const response = await request(createTestApp(createFakeRepository()))
       .post('/api/v1/captures')
       .set('Authorization', 'Bearer mnemonics-dev-token')
       .send({
@@ -92,7 +117,7 @@ describe('POST /api/v1/captures', () => {
 
   it('uploads an image and creates a pending database item', async () => {
     const fakeStorage = createFakeStorage();
-    const response = await request(createApp(createFakeRepository(), 'mnemonics-dev-token', undefined, fakeStorage.storage))
+    const response = await request(createTestApp(createFakeRepository(), 'mnemonics-dev-token', fakeStorage.storage))
       .post('/api/v1/captures/image')
       .set('Authorization', 'Bearer mnemonics-dev-token')
       .field('title', 'Screenshot test')
