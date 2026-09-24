@@ -551,10 +551,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const pageTitle = tab.title || '';
 
     notifyCapture('Mnemonics', 'Đang lưu ảnh...', '…', '#f59e0b');
-    uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle)
+    const clientRequestId = crypto.randomUUID();
+    uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, { clientRequestId })
       .then((serverResult) => {
         const dataUrl = serverResult && serverResult._resolvedDataUrl ? serverResult._resolvedDataUrl : null;
-        return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, dataUrl);
+        return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, dataUrl, clientRequestId);
       })
       .then(() => {
         chrome.tabs.query({}, (tabs) => {
@@ -574,11 +575,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         tryResolveImageViaBackground(imageUrl)
           .then(function(dataUrl) {
             // Pass resolvedDataUrl so the card renders AND re-sync works
-            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, dataUrl);
+            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, dataUrl, clientRequestId);
           })
           .catch(function() {
             // Could not resolve image at all — still save with original URL
-            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, null);
+            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, null, clientRequestId);
           })
           .then(() => notifyCapture(
             'Mnemonics - Lưu cục bộ',
