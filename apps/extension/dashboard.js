@@ -620,17 +620,35 @@ function indexLocalById(list) {
 async function fetchItemsFromApi(uid, accessToken) {
   if (!uid || !accessToken) return null;
   const epoch = ++apiRequestEpoch;
-  try {
-    const response = await fetch('http://localhost:4000/api/v1/items?limit=50', {
+
+  async function request(token) {
+    return fetch('http://localhost:4000/api/v1/items?limit=50', {
       method: 'GET',
-      headers: { Authorization: 'Bearer ' + accessToken }
+      headers: { Authorization: 'Bearer ' + token }
     });
+  }
+
+  try {
+    let token = accessToken;
+    let response = await request(token);
+
+    // Keep the dashboard usable across access-token expiry. The extension
+    // auth client owns refresh-token persistence, so refresh exactly once
+    // and retry the same read request before clearing the session.
+    if (response.status === 401 && typeof refreshAccessToken === 'function') {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        token = refreshed;
+        response = await request(token);
+      }
+    }
+
     if (response.status === 401) {
-      // Token rejected ? drop the session so the dashboard asks for login.
       saveSession(null);
       return null;
     }
     if (!response.ok) return null;
+
     const json = await response.json().catch(() => null);
     if (!json || !json.data || !Array.isArray(json.data.items)) return null;
     if (epoch !== apiRequestEpoch) return null; // user switched accounts
