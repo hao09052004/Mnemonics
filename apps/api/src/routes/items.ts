@@ -75,7 +75,7 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
 
         const result = await pool.query<Record<string, unknown>>(
           `SELECT id, type, title, source_url, raw_text, ocr_text,
-                  status, captured_at, created_at, updated_at,
+                  status, client_request_id, captured_at, created_at, updated_at,
                   (SELECT storage_key FROM assets WHERE assets.item_id = items.id LIMIT 1) AS asset_storage_key
            FROM items
            WHERE user_id = $1
@@ -127,6 +127,7 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           raw_text: row.raw_text,
           ocr_text: row.ocr_text,
           status: row.status,
+          client_request_id: row.client_request_id,
           captured_at: row.captured_at,
           created_at: row.created_at,
           updated_at: row.updated_at,
