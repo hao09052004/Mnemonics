@@ -7,7 +7,7 @@
     "audit:structure": "node scripts/audit-structure.mjs",
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
-    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/api test",
+    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/api test && pnpm --filter @mnemonics/extension-tests test",
     "gates:agents": "node quality-gates/runners/check-agents.mjs",
     "gates:skills": "node quality-gates/runners/check-skills.mjs",
     "gates:spec-sync": "node quality-gates/runners/check-spec-sync.mjs",
