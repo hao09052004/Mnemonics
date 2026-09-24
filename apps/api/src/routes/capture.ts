@@ -156,6 +156,12 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         }
 
         const userId = request.userId!;
+        const existing = await repository.findByClientRequestId(userId, parsed.data.clientRequestId);
+        if (existing) {
+          response.status(200).json({ data: { id: existing.id, status: existing.status } });
+          return;
+        }
+
         const itemId = crypto.randomUUID();
         storageKey = `${userId}/${itemId}/${request.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
