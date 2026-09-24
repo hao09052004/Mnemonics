@@ -292,7 +292,8 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   form.append('note', noteText.slice(0, 4000));
   form.append('sourceUrl', pageUrl || '');
   form.append('capturedAt', capturedAt);
-  form.append('clientRequestId', crypto.randomUUID());
+  const clientRequestId = extra && extra.clientRequestId ? extra.clientRequestId : crypto.randomUUID();
+  form.append('clientRequestId', clientRequestId);
 
   const uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
     method: 'POST',
@@ -303,7 +304,10 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   if (!uploadResponse.ok) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được ảnh.');
   }
-  return Object.assign(body, { _resolvedDataUrl: resolvedDataUrl });
+  return Object.assign(body, {
+    _resolvedDataUrl: resolvedDataUrl,
+    _clientRequestId: clientRequestId
+  });
 }
 
 // After the server-side upload succeeds, also append a local item so the
@@ -322,7 +326,7 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
 //   Critical for re-sync: if the original CDN URL (Facebook, Instagram) has
 //   expired since the first save, we still have the bytes cached as a data URL
 //   and can re-upload without needing the original URL.
-function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, resolvedDataUrl) {
+function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, resolvedDataUrl, clientRequestId) {
   return new Promise(function(resolve, reject) {
     chrome.storage.local.get(['mnemonics_session'], function(sess) {
       if (chrome.runtime.lastError) {
@@ -362,7 +366,8 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
           // serverResult; the dashboard surfaces a "Đồng bộ lên database"
           // button on those rows. Once the user clicks it, we re-upload
           // and clear the flag in place.
-          pendingUpload: !serverResult
+          pendingUpload: !serverResult,
+          clientRequestId: clientRequestId || (serverResult && serverResult._clientRequestId) || null
         };
         items.unshift(newItem);
         const stored = items.slice(0, 80);
@@ -498,6 +503,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     // call if we want — but here we just rely on the existing pattern.
     const localItem = {
       id: Date.now(),
+      clientRequestId: crypto.randomUUID(),
       title: title,
       note: '',
       excerpt: '',
@@ -519,7 +525,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         title: title,
         sourceUrl: linkUrl,
         capturedAt: localItem.savedAt,
-        clientRequestId: crypto.randomUUID()
+        clientRequestId: localItem.clientRequestId
       }).then(function() {
         writeGenericLocalStore(localItem, { ok: true });
         notifyDashboards('ITEM_SAVED');
@@ -610,6 +616,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
     const localItem = {
       id: Date.now(),
+      clientRequestId: crypto.randomUUID(),
       title: pageTitle.slice(0, 80) || 'Đoạn trích',
       note: selectedText.slice(0, 500),
       excerpt: selectedText.slice(0, 280),
@@ -629,7 +636,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       sourceUrl: pageUrl || undefined,
       selectedText: selectedText || undefined,
       capturedAt: localItem.savedAt,
-      clientRequestId: crypto.randomUUID()
+      clientRequestId: localItem.clientRequestId
     };
 
     uploadTextCapture(serverPayload)
@@ -762,7 +769,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const note = msg.note || '';
     uploadImageFromContextMenu(imageUrl, sourceUrl, title, {
       note: note,
-      capturedAt: msg.capturedAt || new Date().toISOString()
+      capturedAt: msg.capturedAt || new Date().toISOString(),
+      clientRequestId: msg.clientRequestId || undefined
     })
       .then((serverItem) => {
         sendResponse({ ok: true, data: serverItem });
@@ -784,7 +792,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sourceUrl: msg.sourceUrl || undefined,
       selectedText: msg.selectedText || undefined,
       capturedAt: msg.capturedAt || new Date().toISOString(),
-      clientRequestId: crypto.randomUUID()
+      clientRequestId: msg.clientRequestId || crypto.randomUUID()
     };
     uploadTextCapture(serverPayload)
       .then(function(serverItem) {
