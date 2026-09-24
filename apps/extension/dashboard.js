@@ -2471,6 +2471,17 @@ function resyncItem(btn) {
     }
     if (response && response.ok) {
       item.pendingUpload = false;
+      item.serverSynced = true;
+      const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+      const cacheKey = userCacheKey(uid);
+      const nextLocal = baseMemoryItems.map(function(localItem) {
+        return String(localItem.id) === String(item.id) ? Object.assign({}, localItem, {
+          pendingUpload: false,
+          serverSynced: true
+        }) : localItem;
+      });
+      baseMemoryItems = nextLocal;
+      setStorageValues({ [cacheKey]: nextLocal }, function() {});
       renderDashboard();
       showToast('? Uploaded to Supabase');
     } else {
