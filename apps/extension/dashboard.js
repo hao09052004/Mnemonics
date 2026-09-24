@@ -600,6 +600,7 @@ function apiItemToLocalShape(item) {
     tags: Array.isArray(item.tags) ? item.tags : [],
     capturedAt: item.captured_at || item.created_at || null,
     savedAt: item.captured_at || item.created_at || new Date().toISOString(),
+    clientRequestId: item.client_request_id || null,
     date: 'Just now',
     space: 'Pending sync',
     serverSynced: true,
@@ -730,23 +731,45 @@ function loadFromExtension(cb) {
 // merge rules can be unit-tested without a DOM.
 function reconcileServerItems(local, serverItems) {
   const localIndex = indexLocalById(local);
+  const pendingByClientRequestId = new Map();
+  for (const item of local || []) {
+    if (isPendingItem(item) && item.clientRequestId) {
+      pendingByClientRequestId.set(String(item.clientRequestId), item);
+    }
+  }
+
   const serverIds = new Set();
+  const reconciledLocalIds = new Set();
 
   const merged = serverItems.map(function(serverItem) {
     serverIds.add(String(serverItem.id));
-    const existing = localIndex.get(String(serverItem.id));
+    const existingById = localIndex.get(String(serverItem.id));
+    const existingByRequestId = serverItem.client_request_id
+      ? pendingByClientRequestId.get(String(serverItem.client_request_id))
+      : null;
+    const existing = existingById && isPendingItem(existingById)
+      ? existingById
+      : existingByRequestId;
+
     if (existing && isPendingItem(existing)) {
-      // Server already has the row (maybe a retry succeeded). Drop the
-      // pending flag but keep the user's local edits if any.
-      return Object.assign({}, existing, serverItem, { pendingUpload: false, serverSynced: true });
+      // A retry may have reached the server before the extension updated
+      // its local row. Match by clientRequestId as well as server id so the
+      // local pending row is replaced instead of duplicated.
+      reconciledLocalIds.add(String(existing.id));
+      return Object.assign({}, existing, serverItem, {
+        id: serverItem.id,
+        pendingUpload: false,
+        serverSynced: true
+      });
     }
     return serverItem;
   });
 
-  // Anything still local-only (no matching server id) keeps its place.
+  // Anything still local-only (no matching server id/request id) keeps its place.
   for (const item of local) {
     if (!item || item.id === undefined || item.id === null) continue;
     if (serverIds.has(String(item.id))) continue;
+    if (reconciledLocalIds.has(String(item.id))) continue;
     if (isPendingItem(item)) merged.unshift(item);
   }
 
