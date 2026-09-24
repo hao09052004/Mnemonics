@@ -2447,7 +2447,8 @@ function resyncItem(btn) {
       sourceUrl: item.sourceUrl || '',
       title: item.title || '',
       note: item.note || '',
-      capturedAt: item.savedAt || ''
+      capturedAt: item.savedAt || '',
+      clientRequestId: item.clientRequestId || ''
     };
   } else {
     message = {
@@ -2456,7 +2457,8 @@ function resyncItem(btn) {
       title: item.title || '',
       sourceUrl: item.sourceUrl || item.url || '',
       selectedText: item.note || item.selectedText || '',
-      capturedAt: item.savedAt || ''
+      capturedAt: item.savedAt || '',
+      clientRequestId: item.clientRequestId || ''
     };
   }
 
