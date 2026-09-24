@@ -115,6 +115,31 @@ describe('POST /api/v1/captures', () => {
     expect(response.status).toBe(400);
   });
 
+  it('deduplicates image uploads by client request id', async () => {
+    const fakeStorage = createFakeStorage();
+    const app = createTestApp(createFakeRepository(), 'mnemonics-dev-token', fakeStorage.storage);
+    const clientRequestId = '66666666-6666-4666-8666-666666666666';
+
+    const first = await request(app)
+      .post('/api/v1/captures/image')
+      .set('Authorization', 'Bearer mnemonics-dev-token')
+      .field('title', 'Duplicate image')
+      .field('clientRequestId', clientRequestId)
+      .attach('file', Buffer.from('fake-image'), { filename: 'capture.png', contentType: 'image/png' });
+
+    const second = await request(app)
+      .post('/api/v1/captures/image')
+      .set('Authorization', 'Bearer mnemonics-dev-token')
+      .field('title', 'Duplicate image')
+      .field('clientRequestId', clientRequestId)
+      .attach('file', Buffer.from('fake-image'), { filename: 'capture.png', contentType: 'image/png' });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(200);
+    expect(second.body.data.id).toBe(first.body.data.id);
+    expect(fakeStorage.uploads).toHaveLength(1);
+  });
+
   it('uploads an image and creates a pending database item', async () => {
     const fakeStorage = createFakeStorage();
     const response = await request(createTestApp(createFakeRepository(), 'mnemonics-dev-token', fakeStorage.storage))
