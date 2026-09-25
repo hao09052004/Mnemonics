@@ -17,7 +17,8 @@
     "seed:skills": "node scripts/seed-skill-metas.mjs",
     "demo:db": "docker compose -f docker-compose.demo.yml up -d",
     "demo:setup": "pnpm --filter @mnemonics/api demo:setup",
-    "demo:api": "pnpm --filter @mnemonics/api dev",
-    "demo:web": "pnpm --filter @mnemonics/web dev"
+    "demo:api": "pnpm --filter @mnemonics/api demo",
+    "demo:web": "pnpm --filter @mnemonics/web demo",
+    "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-pipeline.mts"
   }
 }
