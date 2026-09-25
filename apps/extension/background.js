@@ -84,6 +84,53 @@ async function getValidAccessToken() {
   return next.accessToken;
 }
 
+
+// Force a refresh after the server rejects an otherwise-unexpired access token.
+// This is the recovery path for revoked/rotated JWTs; getValidAccessToken()
+// only refreshes proactively near expiry.
+async function forceRefreshAccessToken() {
+  const stored = await new Promise(function(resolve) {
+    chrome.storage.local.get('mnemonics_session', function(r) {
+      resolve(r.mnemonics_session);
+    });
+  });
+
+  if (!stored || !stored.refreshToken) {
+    throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
+  }
+
+  let response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: stored.refreshToken })
+    });
+  } catch (networkErr) {
+    throw new Error('Không refresh được token: ' + networkErr.message);
+  }
+
+  const payload = await response.json().catch(function() { return {}; });
+  const session = payload && payload.data && payload.data.session;
+  if (!response.ok || !session || !session.accessToken || !session.refreshToken) {
+    chrome.storage.local.remove('mnemonics_session', function() {});
+    throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
+  }
+
+  const next = Object.assign({}, stored, {
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    expiresAt: session.expiresAt || stored.expiresAt,
+    user: (payload.data && payload.data.user) || stored.user
+  });
+
+  await new Promise(function(resolve) {
+    chrome.storage.local.set({ mnemonics_session: next }, function() { resolve(); });
+  });
+
+  return next.accessToken;
+}
+
 // Returns the chrome.storage.local key for the current user's items.
 function getUserItemsKey(session) {
   const uid = session && session.user && session.user.id ? session.user.id : 'guest';
@@ -295,11 +342,21 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   const clientRequestId = extra && extra.clientRequestId ? extra.clientRequestId : crypto.randomUUID();
   form.append('clientRequestId', clientRequestId);
 
-  const uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
+  let uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + accessToken },
     body: form
   });
+
+  if (uploadResponse.status === 401) {
+    accessToken = await forceRefreshAccessToken();
+    uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken },
+      body: form
+    });
+  }
+
   const body = await uploadResponse.json().catch(() => ({}));
   if (!uploadResponse.ok) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được ảnh.');
@@ -390,17 +447,27 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
 // the parsed JSON body on success. Throws with a human-readable message
 // on network failure / 4xx so callers can show it.
 async function uploadTextCapture(payload) {
-  const accessToken = await getValidAccessToken();
+  let accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu.');
   if (!payload || !payload.title) throw new Error('Thiếu tiêu đề.');
-  const response = await fetch(MNEMONICS_API_URL + '/api/v1/captures', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + accessToken,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+
+  async function send(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/captures', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  }
+
+  let response = await send(accessToken);
+  if (response.status === 401) {
+    accessToken = await forceRefreshAccessToken();
+    response = await send(accessToken);
+  }
+
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được.');
