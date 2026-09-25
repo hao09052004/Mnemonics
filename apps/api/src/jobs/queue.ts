@@ -44,15 +44,18 @@ const DEFAULT_MAX_ATTEMPTS = 3;
  * JobQueue with EventEmitter for job processing callbacks
  */
 export type JobHandler = (job: Job) => Promise<void>;
+export type JobFailureHandler = (job: Job, error: string) => Promise<void>;
 
 export class JobQueue {
   private pool: Pool;
   private isProcessing = false;
   private handlers = new Map<JobType, JobHandler>();
+  private onTerminalFailure?: JobFailureHandler;
   private processingInterval: NodeJS.Timeout | null = null;
 
-  constructor(pool: Pool) {
+  constructor(pool: Pool, onTerminalFailure?: JobFailureHandler) {
     this.pool = pool;
+    this.onTerminalFailure = onTerminalFailure;
   }
 
   registerHandler(type: JobType, handler: JobHandler): void {
@@ -104,8 +107,7 @@ export class JobQueue {
       `SELECT * FROM jobs
        WHERE status = 'pending' AND attempts < max_attempts
        ORDER BY created_at ASC
-       LIMIT $1
-       FOR UPDATE SKIP LOCKED`,
+       LIMIT $1`,
       [limit]
     );
 
@@ -213,6 +215,10 @@ export class JobQueue {
   /**
    * Process pending jobs (called by interval)
    */
+  async processOnce(): Promise<void> {
+    await this.processJobs();
+  }
+
   private async processJobs(): Promise<void> {
     if (this.isProcessing) return;
     this.isProcessing = true;
@@ -249,6 +255,9 @@ export class JobQueue {
 
       if (lockedJob.attempts >= lockedJob.maxAttempts) {
         await this.markFailed(job.id, errorMessage);
+        if (this.onTerminalFailure) {
+          await this.onTerminalFailure(lockedJob, errorMessage);
+        }
       } else {
         await this.resetForRetry(job.id);
       }
