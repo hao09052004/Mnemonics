@@ -99,9 +99,8 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
 
         // Enqueue jobs based on capture type
         if (createJob) {
-          // For text/link: enqueue tag and embed jobs directly
+          // Tag is the first stage. TagHandler enqueues embedding after success.
           await createJob('tag', item.id, userId);
-          await createJob('embed', item.id, userId);
         }
 
         response.status(201).json({ data: { id: item.id, status: item.status } });
@@ -184,11 +183,10 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         // Create item
         const item = await repository.createPendingImageItem({ userId, itemId, capture });
 
-        // Enqueue jobs for images: OCR -> tag -> embed
+        // Images are ordered: OCR -> tag -> embed.
+        // Each successful handler enqueues the next stage.
         if (createJob) {
           await createJob('ocr', item.id, userId);
-          await createJob('tag', item.id, userId);
-          await createJob('embed', item.id, userId);
         }
 
         // Generate signed URL for image
