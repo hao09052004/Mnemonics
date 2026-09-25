@@ -207,11 +207,25 @@ async function runLexicalSearch(
       ts_rank_cd(i.searchable_text, plainto_tsquery('simple', $2)) AS score
     FROM items i
     WHERE i.user_id = $1
+      AND i.status = 'ready'
       AND i.searchable_text @@ plainto_tsquery('simple', $2)
   `;
 
   const params: unknown[] = [userId, query];
   let paramIndex = 3;
+
+  if (filters?.tags?.length) {
+    sql += ` AND EXISTS (
+      SELECT 1
+      FROM item_tags it
+      JOIN tags t ON t.id = it.tag_id
+      WHERE it.item_id = i.id
+        AND t.user_id = i.user_id
+        AND t.normalized_name = ANY(${paramIndex})
+    )`;
+    params.push(filters.tags.map(tag => tag.trim().toLowerCase().replace(/\s+/g, '-')));
+    paramIndex++;
+  }
 
   if (filters?.kind?.length) {
     sql += ` AND i.type = ANY($${paramIndex})`;
@@ -284,12 +298,28 @@ async function runSemanticSearch(
       FROM item_embeddings ie
       JOIN items i ON i.id = ie.item_id
       WHERE i.user_id = $1
+        AND i.status = 'ready'
         AND ($3::text[] IS NULL OR i.type = ANY($3))
         AND ($4::timestamptz IS NULL OR i.captured_at >= $4)
         AND ($5::timestamptz IS NULL OR i.captured_at <= $5)
+        AND ($6::text[] IS NULL OR EXISTS (
+          SELECT 1
+          FROM item_tags it
+          JOIN tags t ON t.id = it.tag_id
+          WHERE it.item_id = i.id
+            AND t.user_id = i.user_id
+            AND t.normalized_name = ANY($6)
+        ))
       ORDER BY ie.embedding <=> $2::vector
       LIMIT 100`,
-      [userId, embeddingStr, filters?.kind ?? null, filters?.captured_after ?? null, filters?.captured_before ?? null]
+      [
+        userId,
+        embeddingStr,
+        filters?.kind ?? null,
+        filters?.captured_after ?? null,
+        filters?.captured_before ?? null,
+        filters?.tags?.map(tag => tag.trim().toLowerCase().replace(/\s+/g, '-')) ?? null
+      ]
     );
 
     return result.rows.map(row => ({
