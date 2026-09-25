@@ -67,6 +67,61 @@ describe('JobQueue', () => {
     expect(job.maxAttempts).toBe(3);
   });
 
+  it('should reuse an active job for the same item and type', async () => {
+    const activeRow = {
+      id: 'existing-tag-job',
+      type: 'tag',
+      item_id: 'item-active',
+      user_id: 'user-456',
+      payload: JSON.stringify({ source: 'capture' }),
+      status: 'pending',
+      attempts: 0,
+      max_attempts: 3,
+      error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null
+    };
+
+    let insertCalls = 0;
+    let selectCalls = 0;
+    const pool = {
+      query: async (sql: string, _params: any[]) => {
+        if (sql.includes('INSERT INTO jobs') && sql.includes('ON CONFLICT (item_id, type)')) {
+          insertCalls += 1;
+          return insertCalls === 1
+            ? { rows: [activeRow], rowCount: 1 }
+            : { rows: [], rowCount: 0 };
+        }
+        if (sql.includes('SELECT * FROM jobs') && sql.includes('status IN (\'pending\', \'processing\')')) {
+          selectCalls += 1;
+          return { rows: [activeRow], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+    } as any;
+
+    const idempotentQueue = new JobQueue(pool);
+    const first = await idempotentQueue.create({
+      type: 'tag',
+      itemId: 'item-active',
+      userId: 'user-456',
+      payload: { source: 'capture' }
+    });
+    const second = await idempotentQueue.create({
+      type: 'tag',
+      itemId: 'item-active',
+      userId: 'user-456',
+      payload: { source: 'capture', attempt: 2 }
+    });
+
+    expect(first.id).toBe('existing-tag-job');
+    expect(second.id).toBe('existing-tag-job');
+    expect(insertCalls).toBe(2);
+    expect(selectCalls).toBe(1);
+    idempotentQueue.stop();
+  });
+
   it('should register async handlers without EventEmitter coupling', async () => {
     const handler = async (_job: Job) => undefined;
     queue.registerHandler('tag', handler);
