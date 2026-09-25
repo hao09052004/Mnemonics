@@ -1,14 +1,14 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { config } from 'dotenv';
-import { Pool } from 'pg';
+import { createPool } from '@mnemonics/database';
 
 config({ path: resolve(process.cwd(), '../../.env') });
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mnemonics:mnemonics@localhost:5432/mnemonics';
 const DEMO_USER_ID = process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001';
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = createPool(DATABASE_URL);
 
 async function exec(sql: string, params: unknown[] = []) {
   return pool.query(sql, params);
