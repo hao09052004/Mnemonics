@@ -15,6 +15,7 @@
     "gates:coverage": "node quality-gates/runners/coverage.mjs",
     "gates:all": "pnpm gates:agents && pnpm gates:skills && pnpm gates:spec-sync && pnpm gates:coverage",
     "seed:skills": "node scripts/seed-skill-metas.mjs",
+    "demo": "node scripts/demo-run.mjs",
     "demo:db": "docker compose -f docker-compose.demo.yml up -d",
     "demo:setup": "pnpm --filter @mnemonics/api demo:setup",
     "demo:api": "pnpm --filter @mnemonics/api demo",
