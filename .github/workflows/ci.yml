@@ -134,7 +134,7 @@ jobs:
       - name: Verify database schema contract
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $func$
           DECLARE
             searchable_type TEXT;
           BEGIN
@@ -158,7 +158,7 @@ jobs:
               RAISE EXCEPTION 'item_embeddings unexpectedly contains user_id; repository must follow schema ownership via items';
             END IF;
           END
-          $;
+          $func$;
 
           INSERT INTO auth.users(id, raw_user_meta_data)
           VALUES ('00000000-0000-4000-8000-000000000099', '{"name":"CI"}')
@@ -175,7 +175,7 @@ jobs:
             '00000000-0000-4000-8000-000000000199'
           );
 
-          DO $
+          DO $func$
           BEGIN
             IF NOT EXISTS (
               SELECT 1
@@ -186,7 +186,7 @@ jobs:
               RAISE EXCEPTION 'searchable_text trigger did not populate a matching tsvector';
             END IF;
           END
-          $;
+          $func$;
 
           DELETE FROM public.items
           WHERE client_request_id = '00000000-0000-4000-8000-000000000199';
