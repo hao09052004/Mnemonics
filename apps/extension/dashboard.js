@@ -295,8 +295,18 @@ function logoutUser() {
 // In production we don't ship demo credentials ? this is a no-op fallback so
 // the listener at `DOMContentLoaded` doesn't throw `ReferenceError`.
 async function loginDemoUser() {
-  showToast('Demo accounts are disabled ? please sign up or sign in.');
-  showPage('login');
+  try {
+    var data = await authRequest('login', {
+      email: 'demo@mnemonics.local',
+      password: 'DemoPass123!'
+    });
+    saveSession({ ...data.session, user: data.user }, function() {
+      showToast('Demo account signed in');
+      loadFromExtension(function() { showPage('dashboard'); });
+    });
+  } catch (error) {
+    setAuthError('login-error', error.message || 'Demo login failed');
+  }
 }
 
 // `readAccessToken` is provided by api-client.js (loaded before this
