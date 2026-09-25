@@ -92,6 +92,9 @@ export class JobQueue {
     const result = await this.pool.query<Job & Record<string, unknown>>(
       `INSERT INTO jobs (id, type, item_id, user_id, payload, max_attempts, status)
        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       ON CONFLICT (item_id, type)
+         WHERE status IN ('pending', 'processing')
+       DO UPDATE SET updated_at = jobs.updated_at
        RETURNING *`,
       [id, type, itemId, userId, JSON.stringify(payload), maxAttempts]
     );
