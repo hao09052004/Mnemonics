@@ -34,13 +34,9 @@ config({ path: resolve(process.cwd(), '.env') });
 const API = process.env.API_URL || 'http://localhost:4000/api/v1';
 const TOKEN = process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token';
 const USER_ID = process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mnemonics:mnemonics@localhost:5432/mnemonics';
 
-if (!process.env.DATABASE_URL) {
-  console.error('DATABASE_URL is not set');
-  process.exit(1);
-}
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: DATABASE_URL });
 
 async function api(path: string, init: RequestInit = {}) {
   const res = await fetch(`${API}${path}`, {
