@@ -29,7 +29,10 @@ export class TagHandler {
         throw new Error('Item not found');
       }
 
-      // 2. Generate tags
+      // 2. Mark the item as actively processing
+      await this.repository.updateStatus(job.itemId, 'processing');
+
+      // 3. Generate tags
       const tags = await this.generateTags(item);
 
       // 3. Save tags to item
