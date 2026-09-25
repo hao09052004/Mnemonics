@@ -237,3 +237,40 @@ async function sendCaptureToApi(item, accessToken) {
   }
   return { sent: true, data: body };
 }
+
+
+async function searchItemsFromApi(query, accessToken) {
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi tìm kiếm.');
+
+  async function request(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify({ q: query, limit: 50, offset: 0 })
+    });
+  }
+
+  var token = accessToken;
+  var response = await request(token);
+
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await request(token);
+    }
+  }
+
+  var body = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    var message = body && body.error && body.error.message
+      ? body.error.message
+      : 'Search API failed with status ' + response.status;
+    throw new Error(message);
+  }
+
+  return body;
+}
