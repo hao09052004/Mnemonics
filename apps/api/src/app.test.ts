@@ -204,3 +204,77 @@ describe('Supabase configuration', () => {
     expect(() => normalizeSupabaseUrl('project-key')).toThrow('SUPABASE_URL');
   });
 });
+
+
+describe('local demo authentication', () => {
+  it('logs into the deterministic demo account and exposes the demo user', async () => {
+    const app = createApp(
+      createFakeRepository(),
+      'mnemonics-dev-token',
+      '00000000-0000-4000-8000-000000000001',
+      undefined,
+      undefined,
+      undefined,
+      { demoMode: true }
+    );
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'demo@mnemonics.local', password: 'DemoPass123!' });
+
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.email).toBe('demo@mnemonics.local');
+    expect(login.body.data.session.accessToken).toBe('mnemonics-dev-token');
+
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', 'Bearer mnemonics-dev-token');
+
+    expect(me.status).toBe(200);
+    expect(me.body.data.user.id).toBe('00000000-0000-4000-8000-000000000001');
+  });
+
+  it('rejects incorrect demo credentials', async () => {
+    const app = createApp(
+      createFakeRepository(),
+      'mnemonics-dev-token',
+      '00000000-0000-4000-8000-000000000001',
+      undefined,
+      undefined,
+      undefined,
+      { demoMode: true }
+    );
+
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'demo@mnemonics.local', password: 'wrong-password' });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('AUTH_LOGIN_FAILED');
+  });
+
+  it('refreshes and logs out the deterministic demo session', async () => {
+    const app = createApp(
+      createFakeRepository(),
+      'mnemonics-dev-token',
+      '00000000-0000-4000-8000-000000000001',
+      undefined,
+      undefined,
+      undefined,
+      { demoMode: true }
+    );
+
+    const refresh = await request(app)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: 'mnemonics-demo-refresh-token' });
+
+    expect(refresh.status).toBe(200);
+    expect(refresh.body.data.session.refreshToken).toBe('mnemonics-demo-refresh-token');
+
+    const logout = await request(app)
+      .post('/api/v1/auth/logout')
+      .set('Authorization', 'Bearer mnemonics-dev-token');
+
+    expect(logout.status).toBe(204);
+  });
+});
