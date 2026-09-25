@@ -25,10 +25,31 @@ export function LoginForm({ api, onLogin }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const demoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
   const reset = () => {
     setError(null);
     setInfo(null);
+  };
+
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    reset();
+    try {
+      const result = await api.login({
+        email: 'demo@mnemonics.local',
+        password: 'DemoPass123!'
+      });
+      if (!result.session) {
+        setError('Demo account did not return a session.');
+        return;
+      }
+      onLogin(result.session);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Demo login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,6 +143,27 @@ export function LoginForm({ api, onLogin }: LoginFormProps) {
           >
             {error}
           </div>
+        )}
+
+        {demoMode && (
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={loading}
+            data-testid="demo-login-btn"
+            style={{
+              padding: '10px 16px',
+              background: '#0f172a',
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: 14,
+              fontWeight: 700
+            }}
+          >
+            ⚡ Đăng nhập Demo
+          </button>
         )}
 
         <button
