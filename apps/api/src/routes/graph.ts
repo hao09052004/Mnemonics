@@ -93,7 +93,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.get(
     '/items/:id/edges',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const itemId = String(req.params.id);
@@ -127,7 +127,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.get(
     '/items/:id/related',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const itemId = String(req.params.id);
@@ -181,7 +181,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.delete(
     '/edges/:id',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const edgeId = String(req.params.id);
@@ -207,7 +207,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.get(
     '/graph/stats',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
 
