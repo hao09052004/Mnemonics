@@ -1,5 +1,8 @@
 // Background service worker
+importScripts('pending-sync-policy.js');
+
 let mnemonicsPendingScreenshot = null;
+let pendingSyncInProgress = false;
 const MNEMONICS_API_URL = 'http://localhost:4000';
 // Mirror of .env → bucket + Supabase URL the API uploads into. The public
 // bucket serves these URLs directly so the dashboard can <img src=...>
@@ -131,6 +134,177 @@ async function forceRefreshAccessToken() {
   return next.accessToken;
 }
 
+
+// ---------------------------------------------------------------------------
+// Automatic pending-upload resync
+// ---------------------------------------------------------------------------
+
+const PENDING_SYNC_ALARM = 'mnemonics-pending-sync';
+const PENDING_SYNC_BATCH_SIZE = 5;
+
+function ensurePendingSyncAlarm() {
+  if (!chrome.alarms) return;
+  chrome.alarms.create(PENDING_SYNC_ALARM, { periodInMinutes: 1 });
+}
+
+function readSession() {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get('mnemonics_session', function(result) {
+      resolve(result && result.mnemonics_session ? result.mnemonics_session : null);
+    });
+  });
+}
+
+function readUserItems(session) {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get([getUserItemsKey(session)], function(result) {
+      resolve(result[getUserItemsKey(session)] || []);
+    });
+  });
+}
+
+function writeUserItems(session, items) {
+  return new Promise(function(resolve, reject) {
+    const payload = {};
+    payload[getUserItemsKey(session)] = items;
+    chrome.storage.local.set(payload, function() {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function syncSuccess(item, serverBody) {
+  const data = serverBody && serverBody.data ? serverBody.data : {};
+  const next = Object.assign({}, item, {
+    pendingUpload: false,
+    serverSynced: true,
+    serverId: data.id || item.serverId || item.id,
+    syncAttempts: Number(item.syncAttempts || 0),
+    lastSyncAt: new Date().toISOString(),
+    nextRetryAt: null,
+    syncError: null,
+    syncStatus: 'synced'
+  });
+
+  if ((item.type === 'image' || item.type === 'screenshot') && data.signedUrl) {
+    next.imageUrl = data.signedUrl;
+  }
+
+  return next;
+}
+
+function syncFailure(item, error) {
+  const attempts = Number(item.syncAttempts || 0) + 1;
+  const terminal = attempts >= MNEMONICS_SYNC_POLICY.MAX_ATTEMPTS;
+  return Object.assign({}, item, {
+    pendingUpload: true,
+    serverSynced: false,
+    syncAttempts: attempts,
+    lastSyncAt: new Date().toISOString(),
+    nextRetryAt: terminal
+      ? null
+      : MNEMONICS_SYNC_POLICY.nextRetryAt(Date.now(), attempts - 1),
+    syncError: error && error.message ? error.message : String(error || 'Sync failed'),
+    syncStatus: terminal ? 'attention' : 'retrying'
+  });
+}
+
+async function syncPendingItem(item) {
+  try {
+    let body;
+    if (item.type === 'image' || item.type === 'screenshot') {
+      body = await uploadImageFromContextMenu(
+        item.imageUrl || '',
+        item.sourceUrl || item.sourcePageUrl || item.pageUrl || '',
+        item.title || '',
+        {
+          note: item.note || item.selectedText || '',
+          capturedAt: item.savedAt || item.capturedAt || new Date().toISOString(),
+          clientRequestId: item.clientRequestId || undefined
+        }
+      );
+    } else {
+      body = await uploadTextCapture({
+        type: item.type === 'link' ? 'link' : 'text',
+        title: item.title || (item.type === 'link' ? 'Link đã lưu' : 'Đoạn trích'),
+        sourceUrl: item.sourceUrl || item.url || undefined,
+        selectedText: item.note || item.selectedText || item.excerpt || undefined,
+        capturedAt: item.savedAt || item.capturedAt || new Date().toISOString(),
+        clientRequestId: item.clientRequestId || crypto.randomUUID()
+      });
+    }
+
+    return { item: syncSuccess(item, body), ok: true };
+  } catch (error) {
+    return { item: syncFailure(item, error), ok: false };
+  }
+}
+
+async function syncPendingItems() {
+  if (pendingSyncInProgress) return;
+  pendingSyncInProgress = true;
+
+  try {
+    const session = await readSession();
+    if (!session || !session.user || !session.user.id) return;
+
+    const items = await readUserItems(session);
+    const now = Date.now();
+    const candidates = items
+      .filter(function(item) {
+        return MNEMONICS_SYNC_POLICY.shouldRetry(item, now) && !item.syncing;
+      })
+      .sort(function(a, b) {
+        return String(a.nextRetryAt || a.savedAt || '').localeCompare(
+          String(b.nextRetryAt || b.savedAt || '')
+        );
+      })
+      .slice(0, PENDING_SYNC_BATCH_SIZE);
+
+    if (candidates.length === 0) return;
+
+    const candidateIds = new Set(candidates.map(function(item) { return String(item.id); }));
+    const processing = items.map(function(item) {
+      return candidateIds.has(String(item.id))
+        ? Object.assign({}, item, { syncing: true, syncStatus: 'syncing' })
+        : item;
+    });
+    await writeUserItems(session, processing);
+
+    const results = [];
+    for (const candidate of candidates) {
+      const current = Object.assign({}, candidate, { syncing: true });
+      results.push(await syncPendingItem(current));
+    }
+
+    const resultById = new Map(results.map(function(result) {
+      return [String(result.item.id), result.item];
+    }));
+
+    const finalItems = processing.map(function(item) {
+      const result = resultById.get(String(item.id));
+      return result
+        ? Object.assign({}, result, { syncing: false })
+        : item;
+    });
+
+    await writeUserItems(session, finalItems);
+
+    const succeeded = results.filter(function(result) { return result.ok; }).length;
+    if (succeeded > 0) {
+      notifyDashboards('ITEM_SAVED');
+    }
+  } catch (error) {
+    console.warn('[Mnemonics] pending sync error:', error && error.message ? error.message : error);
+  } finally {
+    pendingSyncInProgress = false;
+  }
+}
+
 // Returns the chrome.storage.local key for the current user's items.
 function getUserItemsKey(session) {
   const uid = session && session.user && session.user.id ? session.user.id : 'guest';
@@ -256,7 +430,7 @@ async function tryResolveImageViaBackground(imageUrl) {
 }
 
 async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
-  const accessToken = await getValidAccessToken();
+  let accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
   const noteText = extra && extra.note ? extra.note : '';
@@ -551,11 +725,28 @@ function setupContextMenus() {
   });
 }
 
-chrome.runtime.onInstalled.addListener(setupContextMenus);
-// onStartup handles browser reboot; reload-from-disk skips onInstalled but
-// still loads this background script — recreate the menus every time.
-chrome.runtime.onStartup.addListener(setupContextMenus);
+chrome.runtime.onInstalled.addListener(function() {
+  setupContextMenus();
+  ensurePendingSyncAlarm();
+  syncPendingItems();
+});
+// onStartup handles browser reboot; recreate menus and resume any pending
+// uploads that were left in local storage while the browser was offline.
+chrome.runtime.onStartup.addListener(function() {
+  setupContextMenus();
+  ensurePendingSyncAlarm();
+  syncPendingItems();
+});
 setupContextMenus();
+ensurePendingSyncAlarm();
+
+if (chrome.alarms) {
+  chrome.alarms.onAlarm.addListener(function(alarm) {
+    if (alarm && alarm.name === PENDING_SYNC_ALARM) {
+      syncPendingItems();
+    }
+  });
+}
 
 // Xử lý khi user click context menu
 chrome.contextMenus.onClicked.addListener((info, tab) => {
