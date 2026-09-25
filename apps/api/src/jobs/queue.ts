@@ -10,7 +10,6 @@
  * - Embedding jobs (after tagging completes)
  */
 
-import { EventEmitter } from 'events';
 import type { Pool } from 'pg';
 
 export type JobType = 'ocr' | 'tag' | 'embed';
@@ -44,14 +43,20 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 /**
  * JobQueue with EventEmitter for job processing callbacks
  */
-export class JobQueue extends EventEmitter {
+export type JobHandler = (job: Job) => Promise<void>;
+
+export class JobQueue {
   private pool: Pool;
   private isProcessing = false;
+  private handlers = new Map<JobType, JobHandler>();
   private processingInterval: NodeJS.Timeout | null = null;
 
   constructor(pool: Pool) {
-    super();
     this.pool = pool;
+  }
+
+  registerHandler(type: JobType, handler: JobHandler): void {
+    this.handlers.set(type, handler);
   }
 
   /**
@@ -195,13 +200,14 @@ export class JobQueue extends EventEmitter {
    * Check if all jobs for an item are completed
    */
   async areAllJobsCompleted(itemId: string): Promise<boolean> {
-    const result = await this.pool.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM jobs
-       WHERE item_id = $1 AND status NOT IN ('completed', 'failed')`,
+    const result = await this.pool.query<{ total: string; completed: string }>(
+      `SELECT COUNT(*) AS total,
+              COUNT(*) FILTER (WHERE status = 'completed') AS completed
+         FROM jobs WHERE item_id = $1`,
       [itemId]
     );
-
-    return parseInt(result.rows[0].count, 10) === 0;
+    const row = result.rows[0];
+    return Number(row.total) > 0 && Number(row.total) === Number(row.completed);
   }
 
   /**
@@ -231,13 +237,12 @@ export class JobQueue extends EventEmitter {
     if (!lockedJob) return;
 
     try {
-      // Emit event for registered handlers
-      const handler = this.emit(job.type, lockedJob);
-
+      const handler = this.handlers.get(job.type);
       if (!handler) {
-        console.warn(`[JobQueue] No handler registered for job type: ${job.type}`);
-        await this.markCompleted(job.id);
+        throw new Error("No handler registered for job type: " + job.type);
       }
+
+      await handler(lockedJob);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[JobQueue] Job ${job.id} failed:`, errorMessage);
