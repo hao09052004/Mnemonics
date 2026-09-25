@@ -160,6 +160,16 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
         }
         const limit = parsedQuery.data.limit;
 
+        const source = await pool.query<{ id: string }>(
+          `SELECT id FROM items WHERE id = $1 AND user_id = $2`,
+          [itemId, userId]
+        );
+
+        if (source.rowCount === 0) {
+          res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
+          return;
+        }
+
         const result = await pool.query<Record<string, unknown>>(
           `SELECT
             i.id, i.type, i.title, i.captured_at,
@@ -167,8 +177,8 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
           FROM item_embeddings ie1
           JOIN item_embeddings ie2 ON ie1.item_id != ie2.item_id
           JOIN items i ON i.id = ie2.item_id AND i.user_id = $2
+          JOIN items source_item ON source_item.id = ie1.item_id AND source_item.user_id = $2
           WHERE ie1.item_id = $1
-            AND i.user_id = $2
           ORDER BY ie1.embedding <=> ie2.embedding
           LIMIT $3`,
           [itemId, userId, limit]
