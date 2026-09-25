@@ -46,11 +46,13 @@ if (process.env.SUPABASE_URL || process.env.SUPABASE_SERVICE_ROLE_KEY) {
 	imageStorage = createSupabaseImageStorage(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 	serviceSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-const authDeps = {
-	users: createSupabaseUsers(supabase, serviceSupabase),
-	throttle: createThrottle(pool),
-	audit: createAudit(pool)
-};
+const authDeps = supabase
+	? {
+			users: createSupabaseUsers(supabase, serviceSupabase),
+			throttle: createThrottle(pool),
+			audit: createAudit(pool)
+		}
+	: undefined;
 
 const repository = createItemRepository(pool);
 const app = createApp(
