@@ -80,6 +80,26 @@ describe('graph routes', () => {
     expect(pool.query).not.toHaveBeenCalled();
   });
 
+  it('returns 404 when the source item belongs to another user', async () => {
+    const pool = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('SELECT id FROM items WHERE id = $1 AND user_id = $2')) {
+          return { rows: [], rowCount: 0 };
+        }
+        throw new Error('related query must not run');
+      })
+    };
+
+    const app = createGraphApp(pool);
+    const response = await request(app)
+      .get('/api/v1/items/00000000-0000-4000-8000-000000000011/related')
+      .set('Authorization', 'Bearer valid');
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('ITEM_NOT_FOUND');
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+
   it('returns related items with normalized similarity scores', async () => {
     const pool = {
       query: vi.fn(async () => ({
