@@ -105,13 +105,16 @@ describe('capture processing pipeline', () => {
       rawText: 'Use idempotency keys when retrying network requests.'
     };
     const statuses: string[] = [];
+    let embeddingsSaved = 0;
     const repository = {
       findById: async () => item,
       updateStatus: async (_itemId: string, status: string) => {
         statuses.push(status);
       },
       updateTags: async () => undefined,
-      saveEmbedding: async () => undefined
+      saveEmbedding: async () => {
+        embeddingsSaved += 1;
+      }
     } as any;
 
     const tagHandler = new TagHandler(queue, repository);
@@ -133,7 +136,7 @@ describe('capture processing pipeline', () => {
 
     expect(pool.jobs.every(job => job.status === 'completed')).toBe(true);
     expect(statuses).toEqual(['processing', 'ready']);
-    expect(repository.saveEmbedding).toHaveBeenCalledTimes?.(1);
+    expect(embeddingsSaved).toBe(1);
     queue.stop();
   });
 });
