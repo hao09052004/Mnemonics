@@ -258,6 +258,11 @@ async function syncPendingItems() {
       .filter(function(item) {
         return MNEMONICS_SYNC_POLICY.shouldRetry(item, now) && !item.syncing;
       })
+      .map(function(item) {
+        return item.clientRequestId
+          ? item
+          : Object.assign({}, item, { clientRequestId: crypto.randomUUID() });
+      })
       .sort(function(a, b) {
         return String(a.nextRetryAt || a.savedAt || '').localeCompare(
           String(b.nextRetryAt || b.savedAt || '')
@@ -268,10 +273,11 @@ async function syncPendingItems() {
     if (candidates.length === 0) return;
 
     const candidateIds = new Set(candidates.map(function(item) { return String(item.id); }));
+    const candidateById = new Map(candidates.map(function(item) { return [String(item.id), item]; }));
     const processing = items.map(function(item) {
-      return candidateIds.has(String(item.id))
-        ? Object.assign({}, item, { syncing: true, syncStatus: 'syncing' })
-        : item;
+      if (!candidateIds.has(String(item.id))) return item;
+      const normalized = candidateById.get(String(item.id)) || item;
+      return Object.assign({}, normalized, { syncing: true, syncStatus: 'syncing' });
     });
     await writeUserItems(session, processing);
 
@@ -598,7 +604,12 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
           // button on those rows. Once the user clicks it, we re-upload
           // and clear the flag in place.
           pendingUpload: !serverResult,
-          clientRequestId: clientRequestId || (serverResult && serverResult._clientRequestId) || null
+          clientRequestId: clientRequestId || (serverResult && serverResult._clientRequestId) || null,
+          syncAttempts: serverResult ? 0 : 0,
+          nextRetryAt: serverResult ? null : new Date().toISOString(),
+          lastSyncAt: serverResult ? new Date().toISOString() : null,
+          syncError: null,
+          syncStatus: serverResult ? 'synced' : 'pending'
         };
         items.unshift(newItem);
         const stored = items.slice(0, 80);
@@ -668,7 +679,12 @@ function writeGenericLocalStore(item, serverResult) {
         }
         const items = r[itemsKey] || [];
         const stored = Object.assign({}, item, {
-          pendingUpload: !serverResult
+          pendingUpload: !serverResult,
+          syncAttempts: serverResult ? 0 : Number(item.syncAttempts || 0),
+          nextRetryAt: serverResult ? null : (item.nextRetryAt || new Date().toISOString()),
+          lastSyncAt: serverResult ? new Date().toISOString() : (item.lastSyncAt || null),
+          syncError: serverResult ? null : (item.syncError || null),
+          syncStatus: serverResult ? 'synced' : 'pending'
         });
         items.unshift(stored);
         const trimmed = items.slice(0, 80);
