@@ -138,7 +138,7 @@ function toCapturePayload(item) {
     sourceUrl: item.sourceUrl || undefined,
     selectedText: item.note || item.excerpt || undefined,
     capturedAt: item.capturedAt || item.savedAt || new Date().toISOString(),
-    clientRequestId: crypto.randomUUID()
+    clientRequestId: item.clientRequestId || crypto.randomUUID()
   };
 
   if (type === 'image') {
