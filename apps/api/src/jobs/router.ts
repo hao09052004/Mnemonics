@@ -27,7 +27,9 @@ export function createJobRouter(deps: JobRouterDeps): {
   const { pool, repository, supabase, openAiKey } = deps;
 
   // Create queue
-  const queue = new JobQueue(pool);
+  const queue = new JobQueue(pool, async (job) => {
+    await repository.updateStatus(job.itemId, 'failed');
+  });
 
   // Create handlers
   const ocrHandler = new OcrHandler(queue, repository, openAiKey);
