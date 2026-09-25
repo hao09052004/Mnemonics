@@ -64,10 +64,16 @@ export class EmbedHandler {
         await this.repository.updateStatus(job.itemId, 'ready');
 
         if (this.openAiKey && this.pool) {
-          const related = await autoLinkSimilarItems(this.pool, job.userId, job.itemId);
-          console.log(
-            `[EmbedHandler] Auto-linked ${related.length} similar memories for item ${job.itemId}`
-          );
+          try {
+            const related = await autoLinkSimilarItems(this.pool, job.userId, job.itemId);
+            console.log(
+              `[EmbedHandler] Auto-linked ${related.length} similar memories for item ${job.itemId}`
+            );
+          } catch (graphError) {
+            // Graph enrichment is best-effort: a graph outage must not turn
+            // a successfully embedded, searchable item back into a failed job.
+            console.warn('[EmbedHandler] Similarity linking failed:', graphError);
+          }
         }
 
         console.log(`[EmbedHandler] Item ${job.itemId} is now ready`);
