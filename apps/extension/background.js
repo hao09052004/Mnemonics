@@ -256,7 +256,7 @@ async function syncPendingItems() {
     const now = Date.now();
     const candidates = items
       .filter(function(item) {
-        return MNEMONICS_SYNC_POLICY.shouldRetry(item, now) && !item.syncing;
+        return MNEMONICS_SYNC_POLICY.shouldRetry(item, now);
       })
       .map(function(item) {
         return item.clientRequestId
@@ -293,9 +293,7 @@ async function syncPendingItems() {
 
     const finalItems = processing.map(function(item) {
       const result = resultById.get(String(item.id));
-      return result
-        ? Object.assign({}, result, { syncing: false })
-        : item;
+      return result || item;
     });
 
     await writeUserItems(session, finalItems);
