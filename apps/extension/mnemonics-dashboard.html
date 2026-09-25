@@ -684,6 +684,29 @@
   .ai-tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .ai-tag { background: var(--purple-light); color: var(--purple); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 20px; border: 1px solid #c4b5fd; }
 
+  .card-related-wrap { margin: 10px 14px 0; padding-top: 9px; border-top: 1px solid var(--gray-border); }
+  .related-btn {
+    border: 0; background: transparent; padding: 0; cursor: pointer;
+    color: var(--purple); font-size: 11px; font-weight: 800;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .related-btn:hover { text-decoration: underline; }
+  .related-btn:disabled { opacity: 0.6; cursor: progress; }
+  .related-results { margin-top: 8px; display: grid; gap: 5px; }
+  .related-result {
+    width: 100%; border: 1px solid var(--gray-border); background: var(--gray-bg);
+    border-radius: 8px; padding: 8px 9px; cursor: pointer; text-align: left;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .related-result:hover { border-color: #c4b5fd; background: rgba(124, 58, 237, 0.05); }
+  .related-result-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .related-result-title { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .related-result-meta { font-size: 10px; color: var(--gray-text); }
+  .related-result-arrow { color: var(--purple); font-weight: 900; }
+  .related-empty { font-size: 11px; color: var(--gray-text); padding: 7px 0; }
+  body.dark .related-result { background: rgba(255,255,255,0.04); }
+  body.dark .related-result:hover { background: rgba(167,139,250,0.10); }
+
   /* Toast */
   .toast { position: fixed; bottom: 90px; right: 28px; background: var(--black); color: white; font-size: 13px; font-weight: 500; padding: 12px 20px; border-radius: 8px; z-index: 300; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translateY(0); }
