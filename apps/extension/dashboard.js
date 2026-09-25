@@ -841,6 +841,103 @@ function showPage(page) {
   window.scrollTo(0, 0);
 }
 
+
+function requestRelatedItems(itemId, limit) {
+  return new Promise(function(resolve, reject) {
+    if (!itemId) {
+      reject(new Error('Missing item id.'));
+      return;
+    }
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      reject(new Error('Related memories require the extension dashboard.'));
+      return;
+    }
+
+    chrome.runtime.sendMessage(
+      { type: 'GET_RELATED_ITEMS', itemId: itemId, limit: limit || 5 },
+      function(response) {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || 'Could not reach background sync.'));
+          return;
+        }
+        if (!response || !response.ok) {
+          reject(new Error((response && response.error) || 'Could not load related memories.'));
+          return;
+        }
+        resolve(Array.isArray(response.data) ? response.data : []);
+      }
+    );
+  });
+}
+
+function relatedMemoriesHtml(item) {
+  if (!item || !item.serverSynced || !item.id) return '';
+  const itemId = escapeHtml(String(item.id));
+  return '<div class="card-related-wrap">' +
+    '<button type="button" class="related-btn" data-related-id="' + itemId + '">' +
+      '↗ Related memories' +
+    '</button>' +
+    '<div class="related-results" data-related-results-for="' + itemId + '" hidden></div>' +
+  '</div>';
+}
+
+async function loadRelatedMemories(button) {
+  if (button.dataset.relatedLoaded === 'true') {
+    hideRelatedMemories(button);
+    return;
+  }
+
+  const itemId = button.dataset.relatedId;
+  const results = document.querySelector('[data-related-results-for="' + CSS.escape(itemId) + '"]');
+  if (!results) return;
+
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = 'Loading related…';
+
+  try {
+    const related = await requestRelatedItems(itemId, 5);
+
+    if (related.length === 0) {
+      results.innerHTML = '<div class="related-empty">No strong semantic links yet.</div>';
+    } else {
+      results.innerHTML = related.map(function(item) {
+        const similarity = Math.round(Number(item.similarity || 0) * 100);
+        return '<button type="button" class="related-result" data-related-open-url="' +
+          escapeHtml(String(item.id)) + '">' +
+          '<span class="related-result-main">' +
+            '<span class="related-result-title">' + escapeHtml(item.title || 'Untitled memory') + '</span>' +
+            '<span class="related-result-meta">' + escapeHtml(String(item.type || 'item')) +
+              ' · ' + similarity + '% similarity</span>' +
+          '</span>' +
+          '<span class="related-result-arrow">→</span>' +
+        '</button>';
+      }).join('');
+    }
+
+    results.hidden = false;
+    button.textContent = '↗ Hide related memories';
+    button.dataset.relatedLoaded = 'true';
+  } catch (error) {
+    results.innerHTML = '<div class="related-empty">' +
+      escapeHtml(error && error.message ? error.message : 'Could not load related memories.') +
+      '</div>';
+    results.hidden = false;
+    button.textContent = originalText;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function hideRelatedMemories(button) {
+  const itemId = button.dataset.relatedId;
+  const results = document.querySelector('[data-related-results-for="' + CSS.escape(itemId) + '"]');
+  if (!results) return;
+  results.hidden = true;
+  button.dataset.relatedLoaded = 'false';
+  button.textContent = '↗ Related memories';
+}
+
 // ===== RENDER CARDS =====
 function renderCards(data) {
   const container = document.getElementById('cards-container');
@@ -969,6 +1066,7 @@ function renderCards(data) {
         </div>
       </div>` : ''}
       ${body}
+      ${relatedMemoriesHtml(item)}
       ${item.type !== 'quote' ? `<div class="card-footer">
         <span class="card-date">${item.date || ''}</span>
         <span class="card-space">${item.space || ''}</span>
@@ -2052,6 +2150,30 @@ document.addEventListener('DOMContentLoaded', function() {
     currentFormatFilter = chip.dataset.format;
     this.querySelectorAll('.format-chip').forEach(function(c) { c.classList.toggle('active', c === chip); });
     renderDashboard();
+  });
+
+  // ---- Book rail interactions ----
+  var cardsContainer = document.getElementById('cards-container');
+  if (cardsContainer) cardsContainer.addEventListener('click', function(e) {
+    var relatedBtn = e.target.closest('[data-related-id]');
+    if (relatedBtn) {
+      loadRelatedMemories(relatedBtn);
+      return;
+    }
+
+    var relatedOpen = e.target.closest('[data-related-open-url]');
+    if (relatedOpen) {
+      var relatedId = relatedOpen.dataset.relatedOpenUrl;
+      var target = items.find(function(item) { return String(item.id) === String(relatedId); });
+      if (target) {
+        var targetTitle = target.title || 'Related memory';
+        var content = target.note || target.excerpt || target.quote || '';
+        showToast(targetTitle + (content ? ': ' + content.slice(0, 100) : ''));
+      } else {
+        showToast('Open the related memory from the dashboard results.');
+      }
+      return;
+    }
   });
 
   // ---- Book rail interactions ----
