@@ -1053,7 +1053,7 @@ function renderCards(data) {
       </div>`;
     }
 
-    return `<div class="memory-card">
+    return `<div class="memory-card" data-memory-id="${escapeHtml(String(item.id || ''))}">
       ${item.type !== 'note' ? `<div class="card-header">
         <span class="card-type ${typeClass}">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
         <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">NEW</span>' : ''}
@@ -2166,9 +2166,14 @@ document.addEventListener('DOMContentLoaded', function() {
       var relatedId = relatedOpen.dataset.relatedOpenUrl;
       var target = items.find(function(item) { return String(item.id) === String(relatedId); });
       if (target) {
-        var targetTitle = target.title || 'Related memory';
-        var content = target.note || target.excerpt || target.quote || '';
-        showToast(targetTitle + (content ? ': ' + content.slice(0, 100) : ''));
+        var targetCard = document.querySelector('[data-memory-id="' + CSS.escape(relatedId) + '"]');
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.style.outline = '2px solid var(--purple)';
+          setTimeout(function() { targetCard.style.outline = ''; }, 1400);
+        } else {
+          showToast('This related memory is not in the current view.');
+        }
       } else {
         showToast('Open the related memory from the dashboard results.');
       }
