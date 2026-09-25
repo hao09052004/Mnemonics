@@ -78,7 +78,7 @@ The current state:
 * `pnpm gates:skills` — 51/51 skills ✓
 * `pnpm gates:spec-sync` — all referenced paths resolve ✓
 * `pnpm gates:coverage` — `apps/api/src/auth/` ≥ 80 % lines/functions ✓
-* `pnpm test` — 78 tests (10 shared + 68 API) ✓
+* `pnpm test` — API + extension unit suite (CI currently executes 102 API tests plus extension tests) ✓
 
 
 ## 3.5 Local product demo (no Supabase account required)
@@ -126,8 +126,10 @@ Demo account:
 3. Open the Chrome extension from `chrome://extensions`, load the `apps/extension` directory as an unpacked extension, then open the dashboard inside the extension and choose **Dùng tài khoản demo**.
 4. Capture a short text snippet from a webpage. The extension sends the capture to the API with a stable `clientRequestId`.
 5. Return to the dashboard and search for the captured content. The asynchronous `tag → embed → ready` pipeline makes the item searchable.
-6. Use **Related memories** on a seeded memory to demonstrate the knowledge-graph / vector-relation path.
-7. To validate the whole pipeline from the command line:
+6. Use **Ý liên quan** on a ready memory to demonstrate the knowledge-graph / vector-relation path.
+7. Load `apps/extension` as an unpacked Chrome extension, sign in with the demo account, capture a real page, then return to the dashboard to show server reconciliation.
+8. To validate the whole pipeline from the command line:
+To validate the whole pipeline from the command line:
 
 ```bash
 pnpm demo:e2e
