@@ -1054,6 +1054,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Fetch semantic neighbors for a dashboard card. Keep this in the
+  // service worker so the dashboard never needs to own auth-token refresh.
+  if (msg && msg.type === 'GET_RELATED_ITEMS') {
+    const itemId = String(msg.itemId || '');
+    const limit = Math.min(Math.max(Number(msg.limit || 5), 1), 10);
+
+    if (!itemId) {
+      sendResponse({ ok: false, error: 'itemId is required' });
+      return true;
+    }
+
+    getValidAccessToken()
+      .then(async function(accessToken) {
+        const apiBase = MNEMONICS_API_URL;
+        async function request(token) {
+          return fetch(
+            apiBase + '/api/v1/items/' + encodeURIComponent(itemId) + '/related?limit=' + limit,
+            { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
+          );
+        }
+
+        let response = await request(accessToken);
+        if (response.status === 401) {
+          const refreshed = await forceRefreshAccessToken();
+          response = await request(refreshed);
+        }
+
+        const body = await response.json().catch(function() { return {}; });
+        if (!response.ok) {
+          throw new Error(
+            body && body.error && body.error.message
+              ? body.error.message
+              : 'Could not load related memories.'
+          );
+        }
+
+        sendResponse({ ok: true, data: body.related_items || [] });
+      })
+      .catch(function(error) {
+        sendResponse({
+          ok: false,
+          error: error && error.message ? error.message : 'Could not load related memories.'
+        });
+      });
+
+    return true;
+  }
+
   // Re-upload a link or text/quote item that initially failed to reach
   // Supabase. Shares the same /api/v1/captures endpoint as the live
   // context-menu flow.
