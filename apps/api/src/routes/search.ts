@@ -4,7 +4,7 @@
  * Hybrid keyword + vector search endpoint.
  */
 
-import express, { type Application, type Request, type Response } from 'express';
+import express, { type Application, type Response } from 'express';
 import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -30,11 +30,6 @@ const searchRequestSchema = z.object({
   offset: z.number().int().min(0).optional().default(0),
   explain: z.boolean().optional().default(false)
 });
-
-interface AuthenticatedRequest extends Request {
-  userId?: string;
-  user?: { id: string; email?: string };
-}
 
 interface LexResult {
   id: string;
