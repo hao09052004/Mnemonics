@@ -157,6 +157,16 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'item_embeddings unexpectedly contains user_id; repository must follow schema ownership via items';
             END IF;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_indexes
+              WHERE schemaname = 'public'
+                AND tablename = 'jobs'
+                AND indexname = 'jobs_active_item_type_idx'
+            ) THEN
+              RAISE EXCEPTION 'jobs_active_item_type_idx is missing; active pipeline jobs must be unique per item/type';
+            END IF;
           END
           $func$;
 
