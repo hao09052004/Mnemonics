@@ -80,6 +80,61 @@ The current state:
 * `pnpm gates:coverage` — `apps/api/src/auth/` ≥ 80 % lines/functions ✓
 * `pnpm test` — 78 tests (10 shared + 68 API) ✓
 
+
+## 3.5 Local product demo (no Supabase account required)
+
+The repository now includes a self-contained demo environment so the product can be shown locally without a real Supabase project.
+
+### Start the demo
+
+Requirements: Docker Desktop, Node.js 20+, and pnpm 9+.
+
+Terminal 1 — start PostgreSQL + pgvector:
+
+```bash
+pnpm demo:db
+```
+
+Terminal 2 — bootstrap the schema and seed six realistic memories:
+
+```bash
+pnpm demo:setup
+```
+
+Terminal 3 — start the API in demo mode:
+
+```bash
+pnpm demo:api
+```
+
+Terminal 4 — start the web dashboard in demo mode:
+
+```bash
+pnpm demo:web
+```
+
+Open `http://localhost:3000` and click **Đăng nhập Demo**.
+
+Demo account:
+- Email: `demo@mnemonics.local`
+- Password: `DemoPass123!`
+
+### Recommended demo flow
+
+1. Open the dashboard and show the seeded memories and tags.
+2. Search for a concept such as `memory`, `search`, or `workflow`.
+3. Open the Chrome extension from `chrome://extensions`, load the `apps/extension` directory as an unpacked extension, then open the dashboard inside the extension and choose **Dùng tài khoản demo**.
+4. Capture a short text snippet from a webpage. The extension sends the capture to the API with a stable `clientRequestId`.
+5. Return to the dashboard and search for the captured content. The asynchronous `tag → embed → ready` pipeline makes the item searchable.
+6. Use **Related memories** on a seeded memory to demonstrate the knowledge-graph / vector-relation path.
+7. To validate the whole pipeline from the command line:
+
+```bash
+pnpm demo:e2e
+```
+
+The demo mode is deliberately isolated: it uses a fixed local token and seed account and must not be enabled for production.
+
 ## 4. Where to start (by role)
 
 | You are…                      | Read these (in order)                                                                                                                                              |
