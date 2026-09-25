@@ -198,7 +198,7 @@ function normalizeEmail(email) {
 }
 
 async function authRequest(path, body) {
-  const response = await fetch('http://localhost:4000/api/v1/auth/' + path, {
+  const response = await fetch((typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000') + '/api/v1/auth/' + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -630,7 +630,7 @@ async function fetchItemsFromApi(uid, accessToken) {
   const epoch = ++apiRequestEpoch;
 
   async function request(token) {
-    return fetch('http://localhost:4000/api/v1/items?limit=50', {
+    return fetch((typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000') + '/api/v1/items?limit=50', {
       method: 'GET',
       headers: { Authorization: 'Bearer ' + token }
     });
