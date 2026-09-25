@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import type { Session } from '../lib/api-client';
+import { ApiClient, type Session } from '../lib/api-client';
 
 interface QuickCaptureProps {
+  api: ApiClient;
   session: Session;
   onCaptured: (itemId: string) => Promise<void> | void;
 }
 
-export function QuickCapture({ session, onCaptured }: QuickCaptureProps) {
+export function QuickCapture({ api, session, onCaptured }: QuickCaptureProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -29,30 +30,16 @@ export function QuickCapture({ session, onCaptured }: QuickCaptureProps) {
     setMessage(null);
 
     try {
-      const token = session.accessToken;
-      const response = await fetch('http://localhost:4000/api/v1/captures', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token
-        },
-        body: JSON.stringify({
-          type: sourceUrl.trim() ? 'link' : 'text',
-          title: title.trim(),
-          sourceUrl: sourceUrl.trim() || undefined,
-          selectedText: note.trim() || undefined,
-          capturedAt: new Date().toISOString(),
-          clientRequestId: crypto.randomUUID()
-        })
-      });
+      const result = await api.captureText({
+        type: sourceUrl.trim() ? 'link' : 'text',
+        title: title.trim(),
+        sourceUrl: sourceUrl.trim() || undefined,
+        selectedText: note.trim() || undefined,
+        capturedAt: new Date().toISOString(),
+        clientRequestId: crypto.randomUUID()
+      }, session.accessToken);
 
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(body?.error?.message || 'Không thể lưu kiến thức.');
-      }
-
-      const itemId = body?.data?.id;
-      if (!itemId) throw new Error('API không trả về id của memory.');
+      const itemId = result.id;
 
       setMessage('Đã lưu. Mnemonics đang tạo tag + embedding...');
       await onCaptured(itemId);
