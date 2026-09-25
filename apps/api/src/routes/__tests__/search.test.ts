@@ -92,4 +92,22 @@ describe('search route', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('INVALID_SEARCH_REQUEST');
   });
+
+  it('supports development-token auth for the local demo', async () => {
+    const pool = createPoolMock();
+    const app = express();
+    app.use('/api/v1', createSearchRouter({
+      pool,
+      expectedToken: 'demo-token',
+      developmentUserId: '00000000-0000-4000-8000-000000000001'
+    }));
+
+    const response = await request(app)
+      .get('/api/v1/search?q=idempotency')
+      .set('Authorization', 'Bearer demo-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body.hits).toHaveLength(1);
+  });
+
 });
