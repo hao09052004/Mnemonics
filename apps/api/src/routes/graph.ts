@@ -4,7 +4,7 @@
  * Knowledge graph endpoints for related items and links.
  */
 
-import express, { type Application, type Response, type Request } from 'express';
+import express, { type Application, type Response } from 'express';
 import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -15,11 +15,6 @@ export interface GraphRouterDeps {
   supabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
-}
-
-interface AuthedRequest extends Request {
-  userId?: string;
-  user?: { id: string; email?: string };
 }
 
 const edgeTypes = ['similar', 'references', 'related', 'duplicate', 'parent', 'child'] as const;
