@@ -8,18 +8,28 @@
 import type { JobQueue } from '../queue.js';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Pool } from 'pg';
+import { autoLinkSimilarItems } from '../auto-link-similar.js';
 
 export class EmbedHandler {
   private queue: JobQueue;
   private repository: ItemRepository;
   private supabase?: SupabaseClient;
   private openAiKey?: string;
+  private pool?: Pool;
 
-  constructor(queue: JobQueue, repository: ItemRepository, supabase?: SupabaseClient, openAiKey?: string) {
+  constructor(
+    queue: JobQueue,
+    repository: ItemRepository,
+    supabase?: SupabaseClient,
+    openAiKey?: string,
+    pool?: Pool
+  ) {
     this.queue = queue;
     this.repository = repository;
     this.supabase = supabase;
     this.openAiKey = openAiKey;
+    this.pool = pool;
   }
 
   async handle(job: { id: string; itemId: string; userId: string; payload: Record<string, unknown> }): Promise<void> {
@@ -52,6 +62,14 @@ export class EmbedHandler {
       const allDone = await this.queue.areAllJobsCompleted(job.itemId);
       if (allDone) {
         await this.repository.updateStatus(job.itemId, 'ready');
+
+        if (this.openAiKey && this.pool) {
+          const related = await autoLinkSimilarItems(this.pool, job.userId, job.itemId);
+          console.log(
+            `[EmbedHandler] Auto-linked ${related.length} similar memories for item ${job.itemId}`
+          );
+        }
+
         console.log(`[EmbedHandler] Item ${job.itemId} is now ready`);
       } else {
         console.log(`[EmbedHandler] Item ${job.itemId} still has pending jobs`);
