@@ -27,7 +27,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { resolve } from 'node:path';
 import { config } from 'dotenv';
-import { Pool } from 'pg';
+import { createPool } from '@mnemonics/database';
 
 config({ path: resolve(process.cwd(), '.env') });
 
@@ -36,7 +36,7 @@ const TOKEN = process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token';
 const USER_ID = process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mnemonics:mnemonics@localhost:5432/mnemonics';
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = createPool(DATABASE_URL);
 
 async function api(path: string, init: RequestInit = {}) {
   const res = await fetch(`${API}${path}`, {
