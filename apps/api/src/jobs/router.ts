@@ -35,15 +35,9 @@ export function createJobRouter(deps: JobRouterDeps): {
   const embedHandler = new EmbedHandler(queue, repository, supabase, openAiKey);
 
   // Register job handlers using EventEmitter
-  queue.on('ocr', async (job: unknown) => {
-    await ocrHandler.handle(job as Parameters<typeof ocrHandler.handle>[0]);
-  });
-  queue.on('tag', async (job: unknown) => {
-    await tagHandler.handle(job as Parameters<typeof tagHandler.handle>[0]);
-  });
-  queue.on('embed', async (job: unknown) => {
-    await embedHandler.handle(job as Parameters<typeof embedHandler.handle>[0]);
-  });
+  queue.registerHandler('ocr', (job) => ocrHandler.handle(job));
+  queue.registerHandler('tag', (job) => tagHandler.handle(job));
+  queue.registerHandler('embed', (job) => embedHandler.handle(job));
 
   // Create router
   const router = express.Router() as Application;
