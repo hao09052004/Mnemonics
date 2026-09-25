@@ -19,6 +19,7 @@
     "demo:setup": "pnpm --filter @mnemonics/api demo:setup",
     "demo:api": "pnpm --filter @mnemonics/api demo",
     "demo:web": "pnpm --filter @mnemonics/web demo",
-    "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-pipeline.mts"
+    "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-pipeline.mts",
+    "demo:stop": "docker compose -f docker-compose.demo.yml down"
   }
 }
