@@ -10,8 +10,8 @@
     "typecheck": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage",
-    "demo:setup": "tsx scripts/demo-setup.mts",
-    "demo": "tsx scripts/demo-server.mts"
+    "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && tsx scripts/demo-setup.mts",
+    "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts"
   },
   "dependencies": {
     "@mnemonics/database": "workspace:*",
