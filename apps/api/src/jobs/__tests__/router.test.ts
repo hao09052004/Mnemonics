@@ -54,7 +54,7 @@ function createApp(repository: any, jobRow?: any) {
     }
   } as any;
 
-  const router = createJobRouter({ pool, repository, supabase }).router;
+  const router = createJobRouter({ pool, repository, authSupabase: supabase }).router;
   const app = express();
   app.use(express.json());
   app.use('/api/v1', router);
