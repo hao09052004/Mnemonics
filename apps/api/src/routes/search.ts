@@ -8,10 +8,13 @@ import express, { type Application, type Request, type Response } from 'express'
 import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
 
 export interface SearchRouterDeps {
   pool: Pool;
   supabase?: SupabaseClient;
+  expectedToken?: string;
+  developmentUserId?: string;
   openAiKey?: string;
 }
 
@@ -28,7 +31,7 @@ const searchRequestSchema = z.object({
   explain: z.boolean().optional().default(false)
 });
 
-interface AuthedRequest extends Request {
+interface AuthenticatedRequest extends Request {
   userId?: string;
   user?: { id: string; email?: string };
 }
@@ -57,42 +60,23 @@ interface SemResult {
 }
 
 export function createSearchRouter(deps: SearchRouterDeps): Application {
-  const { pool, supabase, openAiKey } = deps;
+  const {
+    pool,
+    supabase,
+    expectedToken = 'mnemonics-dev-token',
+    developmentUserId = '00000000-0000-4000-8000-000000000001',
+    openAiKey
+  } = deps;
   const router = express.Router() as Application;
 
-  // Simple auth middleware
-  const requireAuth = async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing authorization header' } });
-        return;
-      }
-
-      const token = authHeader.slice(7);
-
-      if (supabase) {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (error || !user) {
-          res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
-          return;
-        }
-        req.userId = user.id;
-        req.user = user;
-      } else {
-        res.status(401).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Search requires Supabase auth' } });
-        return;
-      }
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
+  const requireAuth = supabase
+    ? requireSupabaseAuth(supabase)
+    : requireDevelopmentAuth(expectedToken, developmentUserId);
 
   /**
    * Handle search logic for both POST and GET
    */
-  const handleSearch = async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+  const handleSearch = async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
     try {
       const startTime = Date.now();
       const userId = req.userId!;
@@ -163,7 +147,7 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
   router.post('/search', requireAuth, handleSearch);
 
   // GET /api/v1/search - Simple search (query params)
-  router.get('/search', requireAuth, async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+  router.get('/search', requireAuth, async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
     try {
       const q = req.query.q as string;
       if (!q) {
