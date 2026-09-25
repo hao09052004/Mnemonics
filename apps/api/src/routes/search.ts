@@ -274,13 +274,22 @@ async function runSemanticSearch(
     const result = await pool.query<Record<string, unknown>>(
       `SELECT
         ie.item_id AS id,
+        i.type,
+        i.title,
+        i.raw_text,
+        i.ocr_text,
+        i.source_url,
+        i.captured_at,
         1 - (ie.embedding <=> $2::vector) AS score
       FROM item_embeddings ie
       JOIN items i ON i.id = ie.item_id
       WHERE i.user_id = $1
+        AND ($3::text[] IS NULL OR i.type = ANY($3))
+        AND ($4::timestamptz IS NULL OR i.captured_at >= $4)
+        AND ($5::timestamptz IS NULL OR i.captured_at <= $5)
       ORDER BY ie.embedding <=> $2::vector
       LIMIT 100`,
-      [userId, embeddingStr]
+      [userId, embeddingStr, filters?.kind ?? null, filters?.captured_after ?? null, filters?.captured_before ?? null]
     );
 
     return result.rows.map(row => ({
@@ -329,12 +338,12 @@ function reciprocalRankFusion(
         sem: semScore,
         item: {
           id: result.id,
-          type: '',
-          title: '',
-          captured_at: new Date(),
-          raw_text: null,
-          ocr_text: null,
-          source_url: null,
+          type: result.type,
+          title: result.title,
+          captured_at: result.captured_at,
+          raw_text: result.raw_text,
+          ocr_text: result.ocr_text,
+          source_url: result.source_url,
           score: 0
         }
       });
