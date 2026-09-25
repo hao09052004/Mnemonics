@@ -80,7 +80,7 @@ async function bootstrapSupabaseCompatibility() {
 async function runMigrations() {
   const migrationsDir = resolve(process.cwd(), '../../packages/database/migrations');
   const files = (await readdir(migrationsDir))
-    .filter(name => /^\\d+_.+\\.sql$/.test(name))
+    .filter(name => /^\d+_.+\.sql$/.test(name))
     .sort();
 
   for (const file of files) {
