@@ -173,4 +173,28 @@ describe('graph routes', () => {
     expect(pool.query.mock.calls[0][1]).toEqual(['00000000-0000-4000-8000-000000000001']);
     expect(pool.query.mock.calls[1][1]).toEqual(['00000000-0000-4000-8000-000000000001']);
   });
+
+  it('supports development-token auth for the local demo', async () => {
+    const pool = {
+      query: vi.fn(async () => ({ rows: [], rowCount: 0 }))
+    };
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api/v1', createGraphRouter({
+      pool,
+      expectedToken: 'demo-token',
+      developmentUserId: '00000000-0000-4000-8000-000000000001'
+    }));
+
+    const response = await request(app)
+      .get('/api/v1/graph/stats')
+      .set('Authorization', 'Bearer demo-token');
+
+    expect(response.status).toBe(200);
+    expect(pool.query.mock.calls[0][1]).toEqual([
+      '00000000-0000-4000-8000-000000000001'
+    ]);
+  });
+
 });
