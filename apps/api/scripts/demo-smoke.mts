@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const API = process.env.DEMO_API_URL || 'http://localhost:4000/api/v1';
@@ -55,7 +56,7 @@ async function main() {
   await assert(login.ok, 'demo credentials authenticate');
   await assert(loginBody.data.user.email === 'demo@mnemonics.local', 'demo user is returned');
 
-  const clientRequestId = crypto.randomUUID();
+  const clientRequestId = randomUUID();
   const payload = {
     type: 'text',
     title: 'CI demo capture',
