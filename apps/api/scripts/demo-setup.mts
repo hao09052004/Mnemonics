@@ -165,7 +165,7 @@ async function seedDemo() {
 
   for (const [from, to, weight] of edges) {
     await exec(
-      'INSERT INTO item_edges (user_id, from_item_id, to_item_id, edge_type, weight, attributes) VALUES ($1, $2, $3, \\'similar\\', $4, $5::jsonb) ON CONFLICT (user_id, from_item_id, to_item_id, edge_type) DO UPDATE SET weight = EXCLUDED.weight',
+      "INSERT INTO item_edges (user_id, from_item_id, to_item_id, edge_type, weight, attributes) VALUES ($1, $2, $3, 'similar', $4, $5::jsonb) ON CONFLICT (user_id, from_item_id, to_item_id, edge_type) DO UPDATE SET weight = EXCLUDED.weight",
       [DEMO_USER_ID, from, to, weight, JSON.stringify({ source: 'demo-seed' })]
     );
   }
