@@ -1,14 +1,52 @@
-# Mnemonics Extension
+# Mnemonics Chrome Extension
 
-This is the current working Chrome Manifest V3 extension.
+Manifest V3 quick-capture client for the Mnemonics second brain.
 
-Implemented locally:
+## What is demo-ready
 
-- Popup capture for page metadata, notes, links and selected text.
-- Context-menu capture for links, selections and images.
-- Screenshot capture and crop flow.
-- Local dashboard with demo data, local authentication and local storage.
+The extension supports:
 
-Current limitation: this app still stores data in `chrome.storage.local`. It does not yet call the Capture API or share authentication with the SaaS dashboard.
+- Capture page title, selected text/notes and links.
+- Screenshot capture + crop flow.
+- API uploads through `POST /api/v1/captures`.
+- Stable `clientRequestId` values for idempotent retries.
+- Expired-token refresh + one retry on `401`.
+- Durable pending-upload retry from the background service worker.
+- Per-user local cache plus reconciliation with the API-backed dashboard.
+- Related-memory requests from the dashboard.
 
-Load `manifest.json` from this directory using Chrome's **Load unpacked** flow.
+## Run locally
+
+Start the demo API first:
+
+```bash
+pnpm demo:prepare
+pnpm demo:api
+```
+
+Then load this directory as an unpacked extension:
+
+1. Open `chrome://extensions`.
+2. Enable Developer mode.
+3. Choose **Load unpacked**.
+4. Select `apps/extension`.
+5. Open **DASHBOARD** in the extension and sign in with the demo account:
+   `demo@mnemonics.local / DemoPass123!`
+6. Return to the extension popup, capture a page, and click **LƯU KÝ ỨC**.
+
+The capture is written locally first, then uploaded to the API. When the server-side pipeline finishes, the dashboard reconciles the item by its `clientRequestId`.
+
+## Demo order
+
+For the cleanest product demo:
+
+1. Start with `pnpm demo:prepare`.
+2. Run `pnpm demo:api` and `pnpm demo:web`.
+3. Show the seeded memories in the web dashboard.
+4. Use **+ Lưu nhanh** to create a new memory.
+5. Show its processing status changing to **Ready**.
+6. Search for a related concept.
+7. Open **Ý liên quan** on a ready card.
+8. Show the Chrome extension and repeat the same capture flow from a real web page.
+
+The demo environment is intentionally local-only and must not be used as a production authentication mode.
