@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS items (
   source_url TEXT,
   raw_text TEXT,
   ocr_text TEXT,
-  searchable_text TEXT,
+  searchable_text TSVECTOR,
   summary TEXT,
   error_code TEXT,
   captured_at TIMESTAMPTZ NOT NULL,
