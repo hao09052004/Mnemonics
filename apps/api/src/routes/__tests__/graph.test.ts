@@ -176,7 +176,17 @@ describe('graph routes', () => {
 
   it('supports development-token auth for the local demo', async () => {
     const pool = {
-      query: vi.fn(async () => ({ rows: [], rowCount: 0 }))
+      query: vi.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            total_edges: '0',
+            connected_from_count: '0',
+            connected_to_count: '0',
+            edge_type_count: '0'
+          }],
+          rowCount: 1
+        })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
     };
 
     const app = express();
