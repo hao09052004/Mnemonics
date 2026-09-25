@@ -24,6 +24,13 @@ async function bootstrapSupabaseCompatibility() {
   await exec('CREATE SCHEMA IF NOT EXISTS auth');
   await exec('CREATE SCHEMA IF NOT EXISTS storage');
 
+  for (const role of ['authenticated', 'anon', 'service_role']) {
+    const result = await exec('SELECT 1 FROM pg_roles WHERE rolname = $1', [role]);
+    if (result.rowCount === 0) {
+      await exec('CREATE ROLE ' + role + ' NOLOGIN');
+    }
+  }
+
   await exec(`
     CREATE TABLE IF NOT EXISTS auth.users (
       id UUID PRIMARY KEY,
