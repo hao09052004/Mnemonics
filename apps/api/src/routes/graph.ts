@@ -8,10 +8,13 @@ import express, { type Application, type Response, type Request } from 'express'
 import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
 
 export interface GraphRouterDeps {
   pool: Pool;
   supabase?: SupabaseClient;
+  expectedToken?: string;
+  developmentUserId?: string;
 }
 
 interface AuthedRequest extends Request {
@@ -34,43 +37,23 @@ const relatedQuerySchema = z.object({
 });
 
 export function createGraphRouter(deps: GraphRouterDeps): Application {
-  const { pool, supabase } = deps;
+  const {
+    pool,
+    supabase,
+    expectedToken = 'mnemonics-dev-token',
+    developmentUserId = '00000000-0000-4000-8000-000000000001'
+  } = deps;
   const router = express.Router() as Application;
 
-  // Simple auth middleware
-  const requireAuth = async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing authorization header' } });
-        return;
-      }
-
-      const token = authHeader.slice(7);
-
-      if (supabase) {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (error || !user) {
-          res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
-          return;
-        }
-        req.userId = user.id;
-        req.user = user;
-      } else {
-        res.status(401).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Graph requires Supabase auth' } });
-        return;
-      }
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
+  const requireAuth = supabase
+    ? requireSupabaseAuth(supabase)
+    : requireDevelopmentAuth(expectedToken, developmentUserId);
 
   // POST /api/v1/items/:id/edges - Create an edge
   router.post(
     '/items/:id/edges',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const fromItemId = String(req.params.id);
