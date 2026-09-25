@@ -67,18 +67,12 @@ describe('JobQueue', () => {
     expect(job.maxAttempts).toBe(3);
   });
 
-  it('should emit events for job types', async () => {
-    let received = false;
-
-    queue.on('tag', async () => {
-      received = true;
-    });
-
-    queue.emit('tag', { id: 'job-1', itemId: 'item-1', userId: 'user-1', payload: {} });
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    expect(received).toBe(true);
+  it('should register async handlers without EventEmitter coupling', async () => {
+    const handler = async (_job: Job) => undefined;
+    queue.registerHandler('tag', handler);
+    expect((queue as any).handlers.get('tag')).toBe(handler);
   });
+
 
   it('should track max attempts', async () => {
     const job = await queue.create({
