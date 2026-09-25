@@ -89,10 +89,22 @@ The repository now includes a self-contained demo environment so the product can
 
 Requirements: Docker Desktop, Node.js 20+, and pnpm 9+.
 
-Terminal 1 — prepare PostgreSQL + pgvector and seed six realistic memories:
+The easiest path is now one command:
+
+```bash
+pnpm demo
+```
+
+This prepares PostgreSQL + pgvector, seeds six realistic memories, starts the API, waits for its health endpoint, then starts the web dashboard.
+
+Open `http://localhost:3000` and click **Đăng nhập Demo**.
+
+For manual control, the individual commands are still available:
 
 ```bash
 pnpm demo:prepare
+pnpm demo:api
+pnpm demo:web
 ```
 
 To completely reset the local demo database and seed it again:
@@ -100,20 +112,6 @@ To completely reset the local demo database and seed it again:
 ```bash
 pnpm demo:reset
 ```
-
-Terminal 3 — start the API in demo mode:
-
-```bash
-pnpm demo:api
-```
-
-Terminal 4 — start the web dashboard in demo mode:
-
-```bash
-pnpm demo:web
-```
-
-Open `http://localhost:3000` and click **Đăng nhập Demo**.
 
 Demo account:
 - Email: `demo@mnemonics.local`
