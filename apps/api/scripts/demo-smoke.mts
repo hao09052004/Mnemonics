@@ -30,11 +30,15 @@ async function assert(condition: unknown, message: string) {
 
 async function waitForReady(itemId: string) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const { response, body } = await api('/items/' + itemId);
-    await assert(response.ok, 'captured item can be read while polling');
-    const status = body?.data?.status;
-    if (status === 'ready') return body.data;
-    if (status === 'failed') throw new Error('captured item entered failed state');
+    const { response, body } = await api('/items?limit=100');
+    await assert(response.ok, 'captured item list can be read while polling');
+
+    const items = Array.isArray(body?.data?.items) ? body.data.items : [];
+    const item = items.find((candidate: any) => String(candidate.id) === itemId);
+
+    if (item?.status === 'ready') return item;
+    if (item?.status === 'failed') throw new Error('captured item entered failed state');
+
     await sleep(250);
   }
   throw new Error('captured item did not become ready within 10 seconds');
