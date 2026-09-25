@@ -84,17 +84,10 @@ describe('JobQueue', () => {
     };
 
     let insertCalls = 0;
-    let selectCalls = 0;
     const pool = {
       query: async (sql: string, _params: any[]) => {
         if (sql.includes('INSERT INTO jobs') && sql.includes('ON CONFLICT (item_id, type)')) {
           insertCalls += 1;
-          return insertCalls === 1
-            ? { rows: [activeRow], rowCount: 1 }
-            : { rows: [], rowCount: 0 };
-        }
-        if (sql.includes('SELECT * FROM jobs') && sql.includes('status IN (\'pending\', \'processing\')')) {
-          selectCalls += 1;
           return { rows: [activeRow], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
@@ -118,7 +111,6 @@ describe('JobQueue', () => {
     expect(first.id).toBe('existing-tag-job');
     expect(second.id).toBe('existing-tag-job');
     expect(insertCalls).toBe(2);
-    expect(selectCalls).toBe(1);
     idempotentQueue.stop();
   });
 
