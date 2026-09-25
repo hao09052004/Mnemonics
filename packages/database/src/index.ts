@@ -190,14 +190,14 @@ export function createItemRepository(pool: Pool): ItemRepository {
 
     async saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void> {
       await pool.query(
-        `INSERT INTO item_embeddings (item_id, user_id, model, dimensions, embedding, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
+        `INSERT INTO item_embeddings (item_id, model, dimensions, embedding, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
          ON CONFLICT (item_id) DO UPDATE SET
            model = EXCLUDED.model,
            dimensions = EXCLUDED.dimensions,
            embedding = EXCLUDED.embedding,
            updated_at = NOW()`,
-        [itemId, userId, model, embedding.length, embedding]
+        [itemId, model, embedding.length, embedding]
       );
     }
   };
