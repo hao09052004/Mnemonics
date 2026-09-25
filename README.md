@@ -128,8 +128,7 @@ Demo account:
 5. Return to the dashboard and search for the captured content. The asynchronous `tag → embed → ready` pipeline makes the item searchable.
 6. Use **Ý liên quan** on a ready memory to demonstrate the knowledge-graph / vector-relation path.
 7. Load `apps/extension` as an unpacked Chrome extension, sign in with the demo account, capture a real page, then return to the dashboard to show server reconciliation.
-8. To validate the whole pipeline from the command line:
-To validate the whole pipeline from the command line:
+8. Validate the whole pipeline from the command line:
 
 ```bash
 pnpm demo:e2e
