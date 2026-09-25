@@ -24,10 +24,17 @@ dotenv.config({ path: resolve(currentDirectory, '../../../.env') });
 const port = Number(process.env.PORT || 4000);
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
+const demoMode = process.env.DEMO_MODE === 'true';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseAnonKey) throw new Error('SUPABASE_URL và SUPABASE_ANON_KEY là bắt buộc');
-const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+if ((!supabaseUrl || !supabaseAnonKey) && !demoMode) {
+  throw new Error('SUPABASE_URL và SUPABASE_ANON_KEY là bắt buộc (hoặc bật DEMO_MODE=true)');
+}
+
+const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  : undefined;
 
 const pool = createPool(databaseUrl);
 let imageStorage;
