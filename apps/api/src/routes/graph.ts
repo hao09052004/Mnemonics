@@ -29,6 +29,10 @@ const createEdgeSchema = z.object({
   attributes: z.record(z.unknown()).optional().default({})
 });
 
+const relatedQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10)
+});
+
 export function createGraphRouter(deps: GraphRouterDeps): Application {
   const { pool, supabase } = deps;
   const router = express.Router() as Application;
@@ -149,7 +153,12 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
       try {
         const userId = req.userId!;
         const itemId = String(req.params.id);
-        const limit = Math.min(parseInt(String(req.query.limit || '10'), 10), 50);
+        const parsedQuery = relatedQuerySchema.safeParse(req.query);
+        if (!parsedQuery.success) {
+          res.status(400).json({ error: { code: 'INVALID_LIMIT', message: 'limit must be an integer between 1 and 50' } });
+          return;
+        }
+        const limit = parsedQuery.data.limit;
 
         const result = await pool.query<Record<string, unknown>>(
           `SELECT
