@@ -74,6 +74,65 @@ describe('JobQueue', () => {
   });
 
 
+  it('awaits handlers and retries transient failures', async () => {
+    let attempts = 0;
+    let status = 'pending';
+    let dbJob = {
+      id: 'job-retry',
+      type: 'tag',
+      item_id: 'item-1',
+      user_id: 'user-1',
+      payload: {},
+      status,
+      attempts: 0,
+      max_attempts: 2,
+      error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null
+    };
+
+    const pool = {
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('WHERE status = \'pending\'')) {
+          return { rows: status === 'pending' ? [dbJob] : [], rowCount: status === 'pending' ? 1 : 0 };
+        }
+        if (sql.includes('SET status = \'processing\'')) {
+          status = 'processing';
+          dbJob = { ...dbJob, status, attempts: dbJob.attempts + 1 };
+          return { rows: [dbJob], rowCount: 1 };
+        }
+        if (sql.includes('SET status = \'pending\'')) {
+          status = 'pending';
+          dbJob = { ...dbJob, status };
+          return { rows: [dbJob], rowCount: 1 };
+        }
+        if (sql.includes('SET status = \'completed\'')) {
+          status = 'completed';
+          dbJob = { ...dbJob, status };
+          return { rows: [dbJob], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+    } as any;
+
+    const retryQueue = new JobQueue(pool);
+    retryQueue.registerHandler('tag', async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporary');
+      await retryQueue.markCompleted('job-retry');
+    });
+
+    await retryQueue.processOnce();
+    expect(attempts).toBe(1);
+    expect(status).toBe('pending');
+
+    await retryQueue.processOnce();
+    expect(attempts).toBe(2);
+    expect(status).toBe('completed');
+    retryQueue.stop();
+  });
+
   it('should track max attempts', async () => {
     const job = await queue.create({
       type: 'embed',
