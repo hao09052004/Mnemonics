@@ -265,3 +265,66 @@ jobs:
 
       - name: Build all packages
         run: pnpm --recursive build
+
+  demo-smoke:
+    name: Demo Smoke
+    runs-on: ubuntu-latest
+    needs: test
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mnemonics_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/mnemonics_test
+      NODE_ENV: test
+      DEV_AUTH_TOKEN: mnemonics-dev-token
+      DEV_USER_ID: 00000000-0000-4000-8000-000000000001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bootstrap demo database
+        run: pnpm demo:setup
+
+      - name: Start demo API
+        run: |
+          pnpm demo:api > /tmp/mnemonics-demo-api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/v1/jobs/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mnemonics-demo-api.log
+          exit 1
+
+      - name: Run demo smoke
+        run: pnpm --filter @mnemonics/api exec tsx scripts/demo-smoke.mts
+
