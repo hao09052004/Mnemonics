@@ -89,16 +89,16 @@ The repository now includes a self-contained demo environment so the product can
 
 Requirements: Docker Desktop, Node.js 20+, and pnpm 9+.
 
-Terminal 1 — start PostgreSQL + pgvector:
+Terminal 1 — prepare PostgreSQL + pgvector and seed six realistic memories:
 
 ```bash
-pnpm demo:db
+pnpm demo:prepare
 ```
 
-Terminal 2 — bootstrap the schema and seed six realistic memories:
+To completely reset the local demo database and seed it again:
 
 ```bash
-pnpm demo:setup
+pnpm demo:reset
 ```
 
 Terminal 3 — start the API in demo mode:
