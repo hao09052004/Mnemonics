@@ -95,6 +95,8 @@ const captureRouter = createCaptureRouter({
 const searchRouter = createSearchRouter({
 	pool,
 	supabase,
+	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
 	openAiKey: process.env.OPENAI_API_KEY
 });
 
