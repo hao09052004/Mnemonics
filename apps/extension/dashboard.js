@@ -90,6 +90,8 @@ function escapeHtml(value) {
 
 // ===== LOCAL DEMO AUTH =====
 let currentUser = null;
+let serverSearchResults = null;
+let searchRequestEpoch = 0;
 
 function getStorageValue(key, fallback, cb) {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -379,7 +381,12 @@ function renderDashboard() {
   var searchVal = '';
   var searchEl = document.getElementById('search-input');
   if (searchEl) searchVal = searchEl.value.toLowerCase().trim();
-  var base = searchVal ? items.filter(function(i) { return getSearchText(i).includes(searchVal); }) : items;
+  var base;
+  if (searchVal && Array.isArray(serverSearchResults)) {
+    base = serverSearchResults;
+  } else {
+    base = searchVal ? items.filter(function(i) { return getSearchText(i).includes(searchVal); }) : items;
+  }
   renderCards(applySortFilter(base));
 }
 
@@ -1398,17 +1405,62 @@ function deleteReminder(id) {
 function handleSearch(val) {
   clearTimeout(searchTimeout);
   const q = val.toLowerCase().trim();
+  serverSearchResults = null;
   if (!q) {
+    searchRequestEpoch += 1;
     renderDashboard();
     hideAIResult();
     return;
   }
-  // Combine search with current sort/filter
+
+  // Keep the local result visible while the server search is in flight.
   renderDashboard();
 
-  // AI search after delay
+  searchTimeout = setTimeout(async function() {
+    if (!currentUser || !currentUser.id) return;
+    var requestEpoch = ++searchRequestEpoch;
+    try {
+      var token = await getAccessToken();
+      if (!token) {
+        token = await refreshAccessToken();
+      }
+      if (!token) return;
+
+      var response = await searchItemsFromApi(q, token);
+      if (requestEpoch !== searchRequestEpoch) return;
+
+      var hits = response && Array.isArray(response.hits) ? response.hits : [];
+      serverSearchResults = hits.map(function(hit) {
+        return {
+          id: hit.id,
+          type: hit.kind || 'text',
+          title: hit.title || 'Untitled',
+          note: hit.snippet || '',
+          excerpt: hit.snippet || '',
+          tags: Array.isArray(hit.tags) ? hit.tags : [],
+          savedAt: hit.captured_at || new Date().toISOString(),
+          capturedAt: hit.captured_at || null,
+          serverSynced: true,
+          searchScore: hit.score
+        };
+      });
+      renderDashboard();
+      showAIResult(
+        serverSearchResults.length
+          ? 'Server search found <b>' + serverSearchResults.length + '</b> result(s) for "<b>' + escapeHtml(q) + '</b>".'
+          : 'No server results for "<b>' + escapeHtml(q) + '</b>".'
+      );
+    } catch (error) {
+      if (requestEpoch !== searchRequestEpoch) return;
+      // Keep local search usable if the API is temporarily unavailable.
+      serverSearchResults = null;
+      renderDashboard();
+      showAIResult('Server search unavailable — showing local matches.');
+    }
+  }, 350);
+
   clearTimeout(aiSearchTimeout);
-  aiSearchTimeout = setTimeout(() => doAISearch(val), 800);
+  aiSearchTimeout = setTimeout(function() { doAISearch(val); }, 800);
 }
 
 async function doAISearch() {
