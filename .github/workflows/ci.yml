@@ -74,11 +74,139 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Bootstrap Supabase-compatible test schemas
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE SCHEMA IF NOT EXISTS storage;
+
+          DO $
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN;
+            END IF;
+          END
+          $;
+
+          CREATE TABLE IF NOT EXISTS auth.users (
+            id UUID PRIMARY KEY,
+            raw_user_meta_data JSONB DEFAULT '{}'
+          );
+
+          CREATE OR REPLACE FUNCTION auth.uid()
+          RETURNS UUID
+          LANGUAGE sql
+          STABLE
+          AS $
+            SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
+          $;
+
+          CREATE TABLE IF NOT EXISTS storage.buckets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            public BOOLEAN NOT NULL DEFAULT false
+          );
+
+          CREATE TABLE IF NOT EXISTS storage.objects (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            bucket_id TEXT NOT NULL,
+            name TEXT NOT NULL
+          );
+
+          CREATE OR REPLACE FUNCTION storage.foldername(name TEXT)
+          RETURNS TEXT[]
+          LANGUAGE sql
+          IMMUTABLE
+          AS $
+            SELECT CASE
+              WHEN name IS NULL OR name = '' THEN ARRAY[]::TEXT[]
+              ELSE string_to_array(name, '/')
+            END;
+          $;
+          SQL
+
       - name: Run migrations
         run: |
           for f in packages/database/migrations/*.sql; do
-            psql "$DATABASE_URL" -f "$f"
+            echo "==> $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
           done
+
+      - name: Verify database schema contract
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE
+            searchable_type TEXT;
+          BEGIN
+            SELECT udt_name INTO searchable_type
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'items'
+              AND column_name = 'searchable_text';
+
+            IF searchable_type <> 'tsvector' THEN
+              RAISE EXCEPTION 'items.searchable_text must be tsvector, got %', searchable_type;
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'item_embeddings'
+                AND column_name = 'user_id'
+            ) THEN
+              RAISE EXCEPTION 'item_embeddings unexpectedly contains user_id; repository must follow schema ownership via items';
+            END IF;
+          END
+          $;
+
+          INSERT INTO auth.users(id, raw_user_meta_data)
+          VALUES ('00000000-0000-4000-8000-000000000099', '{"name":"CI"}')
+          ON CONFLICT (id) DO NOTHING;
+
+          INSERT INTO public.items(
+            user_id, type, title, raw_text, captured_at, client_request_id
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000099',
+            'text',
+            'CI searchable text smoke test',
+            'retry queues and idempotency',
+            NOW(),
+            '00000000-0000-4000-8000-000000000199'
+          );
+
+          DO $
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM public.items
+              WHERE client_request_id = '00000000-0000-4000-8000-000000000199'
+                AND searchable_text @@ plainto_tsquery('simple', 'idempotency')
+            ) THEN
+              RAISE EXCEPTION 'searchable_text trigger did not populate a matching tsvector';
+            END IF;
+          END
+          $;
+
+          DELETE FROM public.items
+          WHERE client_request_id = '00000000-0000-4000-8000-000000000199';
+
+          DELETE FROM public.auth_events
+          WHERE email_attempted IS NULL OR user_id = '00000000-0000-4000-8000-000000000099';
+
+          DELETE FROM public.profiles
+          WHERE id = '00000000-0000-4000-8000-000000000099';
+
+          DELETE FROM auth.users
+          WHERE id = '00000000-0000-4000-8000-000000000099';
+          SQL
 
       - name: Run tests
         run: pnpm test
