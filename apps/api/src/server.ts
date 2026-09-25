@@ -62,7 +62,7 @@ const app = createApp(
 	imageStorage,
 	supabase,
 	authDeps,
-	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true' }
+	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true', demoMode }
 );
 
 // Set up job queue
