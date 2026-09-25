@@ -135,7 +135,6 @@ export class EmbedHandler {
         .from('item_embeddings')
         .upsert({
           item_id: itemId,
-          user_id: userId,
           model: 'text-embedding-3-small',
           dimensions: embedding.length,
           embedding: embedding,
