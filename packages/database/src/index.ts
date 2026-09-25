@@ -189,6 +189,8 @@ export function createItemRepository(pool: Pool): ItemRepository {
     },
 
     async saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void> {
+      const vectorLiteral = '[' + embedding.join(',') + ']';
+
       await pool.query(
         `INSERT INTO item_embeddings (item_id, model, dimensions, embedding, updated_at)
          VALUES ($1, $2, $3, $4, NOW())
@@ -197,7 +199,7 @@ export function createItemRepository(pool: Pool): ItemRepository {
            dimensions = EXCLUDED.dimensions,
            embedding = EXCLUDED.embedding,
            updated_at = NOW()`,
-        [itemId, model, embedding.length, embedding]
+        [itemId, model, embedding.length, vectorLiteral]
       );
     }
   };
