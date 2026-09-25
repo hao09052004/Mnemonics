@@ -47,6 +47,12 @@ interface LexResult {
 
 interface SemResult {
   id: string;
+  type: string;
+  title: string;
+  raw_text: string | null;
+  ocr_text: string | null;
+  source_url: string | null;
+  captured_at: Date;
   score: number;
 }
 
@@ -110,7 +116,7 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
       const lexResults = await runLexicalSearch(pool, userId, q, filters);
 
       // Run semantic search (vector)
-      const semResults = await runSemanticSearch(pool, userId, q, openAiKey);
+      const semResults = await runSemanticSearch(pool, userId, q, openAiKey, filters);
 
       // Combine with RRF
       const combined = reciprocalRankFusion(lexResults, semResults, 0.4, 0.6);
@@ -247,7 +253,13 @@ async function runSemanticSearch(
   pool: Pool,
   userId: string,
   query: string,
-  openAiKey?: string
+  openAiKey?: string,
+  filters?: {
+    tags?: string[];
+    kind?: string[];
+    captured_after?: string;
+    captured_before?: string;
+  }
 ): Promise<SemResult[]> {
   if (!openAiKey) {
     return [];
@@ -273,6 +285,12 @@ async function runSemanticSearch(
 
     return result.rows.map(row => ({
       id: row.id as string,
+      type: row.type as string,
+      title: row.title as string,
+      raw_text: (row.raw_text as string | null) || null,
+      ocr_text: (row.ocr_text as string | null) || null,
+      source_url: (row.source_url as string | null) || null,
+      captured_at: new Date(row.captured_at as string),
       score: parseFloat(String(row.score))
     }));
   } catch (error) {
