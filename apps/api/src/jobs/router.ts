@@ -18,6 +18,7 @@ export interface JobRouterDeps {
   pool: Pool;
   repository: ItemRepository;
   supabase?: SupabaseClient;
+  authSupabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
   openAiKey?: string;
@@ -31,6 +32,7 @@ export function createJobRouter(deps: JobRouterDeps): {
     pool,
     repository,
     supabase,
+    authSupabase,
     expectedToken = 'mnemonics-dev-token',
     developmentUserId = '00000000-0000-4000-8000-000000000001',
     openAiKey
@@ -59,8 +61,8 @@ export function createJobRouter(deps: JobRouterDeps): {
     res.json({ data: { status: 'ok', queue: 'running' } });
   });
 
-  const authMiddleware = supabase
-    ? requireSupabaseAuth(supabase)
+  const authMiddleware = authSupabase
+    ? requireSupabaseAuth(authSupabase)
     : requireDevelopmentAuth(expectedToken, developmentUserId);
 
   // Get job status
