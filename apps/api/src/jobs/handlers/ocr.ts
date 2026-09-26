@@ -32,8 +32,7 @@ export class OcrHandler {
       // 1. Get the item
       const item = await this.repository.findById(job.itemId);
       if (!item) {
-        await this.queue.markFailed(job.id, 'Item not found');
-        return;
+        throw new Error('Item not found');
       }
 
       // Only process images and screenshots
@@ -70,7 +69,7 @@ export class OcrHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[OcrHandler] Error processing job ${job.id}:`, errorMessage);
-      await this.queue.markFailed(job.id, errorMessage);
+      throw new Error(errorMessage);
     }
   }
 

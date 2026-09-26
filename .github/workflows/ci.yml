@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "feat/**"]
   pull_request:
     branches: [main, develop]
 
@@ -15,25 +15,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9.15.0
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
-
-      - name: Commit lockfile
-        run: |
-          git config --local user.email "ci@mnemonics"
-          git config --local user.name "CI Bot"
-          git add pnpm-lock.yaml
-          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
@@ -66,31 +60,156 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9.15.0
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Commit lockfile
+      - name: Bootstrap Supabase-compatible test schemas
         run: |
-          git config --local user.email "ci@mnemonics"
-          git config --local user.name "CI Bot"
-          git add pnpm-lock.yaml
-          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE SCHEMA IF NOT EXISTS storage;
+
+          SELECT 'CREATE ROLE authenticated NOLOGIN'
+          WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated')\gexec
+          SELECT 'CREATE ROLE anon NOLOGIN'
+          WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')\gexec
+          SELECT 'CREATE ROLE service_role NOLOGIN'
+          WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role')\gexec
+
+          CREATE TABLE IF NOT EXISTS auth.users (
+            id UUID PRIMARY KEY,
+            raw_user_meta_data JSONB DEFAULT '{}'
+          );
+
+          CREATE OR REPLACE FUNCTION auth.uid()
+          RETURNS UUID
+          LANGUAGE sql
+          STABLE
+          AS $func$
+            SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
+          $func$;
+
+          CREATE TABLE IF NOT EXISTS storage.buckets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            public BOOLEAN NOT NULL DEFAULT false
+          );
+
+          CREATE TABLE IF NOT EXISTS storage.objects (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            bucket_id TEXT NOT NULL,
+            name TEXT NOT NULL
+          );
+
+          CREATE OR REPLACE FUNCTION storage.foldername(name TEXT)
+          RETURNS TEXT[]
+          LANGUAGE sql
+          IMMUTABLE
+          AS $func$
+            SELECT CASE
+              WHEN name IS NULL OR name = '' THEN ARRAY[]::TEXT[]
+              ELSE string_to_array(name, '/')
+            END;
+          $func$;
+          SQL
 
       - name: Run migrations
         run: |
           for f in packages/database/migrations/*.sql; do
-            psql $DATABASE_URL -f "$f"
+            echo "==> $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
           done
+
+      - name: Verify database schema contract
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $func$
+          DECLARE
+            searchable_type TEXT;
+          BEGIN
+            SELECT udt_name INTO searchable_type
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'items'
+              AND column_name = 'searchable_text';
+
+            IF searchable_type <> 'tsvector' THEN
+              RAISE EXCEPTION 'items.searchable_text must be tsvector, got %', searchable_type;
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'item_embeddings'
+                AND column_name = 'user_id'
+            ) THEN
+              RAISE EXCEPTION 'item_embeddings unexpectedly contains user_id; repository must follow schema ownership via items';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_indexes
+              WHERE schemaname = 'public'
+                AND tablename = 'jobs'
+                AND indexname = 'jobs_active_item_type_idx'
+            ) THEN
+              RAISE EXCEPTION 'jobs_active_item_type_idx is missing; active pipeline jobs must be unique per item/type';
+            END IF;
+          END
+          $func$;
+
+          INSERT INTO auth.users(id, raw_user_meta_data)
+          VALUES ('00000000-0000-4000-8000-000000000099', '{"name":"CI"}')
+          ON CONFLICT (id) DO NOTHING;
+
+          INSERT INTO public.items(
+            user_id, type, title, raw_text, captured_at, client_request_id
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000099',
+            'text',
+            'CI searchable text smoke test',
+            'retry queues and idempotency',
+            NOW(),
+            '00000000-0000-4000-8000-000000000199'
+          );
+
+          DO $func$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM public.items
+              WHERE client_request_id = '00000000-0000-4000-8000-000000000199'
+                AND searchable_text @@ plainto_tsquery('simple', 'idempotency')
+            ) THEN
+              RAISE EXCEPTION 'searchable_text trigger did not populate a matching tsvector';
+            END IF;
+          END
+          $func$;
+
+          DELETE FROM public.items
+          WHERE client_request_id = '00000000-0000-4000-8000-000000000199';
+
+          DELETE FROM public.auth_events
+          WHERE email_attempted IS NULL OR user_id = '00000000-0000-4000-8000-000000000099';
+
+          DELETE FROM public.profiles
+          WHERE id = '00000000-0000-4000-8000-000000000099';
+
+          DELETE FROM auth.users
+          WHERE id = '00000000-0000-4000-8000-000000000099';
+          SQL
 
       - name: Run tests
         run: pnpm test
@@ -104,25 +223,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9.15.0
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
-
-      - name: Commit lockfile
-        run: |
-          git config --local user.email "ci@mnemonics"
-          git config --local user.name "CI Bot"
-          git add pnpm-lock.yaml
-          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
+        run: pnpm install --frozen-lockfile
 
       - name: Run all quality gates
         run: pnpm gates:all
@@ -136,25 +249,82 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9.15.0
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
-
-      - name: Commit lockfile
-        run: |
-          git config --local user.email "ci@mnemonics"
-          git config --local user.name "CI Bot"
-          git add pnpm-lock.yaml
-          git diff --staged --quiet || git commit -m "chore: add pnpm lockfile"
+        run: pnpm install --frozen-lockfile
 
       - name: Build all packages
         run: pnpm --recursive build
+
+  demo-smoke:
+    name: Demo Smoke
+    runs-on: ubuntu-latest
+    needs: test
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mnemonics_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/mnemonics_test
+      NODE_ENV: test
+      DEV_AUTH_TOKEN: mnemonics-dev-token
+      DEV_USER_ID: 00000000-0000-4000-8000-000000000001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bootstrap demo database
+        run: pnpm demo:setup
+
+      - name: Start demo API
+        run: |
+          pnpm demo:api > /tmp/mnemonics-demo-api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/v1/jobs/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mnemonics-demo-api.log
+          exit 1
+
+      - name: Run demo smoke
+        run: pnpm --filter @mnemonics/api exec tsx scripts/demo-smoke.mts
+

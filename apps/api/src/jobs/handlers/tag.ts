@@ -26,11 +26,13 @@ export class TagHandler {
       // 1. Get the item
       const item = await this.repository.findById(job.itemId);
       if (!item) {
-        await this.queue.markFailed(job.id, 'Item not found');
-        return;
+        throw new Error('Item not found');
       }
 
-      // 2. Generate tags
+      // 2. Mark the item as actively processing
+      await this.repository.updateStatus(job.itemId, 'processing');
+
+      // 3. Generate tags
       const tags = await this.generateTags(item);
 
       // 3. Save tags to item
@@ -51,7 +53,7 @@ export class TagHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[TagHandler] Error processing job ${job.id}:`, errorMessage);
-      await this.queue.markFailed(job.id, errorMessage);
+      throw new Error(errorMessage);
     }
   }
 

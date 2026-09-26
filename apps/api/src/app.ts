@@ -34,8 +34,23 @@ export function createApp(
   imageStorage?: ImageStorage,
   supabase?: SupabaseClient,
   authDeps?: AuthDeps,
-  options?: { autoConfirmRegistration?: boolean }
+  options?: { autoConfirmRegistration?: boolean; demoMode?: boolean }
 ): Application {
+  const demoMode = options?.demoMode === true;
+  const demoUser = {
+    id: developmentUserId,
+    email: 'demo@mnemonics.local',
+    name: 'Mnemonics Demo',
+    role: 'user',
+    emailVerified: true
+  };
+  const createDemoSession = () => ({
+    accessToken: expectedToken,
+    refreshToken: 'mnemonics-demo-refresh-token',
+    expiresAt: Math.floor(Date.now() / 1000) + 60 * 60,
+    tokenType: 'bearer' as const
+  });
+
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
@@ -75,15 +90,20 @@ export function createApp(
 
   app.post('/api/v1/auth/register', async (request, response, next) => {
     try {
-      if (!supabase) {
-        response.status(503).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Supabase Auth chưa được cấu hình', requestId: request.id } });
-        return;
-      }
       const parsed = authCredentialsSchema.safeParse(request.body);
       if (!parsed.success) {
         response.status(400).json({ error: { code: 'INVALID_AUTH_PAYLOAD', message: 'Thông tin đăng ký không hợp lệ', requestId: request.id } });
         return;
       }
+      if (!supabase && demoMode) {
+        response.status(201).json({ data: { user: demoUser, session: createDemoSession() } });
+        return;
+      }
+      if (!supabase) {
+        response.status(503).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Supabase Auth chưa được cấu hình', requestId: request.id } });
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: parsed.data.email,
         password: parsed.data.password,
@@ -101,15 +121,25 @@ export function createApp(
 
   app.post('/api/v1/auth/login', async (request, response, next) => {
     try {
-      if (!supabase) {
-        response.status(503).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Supabase Auth chưa được cấu hình', requestId: request.id } });
-        return;
-      }
       const parsed = authCredentialsSchema.pick({ email: true, password: true }).safeParse(request.body);
       if (!parsed.success) {
         response.status(400).json({ error: { code: 'INVALID_AUTH_PAYLOAD', message: 'Thông tin đăng nhập không hợp lệ', requestId: request.id } });
         return;
       }
+      if (!supabase && demoMode) {
+        const email = parsed.data.email.toLowerCase();
+        if (email !== demoUser.email || parsed.data.password !== 'DemoPass123!') {
+          response.status(401).json({ error: { code: 'AUTH_LOGIN_FAILED', message: 'Demo credentials không đúng', requestId: request.id } });
+          return;
+        }
+        response.json({ data: { user: demoUser, session: createDemoSession() } });
+        return;
+      }
+      if (!supabase) {
+        response.status(503).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Supabase Auth chưa được cấu hình', requestId: request.id } });
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
       if (error || !data.user || !data.session) {
         response.status(401).json({ error: { code: 'AUTH_LOGIN_FAILED', message: error?.message || 'Email hoặc mật khẩu chưa đúng', requestId: request.id } });
@@ -122,8 +152,26 @@ export function createApp(
   });
 
   app.get('/api/v1/auth/me', authMiddleware, (request: AuthenticatedRequest, response) => {
+    if (demoMode && !supabase) {
+      response.json({ data: { user: demoUser } });
+      return;
+    }
     response.json({ data: { user: { id: request.userId, email: request.user?.email, name: request.user?.user_metadata?.name, role: request.userRole || 'user' } } });
   });
+
+  if (demoMode && !supabase) {
+    app.post('/api/v1/auth/refresh', (request, response) => {
+      if (request.body?.refreshToken !== 'mnemonics-demo-refresh-token') {
+        response.status(401).json({ error: { code: 'AUTH_REFRESH_FAILED', message: 'Refresh token không hợp lệ', requestId: request.id } });
+        return;
+      }
+      response.json({ data: { user: demoUser, session: createDemoSession() } });
+    });
+
+    app.post('/api/v1/auth/logout', (_request, response) => {
+      response.status(204).send();
+    });
+  }
 
   // Note: /api/v1/captures and /api/v1/captures/image are mounted
   // separately in server.ts via createCaptureRouter (so they can integrate

@@ -7,13 +7,22 @@
     "audit:structure": "node scripts/audit-structure.mjs",
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
-    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/api test",
+    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/api test && pnpm --filter @mnemonics/extension-tests test",
     "gates:agents": "node quality-gates/runners/check-agents.mjs",
     "gates:skills": "node quality-gates/runners/check-skills.mjs",
     "gates:spec-sync": "node quality-gates/runners/check-spec-sync.mjs",
     "gates:knowledge": "node quality-gates/runners/knowledge-regression.mjs",
     "gates:coverage": "node quality-gates/runners/coverage.mjs",
     "gates:all": "pnpm gates:agents && pnpm gates:skills && pnpm gates:spec-sync && pnpm gates:coverage",
-    "seed:skills": "node scripts/seed-skill-metas.mjs"
+    "seed:skills": "node scripts/seed-skill-metas.mjs",
+    "demo": "node scripts/demo-run.mjs",
+    "demo:db": "docker compose -f docker-compose.demo.yml up -d",
+    "demo:setup": "pnpm --filter @mnemonics/api demo:setup",
+    "demo:api": "pnpm --filter @mnemonics/api demo",
+    "demo:web": "pnpm --filter @mnemonics/web demo",
+    "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-pipeline.mts",
+    "demo:stop": "docker compose -f docker-compose.demo.yml down",
+    "demo:prepare": "pnpm demo:db && pnpm demo:setup",
+    "demo:reset": "docker compose -f docker-compose.demo.yml down -v && pnpm demo:db && pnpm demo:setup"
   }
 }

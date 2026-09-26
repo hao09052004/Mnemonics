@@ -4,19 +4,17 @@
  * Knowledge graph endpoints for related items and links.
  */
 
-import express, { type Application, type Response, type Request } from 'express';
+import express, { type Application, type Response } from 'express';
 import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
 
 export interface GraphRouterDeps {
   pool: Pool;
   supabase?: SupabaseClient;
-}
-
-interface AuthedRequest extends Request {
-  userId?: string;
-  user?: { id: string; email?: string };
+  expectedToken?: string;
+  developmentUserId?: string;
 }
 
 const edgeTypes = ['similar', 'references', 'related', 'duplicate', 'parent', 'child'] as const;
@@ -29,44 +27,28 @@ const createEdgeSchema = z.object({
   attributes: z.record(z.unknown()).optional().default({})
 });
 
+const relatedQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10)
+});
+
 export function createGraphRouter(deps: GraphRouterDeps): Application {
-  const { pool, supabase } = deps;
+  const {
+    pool,
+    supabase,
+    expectedToken = 'mnemonics-dev-token',
+    developmentUserId = '00000000-0000-4000-8000-000000000001'
+  } = deps;
   const router = express.Router() as Application;
 
-  // Simple auth middleware
-  const requireAuth = async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing authorization header' } });
-        return;
-      }
-
-      const token = authHeader.slice(7);
-
-      if (supabase) {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (error || !user) {
-          res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
-          return;
-        }
-        req.userId = user.id;
-        req.user = user;
-      } else {
-        res.status(401).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Graph requires Supabase auth' } });
-        return;
-      }
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
+  const requireAuth = supabase
+    ? requireSupabaseAuth(supabase)
+    : requireDevelopmentAuth(expectedToken, developmentUserId);
 
   // POST /api/v1/items/:id/edges - Create an edge
   router.post(
     '/items/:id/edges',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const fromItemId = String(req.params.id);
@@ -111,7 +93,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.get(
     '/items/:id/edges',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const itemId = String(req.params.id);
@@ -145,11 +127,26 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.get(
     '/items/:id/related',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const itemId = String(req.params.id);
-        const limit = Math.min(parseInt(String(req.query.limit || '10'), 10), 50);
+        const parsedQuery = relatedQuerySchema.safeParse(req.query);
+        if (!parsedQuery.success) {
+          res.status(400).json({ error: { code: 'INVALID_LIMIT', message: 'limit must be an integer between 1 and 50' } });
+          return;
+        }
+        const limit = parsedQuery.data.limit;
+
+        const source = await pool.query<{ id: string }>(
+          `SELECT id FROM items WHERE id = $1 AND user_id = $2`,
+          [itemId, userId]
+        );
+
+        if (source.rowCount === 0) {
+          res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
+          return;
+        }
 
         const result = await pool.query<Record<string, unknown>>(
           `SELECT
@@ -158,8 +155,8 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
           FROM item_embeddings ie1
           JOIN item_embeddings ie2 ON ie1.item_id != ie2.item_id
           JOIN items i ON i.id = ie2.item_id AND i.user_id = $2
+          JOIN items source_item ON source_item.id = ie1.item_id AND source_item.user_id = $2
           WHERE ie1.item_id = $1
-            AND i.user_id = $2
           ORDER BY ie1.embedding <=> ie2.embedding
           LIMIT $3`,
           [itemId, userId, limit]
@@ -184,7 +181,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.delete(
     '/edges/:id',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
         const edgeId = String(req.params.id);
@@ -210,7 +207,7 @@ export function createGraphRouter(deps: GraphRouterDeps): Application {
   router.get(
     '/graph/stats',
     requireAuth,
-    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+    async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
 

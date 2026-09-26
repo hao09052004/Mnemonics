@@ -406,12 +406,26 @@ function saveCapture() {
     return;
   }
   if (currentTags.length === 0) autoTagsFromContent(title + ' ' + note);
+
   var item = {
-    id: Date.now(), title: title, note: note, url: url, sourceUrl: currentPageUrl,
-    type: currentType, tags: currentTags,
-    savedAt: new Date().toISOString(), date: 'Vừa xong'
+    id: Date.now(),
+    title: title,
+    note: note,
+    url: url,
+    sourceUrl: currentPageUrl,
+    type: currentType,
+    tags: currentTags.slice(0),
+    clientRequestId: crypto.randomUUID(),
+    savedAt: new Date().toISOString(),
+    date: 'Vừa xong',
+    pendingUpload: true,
+    serverSynced: false,
+    syncAttempts: 0,
+    nextRetryAt: new Date().toISOString(),
+    syncStatus: 'pending',
+    syncError: null
   };
-  // Với loại Link: lưu URL trang hiện tại làm đường dẫn chính
+
   if (currentType === 'link') {
     item.sourceUrl = currentPageUrl || note;
     item.url = (currentPageUrl || note || '').replace(/^https?:\/\//, '').slice(0, 80);
@@ -419,35 +433,50 @@ function saveCapture() {
     if (!item.tags || item.tags.length === 0) item.tags = ['link'];
   }
 
-  // Persist to chrome.storage.local *first* so the dashboard updates
-  // immediately, then upload to /api/v1/captures if we have a session.
-  // The DB only accepts type: 'link' | 'text' | 'image', so we map the
-  // popup's wider type vocabulary through api-client.js#toCapturePayload.
   savedItems.unshift(item);
   if (savedItems.length > 50) savedItems = savedItems.slice(0, 50);
 
   saveItems(function() {
-    // Thông báo cho dashboard biết có item mới
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
     }
   });
 
-  // Best-effort server upload. Failures don't block the local save.
-  if (currentType !== 'image') {
-    // Use async variant so the popup correctly reads from
-    // chrome.storage.local (the sync shim returns null there).
-    if (typeof getAccessToken === 'function') {
-      getAccessToken().then(function(accessToken) {
-        if (!accessToken) return;
-        var apiItem = Object.assign({}, item, { capturedAt: item.savedAt });
-        if (typeof sendCaptureToApi === 'function') {
-          sendCaptureToApi(apiItem, accessToken).catch(function(err) {
-            console.warn('[mnemonics popup] capture upload failed', err);
-          });
-        }
+  // Upload immediately when authenticated. The local row keeps the same
+  // clientRequestId so automatic background retry remains idempotent.
+  if (currentType !== 'image' && typeof getAccessToken === 'function') {
+    getAccessToken().then(function(accessToken) {
+      if (!accessToken || typeof sendCaptureToApi !== 'function') return;
+
+      var apiItem = Object.assign({}, item, { capturedAt: item.savedAt });
+      return sendCaptureToApi(apiItem, accessToken).then(function(result) {
+        var serverData = result && result.data && result.data.data;
+        item.pendingUpload = false;
+        item.serverSynced = true;
+        item.syncStatus = 'synced';
+        item.syncError = null;
+        item.nextRetryAt = null;
+        item.lastSyncAt = new Date().toISOString();
+        if (serverData && serverData.id) item.id = serverData.id;
+        saveItems(function() {
+          if (typeof chrome !== 'undefined' && chrome.runtime) {
+            chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
+          }
+        });
+      }).catch(function(err) {
+        item.pendingUpload = true;
+        item.serverSynced = false;
+        item.syncStatus = 'pending';
+        item.syncError = err && err.message ? err.message : 'API upload failed';
+        item.nextRetryAt = new Date().toISOString();
+        saveItems(function() {
+          if (typeof chrome !== 'undefined' && chrome.runtime) {
+            chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
+          }
+        });
+        console.warn('[mnemonics popup] capture upload failed:', item.syncError);
       });
-    }
+    });
   }
 
   document.getElementById('success-tags').innerHTML = currentTags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');

@@ -10,7 +10,6 @@
  * - Embedding jobs (after tagging completes)
  */
 
-import { EventEmitter } from 'events';
 import type { Pool } from 'pg';
 
 export type JobType = 'ocr' | 'tag' | 'embed';
@@ -44,14 +43,23 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 /**
  * JobQueue with EventEmitter for job processing callbacks
  */
-export class JobQueue extends EventEmitter {
+export type JobHandler = (job: Job) => Promise<void>;
+export type JobFailureHandler = (job: Job, error: string) => Promise<void>;
+
+export class JobQueue {
   private pool: Pool;
   private isProcessing = false;
+  private handlers = new Map<JobType, JobHandler>();
+  private onTerminalFailure?: JobFailureHandler;
   private processingInterval: NodeJS.Timeout | null = null;
 
-  constructor(pool: Pool) {
-    super();
+  constructor(pool: Pool, onTerminalFailure?: JobFailureHandler) {
     this.pool = pool;
+    this.onTerminalFailure = onTerminalFailure;
+  }
+
+  registerHandler(type: JobType, handler: JobHandler): void {
+    this.handlers.set(type, handler);
   }
 
   /**
@@ -84,6 +92,9 @@ export class JobQueue extends EventEmitter {
     const result = await this.pool.query<Job & Record<string, unknown>>(
       `INSERT INTO jobs (id, type, item_id, user_id, payload, max_attempts, status)
        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       ON CONFLICT (item_id, type)
+         WHERE status IN ('pending', 'processing')
+       DO UPDATE SET updated_at = jobs.updated_at
        RETURNING *`,
       [id, type, itemId, userId, JSON.stringify(payload), maxAttempts]
     );
@@ -99,8 +110,7 @@ export class JobQueue extends EventEmitter {
       `SELECT * FROM jobs
        WHERE status = 'pending' AND attempts < max_attempts
        ORDER BY created_at ASC
-       LIMIT $1
-       FOR UPDATE SKIP LOCKED`,
+       LIMIT $1`,
       [limit]
     );
 
@@ -195,18 +205,23 @@ export class JobQueue extends EventEmitter {
    * Check if all jobs for an item are completed
    */
   async areAllJobsCompleted(itemId: string): Promise<boolean> {
-    const result = await this.pool.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM jobs
-       WHERE item_id = $1 AND status NOT IN ('completed', 'failed')`,
+    const result = await this.pool.query<{ total: string; completed: string }>(
+      `SELECT COUNT(*) AS total,
+              COUNT(*) FILTER (WHERE status = 'completed') AS completed
+         FROM jobs WHERE item_id = $1`,
       [itemId]
     );
-
-    return parseInt(result.rows[0].count, 10) === 0;
+    const row = result.rows[0];
+    return Number(row.total) > 0 && Number(row.total) === Number(row.completed);
   }
 
   /**
    * Process pending jobs (called by interval)
    */
+  async processOnce(): Promise<void> {
+    await this.processJobs();
+  }
+
   private async processJobs(): Promise<void> {
     if (this.isProcessing) return;
     this.isProcessing = true;
@@ -231,19 +246,21 @@ export class JobQueue extends EventEmitter {
     if (!lockedJob) return;
 
     try {
-      // Emit event for registered handlers
-      const handler = this.emit(job.type, lockedJob);
-
+      const handler = this.handlers.get(job.type);
       if (!handler) {
-        console.warn(`[JobQueue] No handler registered for job type: ${job.type}`);
-        await this.markCompleted(job.id);
+        throw new Error("No handler registered for job type: " + job.type);
       }
+
+      await handler(lockedJob);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[JobQueue] Job ${job.id} failed:`, errorMessage);
 
       if (lockedJob.attempts >= lockedJob.maxAttempts) {
         await this.markFailed(job.id, errorMessage);
+        if (this.onTerminalFailure) {
+          await this.onTerminalFailure(lockedJob, errorMessage);
+        }
       } else {
         await this.resetForRetry(job.id);
       }

@@ -24,10 +24,17 @@ dotenv.config({ path: resolve(currentDirectory, '../../../.env') });
 const port = Number(process.env.PORT || 4000);
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
+const demoMode = process.env.DEMO_MODE === 'true';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseAnonKey) throw new Error('SUPABASE_URL và SUPABASE_ANON_KEY là bắt buộc');
-const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+if ((!supabaseUrl || !supabaseAnonKey) && !demoMode) {
+  throw new Error('SUPABASE_URL và SUPABASE_ANON_KEY là bắt buộc (hoặc bật DEMO_MODE=true)');
+}
+
+const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  : undefined;
 
 const pool = createPool(databaseUrl);
 let imageStorage;
@@ -39,11 +46,13 @@ if (process.env.SUPABASE_URL || process.env.SUPABASE_SERVICE_ROLE_KEY) {
 	imageStorage = createSupabaseImageStorage(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 	serviceSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-const authDeps = {
-	users: createSupabaseUsers(supabase, serviceSupabase),
-	throttle: createThrottle(pool),
-	audit: createAudit(pool)
-};
+const authDeps = supabase
+	? {
+			users: createSupabaseUsers(supabase, serviceSupabase),
+			throttle: createThrottle(pool),
+			audit: createAudit(pool)
+		}
+	: undefined;
 
 const repository = createItemRepository(pool);
 const app = createApp(
@@ -53,7 +62,7 @@ const app = createApp(
 	imageStorage,
 	supabase,
 	authDeps,
-	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true' }
+	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true', demoMode }
 );
 
 // Set up job queue
@@ -61,6 +70,9 @@ const { queue, router: jobRouter } = createJobRouter({
 	pool,
 	repository,
 	supabase: serviceSupabase,
+	authSupabase: supabase,
+	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
 	openAiKey: process.env.OPENAI_API_KEY
 });
 
@@ -83,6 +95,8 @@ const captureRouter = createCaptureRouter({
 const searchRouter = createSearchRouter({
 	pool,
 	supabase,
+	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
 	openAiKey: process.env.OPENAI_API_KEY
 });
 
@@ -105,7 +119,12 @@ const tagRouter = createTagRouter({
 const monitoringRouter = createMonitoringRouter({ pool });
 
 // Mount graph router
-const graphRouter = createGraphRouter({ pool, supabase });
+const graphRouter = createGraphRouter({
+  pool,
+  supabase,
+  expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+  developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
+});
 
 // Mount routes
 app.use(metricsMiddleware());

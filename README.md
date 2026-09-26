@@ -78,7 +78,61 @@ The current state:
 * `pnpm gates:skills` — 51/51 skills ✓
 * `pnpm gates:spec-sync` — all referenced paths resolve ✓
 * `pnpm gates:coverage` — `apps/api/src/auth/` ≥ 80 % lines/functions ✓
-* `pnpm test` — 78 tests (10 shared + 68 API) ✓
+* `pnpm test` — API + extension unit suite (CI currently executes 102 API tests plus extension tests) ✓
+
+
+## 3.5 Local product demo (no Supabase account required)
+
+The repository now includes a self-contained demo environment so the product can be shown locally without a real Supabase project.
+
+### Start the demo
+
+Requirements: Docker Desktop, Node.js 20+, and pnpm 9+.
+
+The easiest path is now one command:
+
+```bash
+pnpm demo
+```
+
+This prepares PostgreSQL + pgvector, seeds six realistic memories, starts the API, waits for its health endpoint, then starts the web dashboard.
+
+Open `http://localhost:3000` and click **Đăng nhập Demo**.
+
+For manual control, the individual commands are still available:
+
+```bash
+pnpm demo:prepare
+pnpm demo:api
+pnpm demo:web
+```
+
+To completely reset the local demo database and seed it again:
+
+```bash
+pnpm demo:reset
+```
+
+Demo account:
+- Email: `demo@mnemonics.local`
+- Password: `DemoPass123!`
+
+### Recommended demo flow
+
+1. Open the dashboard and show the seeded memories and tags.
+2. Search for a concept such as `memory`, `search`, or `workflow`.
+3. Open the Chrome extension from `chrome://extensions`, load the `apps/extension` directory as an unpacked extension, then open the dashboard inside the extension and choose **Dùng tài khoản demo**.
+4. Capture a short text snippet from a webpage. The extension sends the capture to the API with a stable `clientRequestId`.
+5. Return to the dashboard and search for the captured content. The asynchronous `tag → embed → ready` pipeline makes the item searchable.
+6. Use **Ý liên quan** on a ready memory to demonstrate the knowledge-graph / vector-relation path.
+7. Load `apps/extension` as an unpacked Chrome extension, sign in with the demo account, capture a real page, then return to the dashboard to show server reconciliation.
+8. Validate the whole pipeline from the command line:
+
+```bash
+pnpm demo:e2e
+```
+
+The demo mode is deliberately isolated: it uses a fixed local token and seed account and must not be enabled for production.
 
 ## 4. Where to start (by role)
 

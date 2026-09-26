@@ -12,11 +12,15 @@ import { TagHandler } from './handlers/tag.js';
 import { EmbedHandler } from './handlers/embed.js';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
 
 export interface JobRouterDeps {
   pool: Pool;
   repository: ItemRepository;
   supabase?: SupabaseClient;
+  authSupabase?: SupabaseClient;
+  expectedToken?: string;
+  developmentUserId?: string;
   openAiKey?: string;
 }
 
@@ -24,26 +28,30 @@ export function createJobRouter(deps: JobRouterDeps): {
   queue: JobQueue;
   router: Application;
 } {
-  const { pool, repository, supabase, openAiKey } = deps;
+  const {
+    pool,
+    repository,
+    supabase,
+    authSupabase,
+    expectedToken = 'mnemonics-dev-token',
+    developmentUserId = '00000000-0000-4000-8000-000000000001',
+    openAiKey
+  } = deps;
 
   // Create queue
-  const queue = new JobQueue(pool);
+  const queue = new JobQueue(pool, async (job) => {
+    await repository.updateStatus(job.itemId, 'failed');
+  });
 
   // Create handlers
   const ocrHandler = new OcrHandler(queue, repository, openAiKey);
   const tagHandler = new TagHandler(queue, repository, openAiKey);
-  const embedHandler = new EmbedHandler(queue, repository, supabase, openAiKey);
+  const embedHandler = new EmbedHandler(queue, repository, supabase, openAiKey, pool);
 
   // Register job handlers using EventEmitter
-  queue.on('ocr', async (job: unknown) => {
-    await ocrHandler.handle(job as Parameters<typeof ocrHandler.handle>[0]);
-  });
-  queue.on('tag', async (job: unknown) => {
-    await tagHandler.handle(job as Parameters<typeof tagHandler.handle>[0]);
-  });
-  queue.on('embed', async (job: unknown) => {
-    await embedHandler.handle(job as Parameters<typeof embedHandler.handle>[0]);
-  });
+  queue.registerHandler('ocr', (job) => ocrHandler.handle(job));
+  queue.registerHandler('tag', (job) => tagHandler.handle(job));
+  queue.registerHandler('embed', (job) => embedHandler.handle(job));
 
   // Create router
   const router = express.Router() as Application;
@@ -53,10 +61,14 @@ export function createJobRouter(deps: JobRouterDeps): {
     res.json({ data: { status: 'ok', queue: 'running' } });
   });
 
+  const authMiddleware = authSupabase
+    ? requireSupabaseAuth(authSupabase)
+    : requireDevelopmentAuth(expectedToken, developmentUserId);
+
   // Get job status
-  router.get('/jobs/:id', async (req: { params: { id: string } }, res: { json: (data: unknown) => void; status: (code: number) => { json: (data: unknown) => void } }) => {
+  router.get('/jobs/:id', authMiddleware, async (req: AuthenticatedRequest & { params: { id: string } }, res: { json: (data: unknown) => void; status: (code: number) => { json: (data: unknown) => void } }) => {
     const job = await queue.getJob(req.params.id);
-    if (!job) {
+    if (!job || job.userId !== req.userId) {
       res.status(404).json({ error: { code: 'JOB_NOT_FOUND', message: 'Job not found' } });
       return;
     }
@@ -64,14 +76,19 @@ export function createJobRouter(deps: JobRouterDeps): {
   });
 
   // Get jobs for item
-  router.get('/items/:itemId/jobs', async (req: { params: { itemId: string } }, res: { json: (data: unknown) => void }) => {
+  router.get('/items/:itemId/jobs', authMiddleware, async (req: AuthenticatedRequest & { params: { itemId: string } }, res: { json: (data: unknown) => void; status: (code: number) => { json: (data: unknown) => void } }) => {
+    const item = await repository.findById(req.params.itemId);
+    if (!item || item.userId !== req.userId) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
+      return;
+    }
     const jobs = await queue.getJobsForItem(req.params.itemId);
     res.json({ data: jobs });
   });
 
   // Manually trigger a job (for retry/debugging)
-  router.post('/items/:itemId/jobs/:type', async (
-    req: { params: { itemId: string; type: string }; body: Record<string, unknown> },
+  router.post('/items/:itemId/jobs/:type', authMiddleware, async (
+    req: AuthenticatedRequest & { params: { itemId: string; type: string }; body: Record<string, unknown> },
     res: { json: (data: unknown) => void; status: (code: number) => { json: (data: unknown) => void } }
   ) => {
     const { itemId, type } = req.params;
@@ -84,7 +101,7 @@ export function createJobRouter(deps: JobRouterDeps): {
 
     // Get item to find user_id
     const item = await repository.findById(itemId);
-    if (!item) {
+    if (!item || item.userId !== req.userId) {
       res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
       return;
     }

@@ -35,7 +35,7 @@ interface Session {
   user: AuthUser;
 }
 
-export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams };
+export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem };
 
 interface LoginRequest {
   email: string;
@@ -90,6 +90,14 @@ interface Item {
   status?: string;
   image_url?: string;
   source_url?: string;
+}
+
+interface RelatedItem {
+  id: string;
+  type: string;
+  title: string;
+  captured_at?: string;
+  similarity: number;
 }
 
 interface ApiErrorPayload {
@@ -278,6 +286,14 @@ export class ApiClient {
     if (request.filters?.captured_after) search.set('captured_after', request.filters.captured_after);
     if (request.filters?.captured_before) search.set('captured_before', request.filters.captured_before);
     return this.request<SearchResponse>(`/api/v1/search?${search.toString()}`, { accessToken });
+  }
+
+  async getRelatedItems(id: string, accessToken: string, limit = 5): Promise<RelatedItem[]> {
+    const response = await this.request<{ related_items: RelatedItem[] }>(
+      `/api/v1/items/${encodeURIComponent(id)}/related?limit=${limit}`,
+      { accessToken }
+    );
+    return Array.isArray(response.related_items) ? response.related_items : [];
   }
 
   async deleteItem(id: string, accessToken: string): Promise<void> {

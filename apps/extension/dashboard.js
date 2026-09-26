@@ -90,6 +90,8 @@ function escapeHtml(value) {
 
 // ===== LOCAL DEMO AUTH =====
 let currentUser = null;
+let serverSearchResults = null;
+let searchRequestEpoch = 0;
 
 function getStorageValue(key, fallback, cb) {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -196,7 +198,7 @@ function normalizeEmail(email) {
 }
 
 async function authRequest(path, body) {
-  const response = await fetch('http://localhost:4000/api/v1/auth/' + path, {
+  const response = await fetch((typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000') + '/api/v1/auth/' + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -293,8 +295,18 @@ function logoutUser() {
 // In production we don't ship demo credentials ? this is a no-op fallback so
 // the listener at `DOMContentLoaded` doesn't throw `ReferenceError`.
 async function loginDemoUser() {
-  showToast('Demo accounts are disabled ? please sign up or sign in.');
-  showPage('login');
+  try {
+    var data = await authRequest('login', {
+      email: 'demo@mnemonics.local',
+      password: 'DemoPass123!'
+    });
+    saveSession({ ...data.session, user: data.user }, function() {
+      showToast('Demo account signed in');
+      loadFromExtension(function() { showPage('dashboard'); });
+    });
+  } catch (error) {
+    setAuthError('login-error', error.message || 'Demo login failed');
+  }
 }
 
 // `readAccessToken` is provided by api-client.js (loaded before this
@@ -379,7 +391,12 @@ function renderDashboard() {
   var searchVal = '';
   var searchEl = document.getElementById('search-input');
   if (searchEl) searchVal = searchEl.value.toLowerCase().trim();
-  var base = searchVal ? items.filter(function(i) { return getSearchText(i).includes(searchVal); }) : items;
+  var base;
+  if (searchVal && Array.isArray(serverSearchResults)) {
+    base = serverSearchResults;
+  } else {
+    base = searchVal ? items.filter(function(i) { return getSearchText(i).includes(searchVal); }) : items;
+  }
   renderCards(applySortFilter(base));
 }
 
@@ -600,6 +617,7 @@ function apiItemToLocalShape(item) {
     tags: Array.isArray(item.tags) ? item.tags : [],
     capturedAt: item.captured_at || item.created_at || null,
     savedAt: item.captured_at || item.created_at || new Date().toISOString(),
+    clientRequestId: item.client_request_id || null,
     date: 'Just now',
     space: 'Pending sync',
     serverSynced: true,
@@ -620,17 +638,35 @@ function indexLocalById(list) {
 async function fetchItemsFromApi(uid, accessToken) {
   if (!uid || !accessToken) return null;
   const epoch = ++apiRequestEpoch;
-  try {
-    const response = await fetch('http://localhost:4000/api/v1/items?limit=50', {
+
+  async function request(token) {
+    return fetch((typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000') + '/api/v1/items?limit=50', {
       method: 'GET',
-      headers: { Authorization: 'Bearer ' + accessToken }
+      headers: { Authorization: 'Bearer ' + token }
     });
+  }
+
+  try {
+    let token = accessToken;
+    let response = await request(token);
+
+    // Keep the dashboard usable across access-token expiry. The extension
+    // auth client owns refresh-token persistence, so refresh exactly once
+    // and retry the same read request before clearing the session.
+    if (response.status === 401 && typeof refreshAccessToken === 'function') {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        token = refreshed;
+        response = await request(token);
+      }
+    }
+
     if (response.status === 401) {
-      // Token rejected ? drop the session so the dashboard asks for login.
       saveSession(null);
       return null;
     }
     if (!response.ok) return null;
+
     const json = await response.json().catch(() => null);
     if (!json || !json.data || !Array.isArray(json.data.items)) return null;
     if (epoch !== apiRequestEpoch) return null; // user switched accounts
@@ -712,23 +748,45 @@ function loadFromExtension(cb) {
 // merge rules can be unit-tested without a DOM.
 function reconcileServerItems(local, serverItems) {
   const localIndex = indexLocalById(local);
+  const pendingByClientRequestId = new Map();
+  for (const item of local || []) {
+    if (isPendingItem(item) && item.clientRequestId) {
+      pendingByClientRequestId.set(String(item.clientRequestId), item);
+    }
+  }
+
   const serverIds = new Set();
+  const reconciledLocalIds = new Set();
 
   const merged = serverItems.map(function(serverItem) {
     serverIds.add(String(serverItem.id));
-    const existing = localIndex.get(String(serverItem.id));
+    const existingById = localIndex.get(String(serverItem.id));
+    const existingByRequestId = serverItem.client_request_id
+      ? pendingByClientRequestId.get(String(serverItem.client_request_id))
+      : null;
+    const existing = existingById && isPendingItem(existingById)
+      ? existingById
+      : existingByRequestId;
+
     if (existing && isPendingItem(existing)) {
-      // Server already has the row (maybe a retry succeeded). Drop the
-      // pending flag but keep the user's local edits if any.
-      return Object.assign({}, existing, serverItem, { pendingUpload: false, serverSynced: true });
+      // A retry may have reached the server before the extension updated
+      // its local row. Match by clientRequestId as well as server id so the
+      // local pending row is replaced instead of duplicated.
+      reconciledLocalIds.add(String(existing.id));
+      return Object.assign({}, existing, serverItem, {
+        id: serverItem.id,
+        pendingUpload: false,
+        serverSynced: true
+      });
     }
     return serverItem;
   });
 
-  // Anything still local-only (no matching server id) keeps its place.
+  // Anything still local-only (no matching server id/request id) keeps its place.
   for (const item of local) {
     if (!item || item.id === undefined || item.id === null) continue;
     if (serverIds.has(String(item.id))) continue;
+    if (reconciledLocalIds.has(String(item.id))) continue;
     if (isPendingItem(item)) merged.unshift(item);
   }
 
@@ -791,6 +849,103 @@ function showPage(page) {
   if (page === 'reminders') renderReminders();
   if (page === 'settings') syncSettingsUI();
   window.scrollTo(0, 0);
+}
+
+
+function requestRelatedItems(itemId, limit) {
+  return new Promise(function(resolve, reject) {
+    if (!itemId) {
+      reject(new Error('Missing item id.'));
+      return;
+    }
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      reject(new Error('Related memories require the extension dashboard.'));
+      return;
+    }
+
+    chrome.runtime.sendMessage(
+      { type: 'GET_RELATED_ITEMS', itemId: itemId, limit: limit || 5 },
+      function(response) {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || 'Could not reach background sync.'));
+          return;
+        }
+        if (!response || !response.ok) {
+          reject(new Error((response && response.error) || 'Could not load related memories.'));
+          return;
+        }
+        resolve(Array.isArray(response.data) ? response.data : []);
+      }
+    );
+  });
+}
+
+function relatedMemoriesHtml(item) {
+  if (!item || !item.serverSynced || !item.id) return '';
+  const itemId = escapeHtml(String(item.id));
+  return '<div class="card-related-wrap">' +
+    '<button type="button" class="related-btn" data-related-id="' + itemId + '">' +
+      '↗ Related memories' +
+    '</button>' +
+    '<div class="related-results" data-related-results-for="' + itemId + '" hidden></div>' +
+  '</div>';
+}
+
+async function loadRelatedMemories(button) {
+  if (button.dataset.relatedLoaded === 'true') {
+    hideRelatedMemories(button);
+    return;
+  }
+
+  const itemId = button.dataset.relatedId;
+  const results = document.querySelector('[data-related-results-for="' + CSS.escape(itemId) + '"]');
+  if (!results) return;
+
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = 'Loading related…';
+
+  try {
+    const related = await requestRelatedItems(itemId, 5);
+
+    if (related.length === 0) {
+      results.innerHTML = '<div class="related-empty">No strong semantic links yet.</div>';
+    } else {
+      results.innerHTML = related.map(function(item) {
+        const similarity = Math.round(Number(item.similarity || 0) * 100);
+        return '<button type="button" class="related-result" data-related-open-url="' +
+          escapeHtml(String(item.id)) + '">' +
+          '<span class="related-result-main">' +
+            '<span class="related-result-title">' + escapeHtml(item.title || 'Untitled memory') + '</span>' +
+            '<span class="related-result-meta">' + escapeHtml(String(item.type || 'item')) +
+              ' · ' + similarity + '% similarity</span>' +
+          '</span>' +
+          '<span class="related-result-arrow">→</span>' +
+        '</button>';
+      }).join('');
+    }
+
+    results.hidden = false;
+    button.textContent = '↗ Hide related memories';
+    button.dataset.relatedLoaded = 'true';
+  } catch (error) {
+    results.innerHTML = '<div class="related-empty">' +
+      escapeHtml(error && error.message ? error.message : 'Could not load related memories.') +
+      '</div>';
+    results.hidden = false;
+    button.textContent = originalText;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function hideRelatedMemories(button) {
+  const itemId = button.dataset.relatedId;
+  const results = document.querySelector('[data-related-results-for="' + CSS.escape(itemId) + '"]');
+  if (!results) return;
+  results.hidden = true;
+  button.dataset.relatedLoaded = 'false';
+  button.textContent = '↗ Related memories';
 }
 
 // ===== RENDER CARDS =====
@@ -908,7 +1063,7 @@ function renderCards(data) {
       </div>`;
     }
 
-    return `<div class="memory-card">
+    return `<div class="memory-card" data-memory-id="${escapeHtml(String(item.id || ''))}">
       ${item.type !== 'note' ? `<div class="card-header">
         <span class="card-type ${typeClass}">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
         <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">NEW</span>' : ''}
@@ -921,6 +1076,7 @@ function renderCards(data) {
         </div>
       </div>` : ''}
       ${body}
+      ${relatedMemoriesHtml(item)}
       ${item.type !== 'quote' ? `<div class="card-footer">
         <span class="card-date">${item.date || ''}</span>
         <span class="card-space">${item.space || ''}</span>
@@ -1357,17 +1513,62 @@ function deleteReminder(id) {
 function handleSearch(val) {
   clearTimeout(searchTimeout);
   const q = val.toLowerCase().trim();
+  serverSearchResults = null;
   if (!q) {
+    searchRequestEpoch += 1;
     renderDashboard();
     hideAIResult();
     return;
   }
-  // Combine search with current sort/filter
+
+  // Keep the local result visible while the server search is in flight.
   renderDashboard();
 
-  // AI search after delay
+  searchTimeout = setTimeout(async function() {
+    if (!currentUser || !currentUser.id) return;
+    var requestEpoch = ++searchRequestEpoch;
+    try {
+      var token = await getAccessToken();
+      if (!token) {
+        token = await refreshAccessToken();
+      }
+      if (!token) return;
+
+      var response = await searchItemsFromApi(q, token);
+      if (requestEpoch !== searchRequestEpoch) return;
+
+      var hits = response && Array.isArray(response.hits) ? response.hits : [];
+      serverSearchResults = hits.map(function(hit) {
+        return {
+          id: hit.id,
+          type: hit.kind || 'text',
+          title: hit.title || 'Untitled',
+          note: hit.snippet || '',
+          excerpt: hit.snippet || '',
+          tags: Array.isArray(hit.tags) ? hit.tags : [],
+          savedAt: hit.captured_at || new Date().toISOString(),
+          capturedAt: hit.captured_at || null,
+          serverSynced: true,
+          searchScore: hit.score
+        };
+      });
+      renderDashboard();
+      showAIResult(
+        serverSearchResults.length
+          ? 'Server search found <b>' + serverSearchResults.length + '</b> result(s) for "<b>' + escapeHtml(q) + '</b>".'
+          : 'No server results for "<b>' + escapeHtml(q) + '</b>".'
+      );
+    } catch (error) {
+      if (requestEpoch !== searchRequestEpoch) return;
+      // Keep local search usable if the API is temporarily unavailable.
+      serverSearchResults = null;
+      renderDashboard();
+      showAIResult('Server search unavailable — showing local matches.');
+    }
+  }, 350);
+
   clearTimeout(aiSearchTimeout);
-  aiSearchTimeout = setTimeout(() => doAISearch(val), 800);
+  aiSearchTimeout = setTimeout(function() { doAISearch(val); }, 800);
 }
 
 async function doAISearch() {
@@ -1962,6 +2163,35 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // ---- Book rail interactions ----
+  var cardsContainer = document.getElementById('cards-container');
+  if (cardsContainer) cardsContainer.addEventListener('click', function(e) {
+    var relatedBtn = e.target.closest('[data-related-id]');
+    if (relatedBtn) {
+      loadRelatedMemories(relatedBtn);
+      return;
+    }
+
+    var relatedOpen = e.target.closest('[data-related-open-url]');
+    if (relatedOpen) {
+      var relatedId = relatedOpen.dataset.relatedOpenUrl;
+      var target = items.find(function(item) { return String(item.id) === String(relatedId); });
+      if (target) {
+        var targetCard = document.querySelector('[data-memory-id="' + CSS.escape(relatedId) + '"]');
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.style.outline = '2px solid var(--purple)';
+          setTimeout(function() { targetCard.style.outline = ''; }, 1400);
+        } else {
+          showToast('This related memory is not in the current view.');
+        }
+      } else {
+        showToast('Open the related memory from the dashboard results.');
+      }
+      return;
+    }
+  });
+
+  // ---- Book rail interactions ----
   var bookRail = document.getElementById('book-rail');
   if (bookRail) bookRail.addEventListener('click', function(e) {
     var topicBtn = e.target.closest('[data-book-topic]');
@@ -2429,7 +2659,8 @@ function resyncItem(btn) {
       sourceUrl: item.sourceUrl || '',
       title: item.title || '',
       note: item.note || '',
-      capturedAt: item.savedAt || ''
+      capturedAt: item.savedAt || '',
+      clientRequestId: item.clientRequestId || ''
     };
   } else {
     message = {
@@ -2438,7 +2669,8 @@ function resyncItem(btn) {
       title: item.title || '',
       sourceUrl: item.sourceUrl || item.url || '',
       selectedText: item.note || item.selectedText || '',
-      capturedAt: item.savedAt || ''
+      capturedAt: item.savedAt || '',
+      clientRequestId: item.clientRequestId || ''
     };
   }
 
@@ -2451,6 +2683,17 @@ function resyncItem(btn) {
     }
     if (response && response.ok) {
       item.pendingUpload = false;
+      item.serverSynced = true;
+      const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
+      const cacheKey = userCacheKey(uid);
+      const nextLocal = baseMemoryItems.map(function(localItem) {
+        return String(localItem.id) === String(item.id) ? Object.assign({}, localItem, {
+          pendingUpload: false,
+          serverSynced: true
+        }) : localItem;
+      });
+      baseMemoryItems = nextLocal;
+      setStorageValues({ [cacheKey]: nextLocal }, function() {});
       renderDashboard();
       showToast('? Uploaded to Supabase');
     } else {

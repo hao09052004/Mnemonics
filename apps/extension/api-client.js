@@ -138,7 +138,7 @@ function toCapturePayload(item) {
     sourceUrl: item.sourceUrl || undefined,
     selectedText: item.note || item.excerpt || undefined,
     capturedAt: item.capturedAt || item.savedAt || new Date().toISOString(),
-    clientRequestId: crypto.randomUUID()
+    clientRequestId: item.clientRequestId || crypto.randomUUID()
   };
 
   if (type === 'image') {
@@ -147,13 +147,130 @@ function toCapturePayload(item) {
   return payload;
 }
 
+async function refreshAccessToken() {
+  var raw = null;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      raw = await new Promise(function(resolve) {
+        chrome.storage.local.get('mnemonics_session', function(r) {
+          resolve(r && r.mnemonics_session ? r.mnemonics_session : null);
+        });
+      });
+    } else {
+      raw = JSON.parse(localStorage.getItem('mnemonics_session') || 'null');
+    }
+  } catch (e) {
+    raw = null;
+  }
+
+  if (!raw || !raw.refreshToken) return null;
+
+  var response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: raw.refreshToken })
+    });
+  } catch (e) {
+    return null;
+  }
+
+  var body = await response.json().catch(function() { return {}; });
+  var session = body && body.data && body.data.session;
+  if (!response.ok || !session || !session.accessToken) return null;
+
+  var next = Object.assign({}, raw, {
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken || raw.refreshToken,
+    expiresAt: session.expiresAt || raw.expiresAt,
+    user: (body.data && body.data.user) || raw.user
+  });
+
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      await new Promise(function(resolve) {
+        chrome.storage.local.set({ mnemonics_session: next }, resolve);
+      });
+    } else {
+      localStorage.setItem('mnemonics_session', JSON.stringify(next));
+    }
+  } catch (e) {
+    // The refreshed token is still returned to the caller even if persistence fails.
+  }
+
+  return next.accessToken;
+}
+
+async function sendCaptureRequest(payload, accessToken) {
+  return fetch(MNEMONICS_API_URL + '/api/v1/captures', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+    body: JSON.stringify(payload)
+  });
+}
+
 async function sendCaptureToApi(item, accessToken) {
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu dữ liệu.');
-  const response = await fetch(`${MNEMONICS_API_URL}/api/v1/captures`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify(toCapturePayload(item))
-  });
-  if (!response.ok) throw new Error(`Capture API failed with status ${response.status}`);
-  return { sent: true, data: await response.json() };
+
+  var payload = toCapturePayload(item);
+  var token = accessToken;
+  var response = await sendCaptureRequest(payload, token);
+
+  // A stale access token should not turn a valid local capture into a
+  // permanent pending item. Refresh exactly once, then retry the same
+  // idempotent clientRequestId so the API can safely deduplicate it.
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await sendCaptureRequest(payload, token);
+    }
+  }
+
+  var body = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    var message = body && body.error && body.error.message
+      ? body.error.message
+      : 'Capture API failed with status ' + response.status;
+    throw new Error(message);
+  }
+  return { sent: true, data: body };
+}
+
+
+async function searchItemsFromApi(query, accessToken) {
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi tìm kiếm.');
+
+  async function request(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify({ q: query, limit: 50, offset: 0 })
+    });
+  }
+
+  var token = accessToken;
+  var response = await request(token);
+
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await request(token);
+    }
+  }
+
+  var body = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    var message = body && body.error && body.error.message
+      ? body.error.message
+      : 'Search API failed with status ' + response.status;
+    throw new Error(message);
+  }
+
+  return body;
 }

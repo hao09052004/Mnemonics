@@ -8,18 +8,28 @@
 import type { JobQueue } from '../queue.js';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Pool } from 'pg';
+import { autoLinkSimilarItems } from '../auto-link-similar.js';
 
 export class EmbedHandler {
   private queue: JobQueue;
   private repository: ItemRepository;
   private supabase?: SupabaseClient;
   private openAiKey?: string;
+  private pool?: Pool;
 
-  constructor(queue: JobQueue, repository: ItemRepository, supabase?: SupabaseClient, openAiKey?: string) {
+  constructor(
+    queue: JobQueue,
+    repository: ItemRepository,
+    supabase?: SupabaseClient,
+    openAiKey?: string,
+    pool?: Pool
+  ) {
     this.queue = queue;
     this.repository = repository;
     this.supabase = supabase;
     this.openAiKey = openAiKey;
+    this.pool = pool;
   }
 
   async handle(job: { id: string; itemId: string; userId: string; payload: Record<string, unknown> }): Promise<void> {
@@ -29,8 +39,7 @@ export class EmbedHandler {
       // 1. Get the item
       const item = await this.repository.findById(job.itemId);
       if (!item) {
-        await this.queue.markFailed(job.id, 'Item not found');
-        return;
+        throw new Error('Item not found');
       }
 
       // 2. Generate embedding
@@ -53,6 +62,20 @@ export class EmbedHandler {
       const allDone = await this.queue.areAllJobsCompleted(job.itemId);
       if (allDone) {
         await this.repository.updateStatus(job.itemId, 'ready');
+
+        if (this.openAiKey && this.pool) {
+          try {
+            const related = await autoLinkSimilarItems(this.pool, job.userId, job.itemId);
+            console.log(
+              `[EmbedHandler] Auto-linked ${related.length} similar memories for item ${job.itemId}`
+            );
+          } catch (graphError) {
+            // Graph enrichment is best-effort: a graph outage must not turn
+            // a successfully embedded, searchable item back into a failed job.
+            console.warn('[EmbedHandler] Similarity linking failed:', graphError);
+          }
+        }
+
         console.log(`[EmbedHandler] Item ${job.itemId} is now ready`);
       } else {
         console.log(`[EmbedHandler] Item ${job.itemId} still has pending jobs`);
@@ -62,7 +85,7 @@ export class EmbedHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[EmbedHandler] Error processing job ${job.id}:`, errorMessage);
-      await this.queue.markFailed(job.id, errorMessage);
+      throw new Error(errorMessage);
     }
   }
 
@@ -136,7 +159,6 @@ export class EmbedHandler {
         .from('item_embeddings')
         .upsert({
           item_id: itemId,
-          user_id: userId,
           model: 'text-embedding-3-small',
           dimensions: embedding.length,
           embedding: embedding,

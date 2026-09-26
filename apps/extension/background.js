@@ -1,5 +1,8 @@
 // Background service worker
+importScripts('pending-sync-policy.js');
+
 let mnemonicsPendingScreenshot = null;
+let pendingSyncInProgress = false;
 const MNEMONICS_API_URL = 'http://localhost:4000';
 // Mirror of .env → bucket + Supabase URL the API uploads into. The public
 // bucket serves these URLs directly so the dashboard can <img src=...>
@@ -82,6 +85,228 @@ async function getValidAccessToken() {
   });
   console.log('[mnemonics] token refreshed, expiresAt:', next.expiresAt);
   return next.accessToken;
+}
+
+
+// Force a refresh after the server rejects an otherwise-unexpired access token.
+// This is the recovery path for revoked/rotated JWTs; getValidAccessToken()
+// only refreshes proactively near expiry.
+async function forceRefreshAccessToken() {
+  const stored = await new Promise(function(resolve) {
+    chrome.storage.local.get('mnemonics_session', function(r) {
+      resolve(r.mnemonics_session);
+    });
+  });
+
+  if (!stored || !stored.refreshToken) {
+    throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
+  }
+
+  let response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: stored.refreshToken })
+    });
+  } catch (networkErr) {
+    throw new Error('Không refresh được token: ' + networkErr.message);
+  }
+
+  const payload = await response.json().catch(function() { return {}; });
+  const session = payload && payload.data && payload.data.session;
+  if (!response.ok || !session || !session.accessToken || !session.refreshToken) {
+    chrome.storage.local.remove('mnemonics_session', function() {});
+    throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại trong dashboard.');
+  }
+
+  const next = Object.assign({}, stored, {
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    expiresAt: session.expiresAt || stored.expiresAt,
+    user: (payload.data && payload.data.user) || stored.user
+  });
+
+  await new Promise(function(resolve) {
+    chrome.storage.local.set({ mnemonics_session: next }, function() { resolve(); });
+  });
+
+  return next.accessToken;
+}
+
+
+// ---------------------------------------------------------------------------
+// Automatic pending-upload resync
+// ---------------------------------------------------------------------------
+
+const PENDING_SYNC_ALARM = 'mnemonics-pending-sync';
+const PENDING_SYNC_BATCH_SIZE = 5;
+
+function ensurePendingSyncAlarm() {
+  if (!chrome.alarms) return;
+  chrome.alarms.create(PENDING_SYNC_ALARM, { periodInMinutes: 1 });
+}
+
+function readSession() {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get('mnemonics_session', function(result) {
+      resolve(result && result.mnemonics_session ? result.mnemonics_session : null);
+    });
+  });
+}
+
+function readUserItems(session) {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get([getUserItemsKey(session)], function(result) {
+      resolve(result[getUserItemsKey(session)] || []);
+    });
+  });
+}
+
+function writeUserItems(session, items) {
+  return new Promise(function(resolve, reject) {
+    const payload = {};
+    payload[getUserItemsKey(session)] = items;
+    chrome.storage.local.set(payload, function() {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function syncSuccess(item, serverBody) {
+  const data = serverBody && serverBody.data ? serverBody.data : {};
+  const next = Object.assign({}, item, {
+    pendingUpload: false,
+    serverSynced: true,
+    serverId: data.id || item.serverId || item.id,
+    syncAttempts: Number(item.syncAttempts || 0),
+    lastSyncAt: new Date().toISOString(),
+    nextRetryAt: null,
+    syncError: null,
+    syncStatus: 'synced'
+  });
+
+  if ((item.type === 'image' || item.type === 'screenshot') && data.signedUrl) {
+    next.imageUrl = data.signedUrl;
+  }
+
+  return next;
+}
+
+function syncFailure(item, error) {
+  const attempts = Number(item.syncAttempts || 0) + 1;
+  const terminal = attempts >= MNEMONICS_SYNC_POLICY.MAX_ATTEMPTS;
+  return Object.assign({}, item, {
+    pendingUpload: true,
+    serverSynced: false,
+    syncAttempts: attempts,
+    lastSyncAt: new Date().toISOString(),
+    nextRetryAt: terminal
+      ? null
+      : MNEMONICS_SYNC_POLICY.nextRetryAt(Date.now(), attempts - 1),
+    syncError: error && error.message ? error.message : String(error || 'Sync failed'),
+    syncStatus: terminal ? 'attention' : 'retrying'
+  });
+}
+
+async function syncPendingItem(item) {
+  try {
+    let body;
+    if (item.type === 'image' || item.type === 'screenshot') {
+      body = await uploadImageFromContextMenu(
+        item.imageUrl || '',
+        item.sourceUrl || item.sourcePageUrl || item.pageUrl || '',
+        item.title || '',
+        {
+          note: item.note || item.selectedText || '',
+          capturedAt: item.savedAt || item.capturedAt || new Date().toISOString(),
+          clientRequestId: item.clientRequestId || undefined
+        }
+      );
+    } else {
+      body = await uploadTextCapture({
+        type: item.type === 'link' ? 'link' : 'text',
+        title: item.title || (item.type === 'link' ? 'Link đã lưu' : 'Đoạn trích'),
+        sourceUrl: item.sourceUrl || item.url || undefined,
+        selectedText: item.note || item.selectedText || item.excerpt || undefined,
+        capturedAt: item.savedAt || item.capturedAt || new Date().toISOString(),
+        clientRequestId: item.clientRequestId || crypto.randomUUID()
+      });
+    }
+
+    return { item: syncSuccess(item, body), ok: true };
+  } catch (error) {
+    return { item: syncFailure(item, error), ok: false };
+  }
+}
+
+async function syncPendingItems() {
+  if (pendingSyncInProgress) return;
+  pendingSyncInProgress = true;
+
+  try {
+    const session = await readSession();
+    if (!session || !session.user || !session.user.id) return;
+
+    const items = await readUserItems(session);
+    const now = Date.now();
+    const candidates = items
+      .filter(function(item) {
+        return MNEMONICS_SYNC_POLICY.shouldRetry(item, now);
+      })
+      .map(function(item) {
+        return item.clientRequestId
+          ? item
+          : Object.assign({}, item, { clientRequestId: crypto.randomUUID() });
+      })
+      .sort(function(a, b) {
+        return String(a.nextRetryAt || a.savedAt || '').localeCompare(
+          String(b.nextRetryAt || b.savedAt || '')
+        );
+      })
+      .slice(0, PENDING_SYNC_BATCH_SIZE);
+
+    if (candidates.length === 0) return;
+
+    const candidateIds = new Set(candidates.map(function(item) { return String(item.id); }));
+    const candidateById = new Map(candidates.map(function(item) { return [String(item.id), item]; }));
+    const processing = items.map(function(item) {
+      if (!candidateIds.has(String(item.id))) return item;
+      const normalized = candidateById.get(String(item.id)) || item;
+      return Object.assign({}, normalized, { syncing: true, syncStatus: 'syncing' });
+    });
+    await writeUserItems(session, processing);
+
+    const results = [];
+    for (const candidate of candidates) {
+      const current = Object.assign({}, candidate, { syncing: true });
+      results.push(await syncPendingItem(current));
+    }
+
+    const resultById = new Map(results.map(function(result) {
+      return [String(result.item.id), result.item];
+    }));
+
+    const finalItems = processing.map(function(item) {
+      const result = resultById.get(String(item.id));
+      return result || item;
+    });
+
+    await writeUserItems(session, finalItems);
+
+    const succeeded = results.filter(function(result) { return result.ok; }).length;
+    if (succeeded > 0) {
+      notifyDashboards('ITEM_SAVED');
+    }
+  } catch (error) {
+    console.warn('[Mnemonics] pending sync error:', error && error.message ? error.message : error);
+  } finally {
+    pendingSyncInProgress = false;
+  }
 }
 
 // Returns the chrome.storage.local key for the current user's items.
@@ -209,7 +434,7 @@ async function tryResolveImageViaBackground(imageUrl) {
 }
 
 async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
-  const accessToken = await getValidAccessToken();
+  let accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
   const noteText = extra && extra.note ? extra.note : '';
@@ -292,18 +517,32 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   form.append('note', noteText.slice(0, 4000));
   form.append('sourceUrl', pageUrl || '');
   form.append('capturedAt', capturedAt);
-  form.append('clientRequestId', crypto.randomUUID());
+  const clientRequestId = extra && extra.clientRequestId ? extra.clientRequestId : crypto.randomUUID();
+  form.append('clientRequestId', clientRequestId);
 
-  const uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
+  let uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + accessToken },
     body: form
   });
+
+  if (uploadResponse.status === 401) {
+    accessToken = await forceRefreshAccessToken();
+    uploadResponse = await fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken },
+      body: form
+    });
+  }
+
   const body = await uploadResponse.json().catch(() => ({}));
   if (!uploadResponse.ok) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được ảnh.');
   }
-  return Object.assign(body, { _resolvedDataUrl: resolvedDataUrl });
+  return Object.assign(body, {
+    _resolvedDataUrl: resolvedDataUrl,
+    _clientRequestId: clientRequestId
+  });
 }
 
 // After the server-side upload succeeds, also append a local item so the
@@ -322,7 +561,7 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
 //   Critical for re-sync: if the original CDN URL (Facebook, Instagram) has
 //   expired since the first save, we still have the bytes cached as a data URL
 //   and can re-upload without needing the original URL.
-function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, resolvedDataUrl) {
+function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, resolvedDataUrl, clientRequestId) {
   return new Promise(function(resolve, reject) {
     chrome.storage.local.get(['mnemonics_session'], function(sess) {
       if (chrome.runtime.lastError) {
@@ -362,7 +601,13 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
           // serverResult; the dashboard surfaces a "Đồng bộ lên database"
           // button on those rows. Once the user clicks it, we re-upload
           // and clear the flag in place.
-          pendingUpload: !serverResult
+          pendingUpload: !serverResult,
+          clientRequestId: clientRequestId || (serverResult && serverResult._clientRequestId) || null,
+          syncAttempts: serverResult ? 0 : 0,
+          nextRetryAt: serverResult ? null : new Date().toISOString(),
+          lastSyncAt: serverResult ? new Date().toISOString() : null,
+          syncError: null,
+          syncStatus: serverResult ? 'synced' : 'pending'
         };
         items.unshift(newItem);
         const stored = items.slice(0, 80);
@@ -385,17 +630,27 @@ function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, reso
 // the parsed JSON body on success. Throws with a human-readable message
 // on network failure / 4xx so callers can show it.
 async function uploadTextCapture(payload) {
-  const accessToken = await getValidAccessToken();
+  let accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu.');
   if (!payload || !payload.title) throw new Error('Thiếu tiêu đề.');
-  const response = await fetch(MNEMONICS_API_URL + '/api/v1/captures', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + accessToken,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+
+  async function send(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/captures', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  }
+
+  let response = await send(accessToken);
+  if (response.status === 401) {
+    accessToken = await forceRefreshAccessToken();
+    response = await send(accessToken);
+  }
+
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được.');
@@ -422,7 +677,12 @@ function writeGenericLocalStore(item, serverResult) {
         }
         const items = r[itemsKey] || [];
         const stored = Object.assign({}, item, {
-          pendingUpload: !serverResult
+          pendingUpload: !serverResult,
+          syncAttempts: serverResult ? 0 : Number(item.syncAttempts || 0),
+          nextRetryAt: serverResult ? null : (item.nextRetryAt || new Date().toISOString()),
+          lastSyncAt: serverResult ? new Date().toISOString() : (item.lastSyncAt || null),
+          syncError: serverResult ? null : (item.syncError || null),
+          syncStatus: serverResult ? 'synced' : 'pending'
         });
         items.unshift(stored);
         const trimmed = items.slice(0, 80);
@@ -479,11 +739,28 @@ function setupContextMenus() {
   });
 }
 
-chrome.runtime.onInstalled.addListener(setupContextMenus);
-// onStartup handles browser reboot; reload-from-disk skips onInstalled but
-// still loads this background script — recreate the menus every time.
-chrome.runtime.onStartup.addListener(setupContextMenus);
+chrome.runtime.onInstalled.addListener(function() {
+  setupContextMenus();
+  ensurePendingSyncAlarm();
+  syncPendingItems();
+});
+// onStartup handles browser reboot; recreate menus and resume any pending
+// uploads that were left in local storage while the browser was offline.
+chrome.runtime.onStartup.addListener(function() {
+  setupContextMenus();
+  ensurePendingSyncAlarm();
+  syncPendingItems();
+});
 setupContextMenus();
+ensurePendingSyncAlarm();
+
+if (chrome.alarms) {
+  chrome.alarms.onAlarm.addListener(function(alarm) {
+    if (alarm && alarm.name === PENDING_SYNC_ALARM) {
+      syncPendingItems();
+    }
+  });
+}
 
 // Xử lý khi user click context menu
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -498,6 +775,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     // call if we want — but here we just rely on the existing pattern.
     const localItem = {
       id: Date.now(),
+      clientRequestId: crypto.randomUUID(),
       title: title,
       note: '',
       excerpt: '',
@@ -519,7 +797,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         title: title,
         sourceUrl: linkUrl,
         capturedAt: localItem.savedAt,
-        clientRequestId: crypto.randomUUID()
+        clientRequestId: localItem.clientRequestId
       }).then(function() {
         writeGenericLocalStore(localItem, { ok: true });
         notifyDashboards('ITEM_SAVED');
@@ -545,10 +823,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const pageTitle = tab.title || '';
 
     notifyCapture('Mnemonics', 'Đang lưu ảnh...', '…', '#f59e0b');
-    uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle)
+    const clientRequestId = crypto.randomUUID();
+    uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, { clientRequestId })
       .then((serverResult) => {
         const dataUrl = serverResult && serverResult._resolvedDataUrl ? serverResult._resolvedDataUrl : null;
-        return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, dataUrl);
+        return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, dataUrl, clientRequestId);
       })
       .then(() => {
         chrome.tabs.query({}, (tabs) => {
@@ -568,11 +847,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         tryResolveImageViaBackground(imageUrl)
           .then(function(dataUrl) {
             // Pass resolvedDataUrl so the card renders AND re-sync works
-            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, dataUrl);
+            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, dataUrl, clientRequestId);
           })
           .catch(function() {
             // Could not resolve image at all — still save with original URL
-            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, null);
+            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, null, clientRequestId);
           })
           .then(() => notifyCapture(
             'Mnemonics - Lưu cục bộ',
@@ -610,6 +889,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
     const localItem = {
       id: Date.now(),
+      clientRequestId: crypto.randomUUID(),
       title: pageTitle.slice(0, 80) || 'Đoạn trích',
       note: selectedText.slice(0, 500),
       excerpt: selectedText.slice(0, 280),
@@ -629,7 +909,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       sourceUrl: pageUrl || undefined,
       selectedText: selectedText || undefined,
       capturedAt: localItem.savedAt,
-      clientRequestId: crypto.randomUUID()
+      clientRequestId: localItem.clientRequestId
     };
 
     uploadTextCapture(serverPayload)
@@ -762,7 +1042,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const note = msg.note || '';
     uploadImageFromContextMenu(imageUrl, sourceUrl, title, {
       note: note,
-      capturedAt: msg.capturedAt || new Date().toISOString()
+      capturedAt: msg.capturedAt || new Date().toISOString(),
+      clientRequestId: msg.clientRequestId || undefined
     })
       .then((serverItem) => {
         sendResponse({ ok: true, data: serverItem });
@@ -770,6 +1051,54 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((error) => {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
       });
+    return true;
+  }
+
+  // Fetch semantic neighbors for a dashboard card. Keep this in the
+  // service worker so the dashboard never needs to own auth-token refresh.
+  if (msg && msg.type === 'GET_RELATED_ITEMS') {
+    const itemId = String(msg.itemId || '');
+    const limit = Math.min(Math.max(Number(msg.limit || 5), 1), 10);
+
+    if (!itemId) {
+      sendResponse({ ok: false, error: 'itemId is required' });
+      return true;
+    }
+
+    getValidAccessToken()
+      .then(async function(accessToken) {
+        const apiBase = MNEMONICS_API_URL;
+        async function request(token) {
+          return fetch(
+            apiBase + '/api/v1/items/' + encodeURIComponent(itemId) + '/related?limit=' + limit,
+            { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
+          );
+        }
+
+        let response = await request(accessToken);
+        if (response.status === 401) {
+          const refreshed = await forceRefreshAccessToken();
+          response = await request(refreshed);
+        }
+
+        const body = await response.json().catch(function() { return {}; });
+        if (!response.ok) {
+          throw new Error(
+            body && body.error && body.error.message
+              ? body.error.message
+              : 'Could not load related memories.'
+          );
+        }
+
+        sendResponse({ ok: true, data: body.related_items || [] });
+      })
+      .catch(function(error) {
+        sendResponse({
+          ok: false,
+          error: error && error.message ? error.message : 'Could not load related memories.'
+        });
+      });
+
     return true;
   }
 
@@ -784,7 +1113,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sourceUrl: msg.sourceUrl || undefined,
       selectedText: msg.selectedText || undefined,
       capturedAt: msg.capturedAt || new Date().toISOString(),
-      clientRequestId: crypto.randomUUID()
+      clientRequestId: msg.clientRequestId || crypto.randomUUID()
     };
     uploadTextCapture(serverPayload)
       .then(function(serverItem) {

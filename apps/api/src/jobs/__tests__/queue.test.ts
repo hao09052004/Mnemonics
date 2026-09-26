@@ -67,17 +67,117 @@ describe('JobQueue', () => {
     expect(job.maxAttempts).toBe(3);
   });
 
-  it('should emit events for job types', async () => {
-    let received = false;
+  it('should reuse an active job for the same item and type', async () => {
+    const activeRow = {
+      id: 'existing-tag-job',
+      type: 'tag',
+      item_id: 'item-active',
+      user_id: 'user-456',
+      payload: JSON.stringify({ source: 'capture' }),
+      status: 'pending',
+      attempts: 0,
+      max_attempts: 3,
+      error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null
+    };
 
-    queue.on('tag', async () => {
-      received = true;
+    let insertCalls = 0;
+    const pool = {
+      query: async (sql: string, _params: any[]) => {
+        if (sql.includes('INSERT INTO jobs') && sql.includes('ON CONFLICT (item_id, type)')) {
+          insertCalls += 1;
+          return { rows: [activeRow], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+    } as any;
+
+    const idempotentQueue = new JobQueue(pool);
+    const first = await idempotentQueue.create({
+      type: 'tag',
+      itemId: 'item-active',
+      userId: 'user-456',
+      payload: { source: 'capture' }
+    });
+    const second = await idempotentQueue.create({
+      type: 'tag',
+      itemId: 'item-active',
+      userId: 'user-456',
+      payload: { source: 'capture', attempt: 2 }
     });
 
-    queue.emit('tag', { id: 'job-1', itemId: 'item-1', userId: 'user-1', payload: {} });
-    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(first.id).toBe('existing-tag-job');
+    expect(second.id).toBe('existing-tag-job');
+    expect(insertCalls).toBe(2);
+    idempotentQueue.stop();
+  });
 
-    expect(received).toBe(true);
+  it('should register async handlers without EventEmitter coupling', async () => {
+    const handler = async (_job: Job) => undefined;
+    queue.registerHandler('tag', handler);
+    expect((queue as any).handlers.get('tag')).toBe(handler);
+  });
+
+
+  it('awaits handlers and retries transient failures', async () => {
+    let attempts = 0;
+    let status = 'pending';
+    let dbJob = {
+      id: 'job-retry',
+      type: 'tag',
+      item_id: 'item-1',
+      user_id: 'user-1',
+      payload: {},
+      status,
+      attempts: 0,
+      max_attempts: 2,
+      error: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null
+    };
+
+    const pool = {
+      query: async (sql: string, params: any[]) => {
+        if (sql.includes('WHERE status = \'pending\'')) {
+          return { rows: status === 'pending' ? [dbJob] : [], rowCount: status === 'pending' ? 1 : 0 };
+        }
+        if (sql.includes('SET status = \'processing\'')) {
+          status = 'processing';
+          dbJob = { ...dbJob, status, attempts: dbJob.attempts + 1 };
+          return { rows: [dbJob], rowCount: 1 };
+        }
+        if (sql.includes('SET status = \'pending\'')) {
+          status = 'pending';
+          dbJob = { ...dbJob, status };
+          return { rows: [dbJob], rowCount: 1 };
+        }
+        if (sql.includes('SET status = \'completed\'')) {
+          status = 'completed';
+          dbJob = { ...dbJob, status };
+          return { rows: [dbJob], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+    } as any;
+
+    const retryQueue = new JobQueue(pool);
+    retryQueue.registerHandler('tag', async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporary');
+      await retryQueue.markCompleted('job-retry');
+    });
+
+    await retryQueue.processOnce();
+    expect(attempts).toBe(1);
+    expect(status).toBe('pending');
+
+    await retryQueue.processOnce();
+    expect(attempts).toBe(2);
+    expect(status).toBe('completed');
+    retryQueue.stop();
   });
 
   it('should track max attempts', async () => {

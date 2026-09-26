@@ -42,9 +42,9 @@ BEGIN
     1 - (ie1.embedding <=> ie2.embedding) AS similarity
   FROM item_embeddings ie1
   JOIN item_embeddings ie2 ON ie1.item_id != ie2.item_id
+  JOIN items i1 ON i1.id = ie1.item_id AND i1.user_id = p_user_id
   JOIN items i2 ON i2.id = ie2.item_id AND i2.user_id = p_user_id
   WHERE ie1.item_id = p_item_id
-    AND i2.user_id = p_user_id
   ORDER BY ie1.embedding <=> ie2.embedding
   LIMIT p_limit;
 END;
