@@ -59,7 +59,7 @@ function loadDashboardModule() {
   const stripped = idx >= 0 ? src.slice(0, idx) : src;
   const sandboxFn = new Function(
     'chrome', 'document', 'window', 'localStorage', 'crypto', 'console', 'Date', 'Map', 'Set', 'JSON', 'fetch',
-    stripped + '\nreturn { userCacheKey, userApiCacheKey, fetchItemsFromApi, apiItemToLocalShape, mergeServerItems, isPendingItem, reconcileServerItems };'
+    stripped + '\nreturn { userCacheKey, userApiCacheKey, fetchItemsFromApi, apiItemToLocalShape, mergeServerItems, isPendingItem, discardExplicitPending, cleanupLegacyPendingCaptures };'
   );
   return {
     exports: sandboxFn(
@@ -98,6 +98,7 @@ describe('extension dashboard helpers', () => {
       id: 'i1', kind: 'link', title: 'Hello',
       captured_at: '2026-09-18T09:00:00.000Z', tags: ['a', 'b'],
       source_url: 'https://example.com', image_url: 'https://cdn/x.jpg'
+      , status: 'pending'
     });
     expect(local.id).toBe('i1');
     expect(local.kind).toBe('link');
@@ -107,6 +108,8 @@ describe('extension dashboard helpers', () => {
     expect(local.sourceUrl).toBe('https://example.com');
     expect(local.serverSynced).toBe(true);
     expect(local.pendingUpload).toBe(false);
+    expect(local.status).toBe('pending');
+    expect(local.space).not.toBe('Pending sync');
   });
 
   it('isPendingItem only flags rows with explicit pendingUpload=true', () => {
@@ -116,39 +119,29 @@ describe('extension dashboard helpers', () => {
     expect(Boolean(exports.isPendingItem(null))).toBe(false);
   });
 
-  it('reconcileServerItems clears pendingUpload when the server already has the row', () => {
+  it('discardExplicitPending removes only rows explicitly marked pending', () => {
     const { exports } = loadDashboardModule();
-    const merged = exports.reconcileServerItems(
-      [{ id: 'i1', pendingUpload: true, title: 'local copy', tags: [] }],
-      [{ id: 'i1', kind: 'link', title: 'server copy', captured_at: '2026-01-01', tags: ['design'] }]
-    );
-    expect(merged).toHaveLength(1);
-    expect(merged[0].pendingUpload).toBe(false);
-    expect(merged[0].serverSynced).toBe(true);
-    expect(merged[0].title).toBe('server copy');
+    const remaining = exports.discardExplicitPending([
+      { id: 'pending', pendingUpload: true },
+      { id: 'label-only', space: 'Pending sync' },
+      { id: 'synced', pendingUpload: false }
+    ]);
+    expect(remaining.map((item: { id: string }) => item.id)).toEqual(['label-only', 'synced']);
   });
 
-  it('reconcileServerItems keeps offline-only pending rows when server has no match', () => {
-    const { exports } = loadDashboardModule();
-    const merged = exports.reconcileServerItems(
-      [
-        { id: 'pending-1', pendingUpload: true, title: 'offline', tags: [] },
-        { id: 'synced-1', pendingUpload: false, title: 'synced', tags: [] }
-      ],
-      [{ id: 'other', kind: 'text', title: 'fresh', captured_at: '2026-01-01', tags: [] }]
-    );
-    const ids = merged.map((m) => m.id).sort();
-    expect(ids).toContain('pending-1');
-    expect(ids).not.toContain('synced-1');
-    expect(ids).toContain('other');
-  });
+  it('cleanupLegacyPendingCaptures preserves synced rows and unrelated storage', async () => {
+    const { exports, store } = loadDashboardModule();
+    store.set('mnemonics_items_u1', [
+      { id: 'pending', pendingUpload: true },
+      { id: 'synced', pendingUpload: false }
+    ]);
+    store.set('mnemonics_session', { accessToken: 'secret' });
+    store.set('mnemonics_settings', { theme: 'dark' });
 
-  it('reconcileServerItems drops stale synced rows that disappeared from the server', () => {
-    const { exports } = loadDashboardModule();
-    const merged = exports.reconcileServerItems(
-      [{ id: 'gone', pendingUpload: false, title: 'gone', tags: [] }],
-      []
-    );
-    expect(merged.find((m) => m.id === 'gone')).toBeUndefined();
+    await exports.cleanupLegacyPendingCaptures('u1');
+
+    expect(store.get('mnemonics_items_u1')).toEqual([{ id: 'synced', pendingUpload: false }]);
+    expect(store.get('mnemonics_session')).toEqual({ accessToken: 'secret' });
+    expect(store.get('mnemonics_settings')).toEqual({ theme: 'dark' });
   });
 });
