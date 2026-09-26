@@ -92,12 +92,12 @@ const baseRows: FakeRow[] = [
 (baseRows as any).__owner = { i1: 'u1', i2: 'u1' };
 
 describe('GET /api/v1/items', () => {
-  function makeApp(developmentUserId: string) {
+  function makeApp(developmentUserId: string, imageStorage?: { createSignedUrl(storageKey: string, expiresInSeconds: number): Promise<string | null> }) {
     const pool = createFakePool(baseRows, { i1: ['design', 'link'] });
     const repo = { async findById() { return null; } };
     const app = express();
     app.use(express.json());
-    app.use('/api/v1', createItemRouter({ pool, repository: repo as any, expectedToken: 't', developmentUserId }));
+    app.use('/api/v1', createItemRouter({ pool, repository: repo as any, imageStorage: imageStorage as any, expectedToken: 't', developmentUserId }));
     return app;
   }
 
@@ -119,6 +119,21 @@ describe('GET /api/v1/items', () => {
   it('rejects missing auth header with 401', async () => {
     const response = await request(makeApp('u1')).get('/api/v1/items');
     expect(response.status).toBe(401);
+  });
+
+  it('returns a signed image URL from the server-side storage client', async () => {
+    const imageStorage = {
+      async createSignedUrl(storageKey: string) {
+        return `https://signed.example/${storageKey}?token=private`;
+      }
+    };
+
+    const response = await request(makeApp('u1', imageStorage))
+      .get('/api/v1/items?limit=50')
+      .set('Authorization', 'Bearer t');
+
+    const imageRow = response.body.data.items.find((item: any) => item.id === 'i2');
+    expect(imageRow.image_url).toBe('https://signed.example/user-1/i2/photo.png?token=private');
   });
 
   it('rejects an invalid bearer token', async () => {

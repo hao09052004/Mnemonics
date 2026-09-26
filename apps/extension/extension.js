@@ -1,48 +1,17 @@
 var currentType = 'article';
 var currentTags = [];
-var savedItems = [];
 var tagTimer = null;
 var currentPageUrl = '';
 var currentPageTitle = '';
 var pendingScreenshotData = '';
 var pendingScreenshotTitle = '';
+var pendingScreenshotRequestId = null;
 var originalScreenshotData = '';
 var screenshotImage = null;
 var cropRect = null;
 var cropMode = null;
 var cropStart = null;
 var cropOffset = null;
-
-function loadItems(cb) {
-  if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get('mnemonics_session', function(result) {
-      var session = result.mnemonics_session || null;
-      var uid = session && session.user && session.user.id ? session.user.id : 'guest';
-      chrome.storage.local.get('mnemonics_items_' + uid, function(r) {
-        savedItems = r['mnemonics_items_' + uid] || [];
-        if (cb) cb();
-      });
-    });
-  } else {
-    savedItems = JSON.parse(localStorage.getItem('mnemonics_items') || '[]');
-    if (cb) cb();
-  }
-}
-
-function saveItems(cb) {
-  if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get('mnemonics_session', function(result) {
-      var session = result.mnemonics_session || null;
-      var uid = session && session.user && session.user.id ? session.user.id : 'guest';
-      var payload = {};
-      payload['mnemonics_items_' + uid] = savedItems;
-      chrome.storage.local.set(payload, cb);
-    });
-  } else {
-    localStorage.setItem('mnemonics_items', JSON.stringify(savedItems));
-    if (cb) cb();
-  }
-}
 
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('open-dashboard').addEventListener('click', function() {
@@ -76,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  loadItems(renderRecent);
+  renderRecent();
 });
 
 function selectType(el, type) {
@@ -359,7 +328,7 @@ function getScreenshotDataForSave(useCrop) {
   return out.toDataURL('image/jpeg', 0.9);
 }
 
-function savePendingScreenshot(useCrop) {
+async function savePendingScreenshot(useCrop) {
   if (!pendingScreenshotData) return;
 
   var note = document.getElementById('cap-note').value.trim();
@@ -379,23 +348,36 @@ function savePendingScreenshot(useCrop) {
     tags: tags,
     savedAt: new Date().toISOString(),
     date: 'Vừa xong',
-    space: 'Mới lưu'
+    space: 'Mới lưu',
+    clientRequestId: pendingScreenshotRequestId || crypto.randomUUID()
   };
+  pendingScreenshotRequestId = item.clientRequestId;
 
-  savedItems.unshift(item);
-  if (savedItems.length > 80) savedItems = savedItems.slice(0, 80);
-  saveItems(function() {
+  try {
+    var token = await getAccessToken();
+    if (!token) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
+    await uploadImageCapture(item.imageUrl, {
+      title: item.title,
+      note: item.note,
+      sourceUrl: item.sourceUrl,
+      capturedAt: item.savedAt,
+      clientRequestId: item.clientRequestId
+    }, token);
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
     }
     document.getElementById('success-tags').innerHTML = tags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');
     document.getElementById('success-overlay').classList.add('show');
+    pendingScreenshotRequestId = null;
     clearScreenshotPreview();
-    renderRecent();
-  });
+  } catch (error) {
+    alert(error && error.message ? error.message : 'Không lưu được ảnh vào database.');
+  }
 }
 
-function saveCapture() {
+var pendingCaptureRequestId = null;
+
+async function saveCapture() {
   var title = document.getElementById('cap-title').value.trim();
   var note = document.getElementById('cap-note').value.trim();
   var url = document.getElementById('tab-url').textContent;
@@ -415,15 +397,10 @@ function saveCapture() {
     sourceUrl: currentPageUrl,
     type: currentType,
     tags: currentTags.slice(0),
-    clientRequestId: crypto.randomUUID(),
+    clientRequestId: pendingCaptureRequestId || crypto.randomUUID(),
     savedAt: new Date().toISOString(),
     date: 'Vừa xong',
-    pendingUpload: true,
-    serverSynced: false,
-    syncAttempts: 0,
-    nextRetryAt: new Date().toISOString(),
-    syncStatus: 'pending',
-    syncError: null
+    serverSynced: true
   };
 
   if (currentType === 'link') {
@@ -433,57 +410,22 @@ function saveCapture() {
     if (!item.tags || item.tags.length === 0) item.tags = ['link'];
   }
 
-  savedItems.unshift(item);
-  if (savedItems.length > 50) savedItems = savedItems.slice(0, 50);
-
-  saveItems(function() {
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
-    }
-  });
-
-  // Upload immediately when authenticated. The local row keeps the same
-  // clientRequestId so automatic background retry remains idempotent.
-  if (currentType !== 'image' && typeof getAccessToken === 'function') {
-    getAccessToken().then(function(accessToken) {
-      if (!accessToken || typeof sendCaptureToApi !== 'function') return;
-
-      var apiItem = Object.assign({}, item, { capturedAt: item.savedAt });
-      return sendCaptureToApi(apiItem, accessToken).then(function(result) {
-        var serverData = result && result.data && result.data.data;
-        item.pendingUpload = false;
-        item.serverSynced = true;
-        item.syncStatus = 'synced';
-        item.syncError = null;
-        item.nextRetryAt = null;
-        item.lastSyncAt = new Date().toISOString();
-        if (serverData && serverData.id) item.id = serverData.id;
-        saveItems(function() {
-          if (typeof chrome !== 'undefined' && chrome.runtime) {
-            chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
-          }
-        });
-      }).catch(function(err) {
-        item.pendingUpload = true;
-        item.serverSynced = false;
-        item.syncStatus = 'pending';
-        item.syncError = err && err.message ? err.message : 'API upload failed';
-        item.nextRetryAt = new Date().toISOString();
-        saveItems(function() {
-          if (typeof chrome !== 'undefined' && chrome.runtime) {
-            chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
-          }
-        });
-        console.warn('[mnemonics popup] capture upload failed:', item.syncError);
-      });
-    });
+  pendingCaptureRequestId = item.clientRequestId;
+  try {
+    var accessToken = await getAccessToken();
+    if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu dữ liệu.');
+    await sendCaptureToApi(Object.assign({}, item, { capturedAt: item.savedAt }), accessToken);
+    pendingCaptureRequestId = null;
+    if (typeof chrome !== 'undefined' && chrome.runtime) chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
+    document.getElementById('success-tags').innerHTML = currentTags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');
+    document.getElementById('success-overlay').classList.add('show');
+  } catch (error) {
+    alert(error && error.message ? error.message : 'Không lưu được dữ liệu vào database.');
   }
-
-  document.getElementById('success-tags').innerHTML = currentTags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');
-  document.getElementById('success-overlay').classList.add('show');
 }
 
 function resetForm() {
+  pendingCaptureRequestId = null;
   document.getElementById('success-overlay').classList.remove('show');
   document.getElementById('cap-title').value = '';
   document.getElementById('cap-note').value = '';
@@ -492,20 +434,12 @@ function resetForm() {
   document.getElementById('save-btn').disabled = false;
   document.getElementById('save-btn').textContent = '★ LƯU KÝ ỨC';
   clearScreenshotPreview();
-  loadItems(renderRecent);
+  renderRecent();
 }
 
 function renderRecent() {
   var container = document.getElementById('recent-list');
-  if (savedItems.length === 0) {
-    container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Chưa có ký ức nào được lưu</div>';
-    return;
+  if (container) {
+    container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Mở dashboard để xem dữ liệu từ server</div>';
   }
-  container.innerHTML = savedItems.slice(0, 3).map(function(item) {
-    var tagsHtml = (item.tags||[]).slice(0,3).map(function(t){ return '<span class="recent-tag">'+t+'</span>'; }).join('');
-    return '<div class="recent-item"><div class="recent-dot"></div><div style="flex:1">'
-      +'<div class="recent-title">'+item.title+'</div>'
-      +'<div class="recent-meta">'+item.date+' · '+item.type+'</div>'
-      +'<div class="recent-tags">'+tagsHtml+'</div></div></div>';
-  }).join('');
 }

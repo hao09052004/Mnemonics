@@ -271,19 +271,16 @@ async function saveScreenshot(useCrop) {
     tags: tags,
     savedAt: new Date().toISOString(),
     date: 'Vừa xong',
-    space: 'Mới lưu'
+    space: 'Mới lưu',
+    clientRequestId: pending.clientRequestId || crypto.randomUUID()
   };
+  pending.clientRequestId = item.clientRequestId;
   var saveButtons = [document.getElementById('save-crop-btn'), document.getElementById('save-full-btn')];
   saveButtons.forEach(function(button) { if (button) button.disabled = true; });
 
   var session = await new Promise(function(resolve) {
     chrome.storage.local.get('mnemonics_session', function(result) { resolve(result.mnemonics_session || null); });
   });
-
-  // Always save to local storage first so the dashboard can display the item
-  // immediately, even if the server upload fails.
-  var userId = session && session.user && session.user.id ? session.user.id : 'guest';
-  var storageKey = 'mnemonics_items_' + userId;
 
   try {
     var imageUrl = item.imageUrl || '';
@@ -309,7 +306,8 @@ async function saveScreenshot(useCrop) {
             title: item.title,
             note: item.note,
             sourceUrl: item.sourceUrl,
-            capturedAt: item.savedAt
+            capturedAt: item.savedAt,
+            clientRequestId: item.clientRequestId
           }
         });
         if (!uploadResult || !uploadResult.ok) {
@@ -320,18 +318,8 @@ async function saveScreenshot(useCrop) {
       }
       console.log('[mnemonics] cropper upload ok:', uploadResult && uploadResult.data && uploadResult.data.id);
     } else {
-      // No login — still save locally so the user doesn't lose the screenshot.
-      showToast('Chưa đăng nhập — ảnh chỉ được lưu cục bộ.');
+      throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
     }
-
-    // Append to local storage under the correct user namespace.
-    var stored = await new Promise(function(resolve) {
-      chrome.storage.local.get(storageKey, function(r) { resolve(r[storageKey] || []); });
-    });
-    stored.unshift(item);
-    await new Promise(function(resolve) {
-      chrome.storage.local.set({ [storageKey]: stored }, resolve);
-    });
 
     // Notify the dashboard so it reloads without waiting for the next poll.
     var safeSend = function(type) {

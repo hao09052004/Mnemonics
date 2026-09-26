@@ -21,8 +21,7 @@
     "tabs",
     "contextMenus",
     "notifications",
-    "unlimitedStorage",
-    "alarms"
+    "unlimitedStorage"
   ],
   "icons": {
     "16": "icon16.png",

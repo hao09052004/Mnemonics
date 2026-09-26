@@ -561,28 +561,10 @@ function refreshDashboardItems() {
   if (currentSpaceId) renderSpaces();
 }
 
-// ===== SYNC WITH EXTENSION =====
-//
-// Two storage layers exist:
-//   1) `mnemonics_items_<uid>` ? local cache, including items the user
-//      saved while the network/upload pipeline was failing (`pendingUpload`
-//      rows must survive a refresh; they get cleared locally only after
-//      a successful server-side resync).
-//   2) `/api/v1/items`        ? the source of truth for everything that
-//      made it to the server.
-//
-// `loadFromExtension` is now the dashboard's *only* entry point. It
-// always reads the local cache first (instant render), then reconciles
-// in the background against the API. The reconciliation is keyed by the
-// *current* user id; if the user switches accounts mid-flight, the
-// in-flight response is dropped via `requestEpoch` so a stale payload
-// can never repopulate the wrong user's view.
-//
-// Items returned by the server are LOSER. If a row already exists
-// locally (because the user saved it offline and the upload is still
-// pending), the local copy wins ? its `pendingUpload` flag stays set
-// until the user clicks "Sync to database" or the resync succeeds.
-const API_ITEMS_FETCH_KEY = 'mnemonics_api_items_v1';
+// ===== SERVER-AUTHORITATIVE EXTENSION DATA =====
+// Saved captures are loaded only from GET /api/v1/items. Per-user local
+// capture keys are retained solely long enough to classify and discard
+// explicitly pending legacy rows.
 let apiRequestEpoch = 0;
 
 function userCacheKey(uid) {
@@ -619,20 +601,11 @@ function apiItemToLocalShape(item) {
     savedAt: item.captured_at || item.created_at || new Date().toISOString(),
     clientRequestId: item.client_request_id || null,
     date: 'Just now',
-    space: 'Pending sync',
+    space: '',
+    status: item.status || null,
     serverSynced: true,
     pendingUpload: false
   };
-}
-
-function indexLocalById(list) {
-  const map = new Map();
-  for (const item of list || []) {
-    if (item && item.id !== undefined && item.id !== null) {
-      map.set(String(item.id), item);
-    }
-  }
-  return map;
 }
 
 async function fetchItemsFromApi(uid, accessToken) {
@@ -702,110 +675,60 @@ function loadFromExtension(cb) {
   const itemsKey = userCacheKey(uid);
   const apiCacheKey = userApiCacheKey(uid);
 
-  function applyLocal(local) {
-    baseMemoryItems = local || [];
+  // Captures are server-authoritative. Local capture arrays are inspected
+  // only to discard explicitly pending legacy rows; they are never rendered.
+  cleanupLegacyPendingCaptures(uid).then(function() {
+    return getAccessTokenAsync();
+  }).then(function(accessToken) {
+    if (!accessToken) throw new Error('Sign in to load saved memories.');
+    return fetchItemsFromApi(uid, accessToken);
+  }).then(function(serverItems) {
+    if (!serverItems) throw new Error('Could not load saved memories.');
+    baseMemoryItems = serverItems;
     refreshDashboardItems();
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.remove([itemsKey, apiCacheKey], function() {});
+    } else {
+      localStorage.removeItem(itemsKey);
+      localStorage.removeItem(apiCacheKey);
+    }
+  }).catch(function(error) {
+    baseMemoryItems = [];
+    refreshDashboardItems();
+    if (typeof showToast === 'function') showToast(error.message);
+  }).finally(function() {
     if (cb) cb();
-  }
-
-  // 1) Read the local cache immediately so the dashboard renders without
-  //    waiting on the network. If we have nothing cached, we still kick
-  //    off the network fetch below.
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get([itemsKey, apiCacheKey], function(r) {
-      const local = r[itemsKey] || [];
-      const cachedApi = r[apiCacheKey] || [];
-      // Prefer the most-recent snapshot: if we have a non-empty API
-      // cache, prefer it for the initial render ? that's what the user
-      // expects to see after a refresh.
-      const useCachedApi = cachedApi.length > 0 || local.length === 0;
-      applyLocal(useCachedApi ? cachedApi : local);
-      // 2) Kick off the API reconciliation in the background. This
-      //    call mutates `baseMemoryItems` only if it completes with a
-      //    result for the *current* user ? see `apiRequestEpoch`.
-      getAccessTokenAsync().then(function(accessToken) {
-        if (!accessToken) return;
-        fetchItemsFromApi(uid, accessToken).then(function(serverItems) {
-          if (!serverItems) return;
-          mergeServerItems(serverItems);
-        });
-      });
-    });
-  } else {
-    const local = JSON.parse(localStorage.getItem(itemsKey) || '[]');
-    const cachedApi = JSON.parse(localStorage.getItem(apiCacheKey) || '[]');
-    const useCachedApi = cachedApi.length > 0 || local.length === 0;
-    applyLocal(useCachedApi ? cachedApi : local);
-  }
+  });
 }
 
-// Reconcile the server list with whatever we already have cached
-// locally. Local-only (offline-saved) items keep their place; server
-// items replace anything that was previously synced (matched by id),
-// and new server items appear at the top.
-//
-// Split into a pure helper (no DOM access) and a thin renderer so the
-// merge rules can be unit-tested without a DOM.
-function reconcileServerItems(local, serverItems) {
-  const localIndex = indexLocalById(local);
-  const pendingByClientRequestId = new Map();
-  for (const item of local || []) {
-    if (isPendingItem(item) && item.clientRequestId) {
-      pendingByClientRequestId.set(String(item.clientRequestId), item);
-    }
-  }
-
-  const serverIds = new Set();
-  const reconciledLocalIds = new Set();
-
-  const merged = serverItems.map(function(serverItem) {
-    serverIds.add(String(serverItem.id));
-    const existingById = localIndex.get(String(serverItem.id));
-    const existingByRequestId = serverItem.client_request_id
-      ? pendingByClientRequestId.get(String(serverItem.client_request_id))
-      : null;
-    const existing = existingById && isPendingItem(existingById)
-      ? existingById
-      : existingByRequestId;
-
-    if (existing && isPendingItem(existing)) {
-      // A retry may have reached the server before the extension updated
-      // its local row. Match by clientRequestId as well as server id so the
-      // local pending row is replaced instead of duplicated.
-      reconciledLocalIds.add(String(existing.id));
-      return Object.assign({}, existing, serverItem, {
-        id: serverItem.id,
-        pendingUpload: false,
-        serverSynced: true
-      });
-    }
-    return serverItem;
+function discardExplicitPending(items) {
+  return (Array.isArray(items) ? items : []).filter(function(item) {
+    return !isPendingItem(item);
   });
+}
 
-  // Anything still local-only (no matching server id/request id) keeps its place.
-  for (const item of local) {
-    if (!item || item.id === undefined || item.id === null) continue;
-    if (serverIds.has(String(item.id))) continue;
-    if (reconciledLocalIds.has(String(item.id))) continue;
-    if (isPendingItem(item)) merged.unshift(item);
-  }
-
-  return merged.slice(0, 80);
+function cleanupLegacyPendingCaptures(uid) {
+  const key = userCacheKey(uid);
+  return new Promise(function(resolve) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(key, function(result) {
+        const existing = Array.isArray(result[key]) ? result[key] : [];
+        const remaining = discardExplicitPending(existing);
+        if (remaining.length === existing.length) return resolve(remaining);
+        chrome.storage.local.set({ [key]: remaining }, function() { resolve(remaining); });
+      });
+      return;
+    }
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    const remaining = discardExplicitPending(existing);
+    localStorage.setItem(key, JSON.stringify(remaining));
+    resolve(remaining);
+  });
 }
 
 function mergeServerItems(serverItems) {
-  const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
-  const itemsKey = userCacheKey(uid);
-  const apiCacheKey = userApiCacheKey(uid);
-
-  baseMemoryItems = reconcileServerItems(baseMemoryItems || [], serverItems);
+  baseMemoryItems = serverItems || [];
   refreshDashboardItems();
-  // Persist both the merged view and the API snapshot so subsequent
-  // reloads render from server data even when offline.
-  const payload = {};
-  payload[itemsKey] = baseMemoryItems;
-  payload[apiCacheKey] = serverItems;
-  setStorageValues(payload, function() {});
 }
 
 // Listen for new items from the popup and reload
@@ -957,17 +880,7 @@ function renderCards(data) {
   // that failed to upload the first time. Pass the matching payload
   // fields through data-* so the click handler can re-trigger the right
   // pipeline (image vs link vs text).
-  function pendingBadgeHtml(item) {
-    if (!item || !item.pendingUpload) return '';
-    const id = escapeHtml(String(item.id || ''));
-    const title = escapeHtml(item.title || '');
-    const sourceUrl = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
-    const noteText = escapeHtml(item.note || item.selectedText || '');
-    const capturedAt = escapeHtml(item.savedAt || '');
-    return `<button type="button" class="resync-btn" data-resync-id="${id}" data-resync-type="${escapeHtml(item.type || '')}" data-resync-title="${title}" data-resync-source="${sourceUrl}" data-resync-note="${noteText}" data-resync-captured="${capturedAt}" title="Upload to Supabase">
-      <span class="resync-dot"></span>Sync to database
-    </button>`;
-  }
+  function pendingBadgeHtml() { return ''; }
 
   if (data.length === 0) {
     container.innerHTML = `<div class="empty-state" style="column-span:all">
@@ -1678,6 +1591,7 @@ function openOriginalImage(imageUrl, title) {
 let modalFileData = null;    // base64 of a file/image to paste or attach
 let modalFileName = '';
 let modalFileSize = '';
+let modalClientRequestId = null;
 
 function openAddModal() {
   document.getElementById('add-modal').classList.add('open');
@@ -1687,6 +1601,7 @@ function openAddModal() {
   var fileEl = document.getElementById('new-file'); if (fileEl) fileEl.value = '';
   var prev = document.getElementById('modal-file-preview'); if (prev) prev.innerHTML = '';
   modalFileData = null; modalFileName = ''; modalFileSize = '';
+  modalClientRequestId = null;
   document.getElementById('ai-tags-preview').innerHTML = '<span style="font-size:13px;color:var(--gray-text)">Enter some content and AI will suggest tags...</span>';
   updateModalTypeFields(document.getElementById('new-type').value);
 }
@@ -1783,7 +1698,7 @@ async function generateTags(content) {
   preview.dataset.tags = JSON.stringify(finalTags);
 }
 
-function saveItem() {
+async function saveItem() {
   try {
     const title = document.getElementById('new-title').value.trim();
     const contentVal = document.getElementById('new-content').value.trim();
@@ -1816,8 +1731,10 @@ function saveItem() {
       id: Date.now(), type,
       tags: tags.length ? tags : ['ghi ch?'],
       date: 'Just now', space: 'Just saved',
-      savedAt: new Date().toISOString()
+      savedAt: new Date().toISOString(),
+      clientRequestId: modalClientRequestId || crypto.randomUUID()
     };
+    modalClientRequestId = newItem.clientRequestId;
 
     if (type === 'link') {
       const link = normalizeExternalUrl(urlVal || contentVal);
@@ -1846,45 +1763,24 @@ function saveItem() {
       if (type === 'quote') newItem.quote = contentVal || title;
     }
 
-    baseMemoryItems.unshift(newItem);
-    items = composeDashboardItems();
-    const toStore = baseMemoryItems.filter(i => i.savedAt).slice(0, 80);
-
-    const done = function() {
-      closeModal();
-      renderDashboard();
-      renderBookRail();
-      showToast('? Memory saved successfully!');
-    };
-
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ [userItemsKey()]: toStore }, done);
+    const accessToken = await getAccessTokenAsync();
+    if (!accessToken) throw new Error('Sign in before saving a memory.');
+    if (newItem.type === 'file') throw new Error('File captures are not supported by the capture API.');
+    if (newItem.type === 'image' || newItem.type === 'screenshot') {
+      await uploadImageCapture(newItem.imageUrl, {
+        title: newItem.title,
+        note: newItem.note,
+        sourceUrl: newItem.sourceUrl,
+        capturedAt: newItem.savedAt,
+        clientRequestId: newItem.clientRequestId
+      }, accessToken);
     } else {
-      localStorage.setItem(userItemsKey(), JSON.stringify(toStore));
-      done();
+      await sendCaptureToApi(newItem, accessToken);
     }
-
-    // Fire-and-forget: also persist to the server so items survive across
-    // devices. For images we use the multipart upload endpoint.
-    const accessToken = readAccessToken();
-    if (accessToken) {
-      if (newItem.type === 'image' || newItem.type === 'screenshot') {
-        if (newItem.imageUrl) {
-          uploadImageCapture(newItem.imageUrl, {
-            title: newItem.title,
-            note: newItem.note,
-            sourceUrl: newItem.sourceUrl,
-            capturedAt: newItem.savedAt
-          }, accessToken).catch(function(err) {
-            console.warn('[mnemonics] image upload failed', err);
-          });
-        }
-      } else {
-        sendCaptureToApi(newItem, accessToken).catch(function(err) {
-          console.warn('[mnemonics] capture upload failed', err);
-        });
-      }
-    }
+    modalClientRequestId = null;
+    closeModal();
+    loadFromExtension();
+    showToast('? Memory saved successfully!');
   } catch(err) {
     showToast('Save failed: ' + err.message);
   }
@@ -2398,18 +2294,6 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // Clicking Sync to database ? re-run upload pipeline for an item that
-    // failed the first attempt (token expired, network down, ?). We block
-    // the click so it doesn't bubble up to the surrounding image-preview
-    // handler.
-    var resyncBtn = e.target.closest('[data-resync-id]');
-    if (resyncBtn) {
-      e.preventDefault();
-      e.stopPropagation();
-      resyncItem(resyncBtn);
-      return;
-    }
-
     var dashboardReminderTask = e.target.closest('[data-dashboard-reminder-id][data-dashboard-task-index]');
     if (dashboardReminderTask) {
       e.preventDefault();
@@ -2561,17 +2445,8 @@ function deleteItem(id) {
   if (isPending || !looksServerId) {
     baseMemoryItems = baseMemoryItems.filter(function(i) { return String(i.id) !== String(id); });
     items = composeDashboardItems();
-    var toStorePending = baseMemoryItems.filter(function(i) { return i.savedAt; });
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ [userItemsKey()]: toStorePending }, function() {
-        renderDashboard();
-        showToast('Memory deleted');
-      });
-    } else {
-      localStorage.setItem(userItemsKey(), JSON.stringify(toStorePending));
-      renderDashboard();
-      showToast('Memory deleted');
-    }
+    renderDashboard();
+    showToast('Memory removed');
     return;
   }
 
@@ -2582,7 +2457,7 @@ function deleteItem(id) {
   renderDashboard();
 
   sendDeleteToServer(id).then(function() {
-    persistBaseMemoryItems();
+    loadFromExtension();
     showToast('Memory deleted');
   }).catch(function(err) {
     // Re-add the row so the user doesn't think it's gone.
@@ -2593,15 +2468,6 @@ function deleteItem(id) {
     }
     showToast('Could not delete: ' + (err && err.message ? err.message : 'unknown error'));
   });
-}
-
-function persistBaseMemoryItems() {
-  var toStore = baseMemoryItems.filter(function(i) { return i.savedAt; });
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ [userItemsKey()]: toStore }, function() {});
-  } else {
-    localStorage.setItem(userItemsKey(), JSON.stringify(toStore));
-  }
 }
 
 // Issue DELETE /api/v1/items/:id. The background script handles token
@@ -2625,86 +2491,6 @@ function sendDeleteToServer(id) {
   });
 }
 
-// Re-upload a single item that the initial save couldn't push to
-// Supabase (token expired, network down, ?). The pending pill disappears
-// as soon as the upload returns 201; otherwise we keep the pill visible
-// and surface the error so the user knows what to fix.
-function resyncItem(btn) {
-  var id = btn.dataset.resyncId;
-  var type = btn.dataset.resyncType || 'image';
-  var item = items.find(function(i) { return String(i.id) === String(id); });
-  if (!item) {
-    showToast('Not found in the dashboard to sync.');
-    return;
-  }
-  var originalLabel = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="resync-dot"></span>Uploading...';
-
-  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-    btn.disabled = false;
-    btn.innerHTML = originalLabel;
-    showToast('This page must run inside the extension to sync.');
-    return;
-  }
-
-  // Route by item type. Image still needs the binary through the
-  // existing image upload pipeline; link/quote/note share the text
-  // pipeline that goes through /api/v1/captures.
-  var message;
-  if (type === 'image' || type === 'screenshot') {
-    message = {
-      type: 'RESYNC_ITEM',
-      imageUrl: item.imageUrl || '',
-      sourceUrl: item.sourceUrl || '',
-      title: item.title || '',
-      note: item.note || '',
-      capturedAt: item.savedAt || '',
-      clientRequestId: item.clientRequestId || ''
-    };
-  } else {
-    message = {
-      type: 'RESYNC_TEXT_ITEM',
-      itemType: type === 'quote' ? 'text' : (type || 'text'),
-      title: item.title || '',
-      sourceUrl: item.sourceUrl || item.url || '',
-      selectedText: item.note || item.selectedText || '',
-      capturedAt: item.savedAt || '',
-      clientRequestId: item.clientRequestId || ''
-    };
-  }
-
-  chrome.runtime.sendMessage(message, function(response) {
-    btn.disabled = false;
-    if (chrome.runtime && chrome.runtime.lastError) {
-      btn.innerHTML = originalLabel;
-      showToast('Sync failed: ' + chrome.runtime.lastError.message);
-      return;
-    }
-    if (response && response.ok) {
-      item.pendingUpload = false;
-      item.serverSynced = true;
-      const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
-      const cacheKey = userCacheKey(uid);
-      const nextLocal = baseMemoryItems.map(function(localItem) {
-        return String(localItem.id) === String(item.id) ? Object.assign({}, localItem, {
-          pendingUpload: false,
-          serverSynced: true
-        }) : localItem;
-      });
-      baseMemoryItems = nextLocal;
-      setStorageValues({ [cacheKey]: nextLocal }, function() {});
-      renderDashboard();
-      showToast('? Uploaded to Supabase');
-    } else {
-      btn.innerHTML = originalLabel;
-      var msg = (response && response.error) ? response.error : 'Upload failed';
-      showToast('Sync failed: ' + msg);
-    }
-  });
-}
-
-// Test-only exports ? stripped from the bundled extension by the build step.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { userCacheKey, userApiCacheKey, apiItemToLocalShape, isPendingItem, mergeServerItems, fetchItemsFromApi, loadFromExtension, reconcileServerItems };
+  module.exports = { userCacheKey, userApiCacheKey, apiItemToLocalShape, isPendingItem, discardExplicitPending, cleanupLegacyPendingCaptures, mergeServerItems, fetchItemsFromApi, loadFromExtension };
 }

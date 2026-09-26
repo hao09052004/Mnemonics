@@ -16,12 +16,13 @@ function createSupabaseMock() {
   } as any;
 }
 
-function createApp(repo: any, createJob = vi.fn()) {
+function createApp(repo: any, createJob = vi.fn(), imageStorage?: any) {
   const app = express();
   app.use(express.json());
   app.use('/api/v1', createCaptureRouter({
     repository: repo,
     createJob,
+    imageStorage,
     supabase: createSupabaseMock()
   }));
   return { app, createJob };
@@ -125,5 +126,38 @@ describe('capture route', () => {
     expect(response.body.error.code).toBe('UNAUTHORIZED');
     expect(repo.findByClientRequestId).not.toHaveBeenCalled();
     expect(createJob).not.toHaveBeenCalled();
+  });
+
+  it('keeps an accepted image capture when background job enqueueing fails', async () => {
+    const item = {
+      id: '00000000-0000-4000-8000-000000000020',
+      userId: USER_ID,
+      status: 'pending',
+      type: 'image',
+      title: 'Facebook crop'
+    };
+    const repo = {
+      findByClientRequestId: vi.fn(async () => null),
+      createPendingImageItem: vi.fn(async () => item)
+    };
+    const imageStorage = {
+      upload: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+      createSignedUrl: vi.fn(async () => 'https://signed.example/crop.jpg')
+    };
+    const createJob = vi.fn(async () => { throw new Error('queue unavailable'); });
+    const { app } = createApp(repo, createJob, imageStorage);
+
+    const response = await request(app)
+      .post('/api/v1/captures/image')
+      .set('Authorization', 'Bearer access-token')
+      .field('title', 'Facebook crop')
+      .field('clientRequestId', '00000000-0000-4000-8000-000000000456')
+      .attach('file', Buffer.from('image-bytes'), { filename: 'crop.jpg', contentType: 'image/jpeg' });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data).toMatchObject({ id: item.id, status: 'pending' });
+    expect(imageStorage.upload).toHaveBeenCalledTimes(1);
+    expect(imageStorage.remove).not.toHaveBeenCalled();
   });
 });

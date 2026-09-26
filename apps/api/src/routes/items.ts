@@ -8,10 +8,12 @@ import express, { type Application, type Response, type Request } from 'express'
 import type { Pool } from 'pg';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ImageStorage } from '../storage.js';
 
 export interface ItemRouterDeps {
   pool: Pool;
   repository: ItemRepository;
+  imageStorage?: ImageStorage;
   supabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
@@ -23,7 +25,7 @@ interface AuthedRequest extends Request {
 }
 
 export function createItemRouter(deps: ItemRouterDeps): Application {
-  const { pool, repository, supabase, expectedToken, developmentUserId } = deps;
+  const { pool, repository, imageStorage, supabase, expectedToken, developmentUserId } = deps;
   const router = express.Router() as Application;
 
   // Simple auth middleware
@@ -108,6 +110,9 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
         // a storage-key-aware placeholder.
         async function signedUrlFor(storageKey: string | null): Promise<string | null> {
           if (!storageKey) return null;
+          if (imageStorage) {
+            return imageStorage.createSignedUrl(storageKey, 60 * 60).catch(() => null);
+          }
           if (supabase) {
             try {
               const { data } = await supabase.storage.from('mnemonics-assets').createSignedUrl(storageKey, 60 * 60);

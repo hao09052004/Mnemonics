@@ -112,7 +112,7 @@ function uploadImageCapture(imageDataUrl, payload, accessToken) {
       form.append('note', payload.note || '');
       form.append('sourceUrl', payload.sourceUrl || '');
       form.append('capturedAt', payload.capturedAt || new Date().toISOString());
-      form.append('clientRequestId', crypto.randomUUID());
+      form.append('clientRequestId', payload.clientRequestId || crypto.randomUUID());
 
       return fetch(MNEMONICS_API_URL + '/api/v1/captures/image', {
         method: 'POST',

@@ -100,7 +100,14 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         // Enqueue jobs based on capture type
         if (createJob) {
           // Tag is the first stage. TagHandler enqueues embedding after success.
-          await createJob('tag', item.id, userId);
+          try {
+            await createJob('tag', item.id, userId);
+          } catch (error) {
+            console.error('[capture] accepted text capture but could not enqueue tag job', {
+              itemId: item.id,
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
         }
 
         response.status(201).json({ data: { id: item.id, status: item.status } });
@@ -186,7 +193,14 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         // Images are ordered: OCR -> tag -> embed.
         // Each successful handler enqueues the next stage.
         if (createJob) {
-          await createJob('ocr', item.id, userId);
+          try {
+            await createJob('ocr', item.id, userId);
+          } catch (error) {
+            console.error('[capture] accepted image capture but could not enqueue OCR job', {
+              itemId: item.id,
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
         }
 
         // Generate signed URL for image
