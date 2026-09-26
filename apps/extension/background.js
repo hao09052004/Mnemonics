@@ -1,20 +1,7 @@
 // Background service worker
-importScripts('pending-sync-policy.js');
 
 let mnemonicsPendingScreenshot = null;
-let pendingSyncInProgress = false;
 const MNEMONICS_API_URL = 'http://localhost:4000';
-// Mirror of .env → bucket + Supabase URL the API uploads into. The public
-// bucket serves these URLs directly so the dashboard can <img src=...>
-// them without bouncing through the API proxy (which can't authenticate
-// to Facebook/Instagram/Twitter CDNs anyway).
-const SUPABASE_STORAGE_BASE = 'https://jtmowwtmjtmceihzvreu.supabase.co/storage/v1/object/public/mnemonics-assets';
-
-function getAccessToken() {
-  return new Promise((resolve) => chrome.storage.local.get('mnemonics_session', (result) => {
-    resolve(result.mnemonics_session && result.mnemonics_session.accessToken);
-  }));
-}
 
 // Return a still-valid access token, refreshing proactively if the stored
 // one is expired or close to expiring. Required because the cropper and
@@ -135,250 +122,6 @@ async function forceRefreshAccessToken() {
 }
 
 
-// ---------------------------------------------------------------------------
-// Automatic pending-upload resync
-// ---------------------------------------------------------------------------
-
-const PENDING_SYNC_ALARM = 'mnemonics-pending-sync';
-const PENDING_SYNC_BATCH_SIZE = 5;
-
-function ensurePendingSyncAlarm() {
-  if (!chrome.alarms) return;
-  chrome.alarms.create(PENDING_SYNC_ALARM, { periodInMinutes: 1 });
-}
-
-function readSession() {
-  return new Promise(function(resolve) {
-    chrome.storage.local.get('mnemonics_session', function(result) {
-      resolve(result && result.mnemonics_session ? result.mnemonics_session : null);
-    });
-  });
-}
-
-function readUserItems(session) {
-  return new Promise(function(resolve) {
-    chrome.storage.local.get([getUserItemsKey(session)], function(result) {
-      resolve(result[getUserItemsKey(session)] || []);
-    });
-  });
-}
-
-function writeUserItems(session, items) {
-  return new Promise(function(resolve, reject) {
-    const payload = {};
-    payload[getUserItemsKey(session)] = items;
-    chrome.storage.local.set(payload, function() {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      resolve();
-    });
-  });
-}
-
-function syncSuccess(item, serverBody) {
-  const data = serverBody && serverBody.data ? serverBody.data : {};
-  const next = Object.assign({}, item, {
-    pendingUpload: false,
-    serverSynced: true,
-    serverId: data.id || item.serverId || item.id,
-    syncAttempts: Number(item.syncAttempts || 0),
-    lastSyncAt: new Date().toISOString(),
-    nextRetryAt: null,
-    syncError: null,
-    syncStatus: 'synced'
-  });
-
-  if ((item.type === 'image' || item.type === 'screenshot') && data.signedUrl) {
-    next.imageUrl = data.signedUrl;
-  }
-
-  return next;
-}
-
-function syncFailure(item, error) {
-  const attempts = Number(item.syncAttempts || 0) + 1;
-  const terminal = attempts >= MNEMONICS_SYNC_POLICY.MAX_ATTEMPTS;
-  return Object.assign({}, item, {
-    pendingUpload: true,
-    serverSynced: false,
-    syncAttempts: attempts,
-    lastSyncAt: new Date().toISOString(),
-    nextRetryAt: terminal
-      ? null
-      : MNEMONICS_SYNC_POLICY.nextRetryAt(Date.now(), attempts - 1),
-    syncError: error && error.message ? error.message : String(error || 'Sync failed'),
-    syncStatus: terminal ? 'attention' : 'retrying'
-  });
-}
-
-async function syncPendingItem(item) {
-  try {
-    let body;
-    if (item.type === 'image' || item.type === 'screenshot') {
-      body = await uploadImageFromContextMenu(
-        item.imageUrl || '',
-        item.sourceUrl || item.sourcePageUrl || item.pageUrl || '',
-        item.title || '',
-        {
-          note: item.note || item.selectedText || '',
-          capturedAt: item.savedAt || item.capturedAt || new Date().toISOString(),
-          clientRequestId: item.clientRequestId || undefined
-        }
-      );
-    } else {
-      body = await uploadTextCapture({
-        type: item.type === 'link' ? 'link' : 'text',
-        title: item.title || (item.type === 'link' ? 'Link đã lưu' : 'Đoạn trích'),
-        sourceUrl: item.sourceUrl || item.url || undefined,
-        selectedText: item.note || item.selectedText || item.excerpt || undefined,
-        capturedAt: item.savedAt || item.capturedAt || new Date().toISOString(),
-        clientRequestId: item.clientRequestId || crypto.randomUUID()
-      });
-    }
-
-    return { item: syncSuccess(item, body), ok: true };
-  } catch (error) {
-    return { item: syncFailure(item, error), ok: false };
-  }
-}
-
-async function syncPendingItems() {
-  if (pendingSyncInProgress) return;
-  pendingSyncInProgress = true;
-
-  try {
-    const session = await readSession();
-    if (!session || !session.user || !session.user.id) return;
-
-    const items = await readUserItems(session);
-    const now = Date.now();
-    const candidates = items
-      .filter(function(item) {
-        return MNEMONICS_SYNC_POLICY.shouldRetry(item, now);
-      })
-      .map(function(item) {
-        return item.clientRequestId
-          ? item
-          : Object.assign({}, item, { clientRequestId: crypto.randomUUID() });
-      })
-      .sort(function(a, b) {
-        return String(a.nextRetryAt || a.savedAt || '').localeCompare(
-          String(b.nextRetryAt || b.savedAt || '')
-        );
-      })
-      .slice(0, PENDING_SYNC_BATCH_SIZE);
-
-    if (candidates.length === 0) return;
-
-    const candidateIds = new Set(candidates.map(function(item) { return String(item.id); }));
-    const candidateById = new Map(candidates.map(function(item) { return [String(item.id), item]; }));
-    const processing = items.map(function(item) {
-      if (!candidateIds.has(String(item.id))) return item;
-      const normalized = candidateById.get(String(item.id)) || item;
-      return Object.assign({}, normalized, { syncing: true, syncStatus: 'syncing' });
-    });
-    await writeUserItems(session, processing);
-
-    const results = [];
-    for (const candidate of candidates) {
-      const current = Object.assign({}, candidate, { syncing: true });
-      results.push(await syncPendingItem(current));
-    }
-
-    const resultById = new Map(results.map(function(result) {
-      return [String(result.item.id), result.item];
-    }));
-
-    const finalItems = processing.map(function(item) {
-      const result = resultById.get(String(item.id));
-      return result || item;
-    });
-
-    await writeUserItems(session, finalItems);
-
-    const succeeded = results.filter(function(result) { return result.ok; }).length;
-    if (succeeded > 0) {
-      notifyDashboards('ITEM_SAVED');
-    }
-  } catch (error) {
-    console.warn('[Mnemonics] pending sync error:', error && error.message ? error.message : error);
-  } finally {
-    pendingSyncInProgress = false;
-  }
-}
-
-// Returns the chrome.storage.local key for the current user's items.
-function getUserItemsKey(session) {
-  const uid = session && session.user && session.user.id ? session.user.id : 'guest';
-  return 'mnemonics_items_' + uid;
-}
-
-// When the API upload succeeds it returns `{ data: { storageKey, signedUrl } }` —
-// the signed URL is a Supabase Storage URL that the browser can fetch
-// directly, bypassing the proxy entirely (which can't authenticate to
-// Facebook/Instagram/Twitter CDNs anyway). Prefer signedUrl, fall back to
-// the original remote URL when the server didn't mint one (e.g. upload
-// succeeded but signed-URL generation failed).
-function rewriteUploadedImageUrl(originalImageUrl, serverResult) {
-  const signedUrl = serverResult && serverResult.data && serverResult.data.signedUrl;
-  if (signedUrl) return signedUrl;
-  return originalImageUrl;
-}
-
-// Delete an item on the server. The caller is responsible for handling
-// the 401 → refresh-token retry cycle (we just receive a valid token).
-// A 204 response means success and we MUST NOT try to JSON.parse the
-// body — older revisions of this module threw "Unexpected end of JSON"
-// on the empty 204 body.
-function deleteItemOnServer(itemId, accessToken) {
-  return fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
-    method: 'DELETE',
-    headers: accessToken ? { Authorization: 'Bearer ' + accessToken } : {}
-  }).then(function(response) {
-    if (response.status === 204) return; // success, no body
-    if (!response.ok) {
-      return response.text().then(function(body) {
-        let msg = 'API xóa thất bại';
-        try {
-          const parsed = JSON.parse(body);
-          if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
-        } catch (_) { /* keep default */ }
-        throw new Error(msg);
-      });
-    }
-    return response.text().catch(function() { null });
-  });
-}
-
-function setCaptureBadge(text, color) {
-  chrome.action.setBadgeText({ text });
-  chrome.action.setBadgeBackgroundColor({ color });
-}
-
-function notifyCapture(title, message, badgeText, badgeColor) {
-  setCaptureBadge(badgeText || '', badgeColor || '#5B3FE4');
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icon48.png',
-    title,
-    message
-  }, (notificationId) => {
-    if (chrome.runtime.lastError) {
-      console.warn('Mnemonics notification unavailable:', chrome.runtime.lastError.message);
-    }
-    return notificationId;
-  });
-}
-
-// Browser extension background fetch is blocked by CORS for most CDN images
-// (Facebook, Instagram, etc. don't return Access-Control-Allow-Origin). The
-// local Node API runs a /api/v1/proxy/image endpoint that fetches the image
-// server-to-server and streams it back. We try that first; if the proxy is
-// down or the host isn't allow-listed we fall back to direct fetch — which
-// only succeeds for CORS-friendly CDNs — and finally fall back to the
-// cropper extension page.
 async function fetchImageViaLocalProxy(imageUrl) {
   const proxyUrl = MNEMONICS_API_URL + '/api/v1/proxy/image?url=' + encodeURIComponent(imageUrl);
   const response = await fetch(proxyUrl);
@@ -545,161 +288,6 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   });
 }
 
-// After the server-side upload succeeds, also append a local item so the
-// dashboard renders it immediately. The dashboard reads exclusively from
-// chrome.storage.local — it never fetches from the API list — so without
-// this mirror the user sees "nothing happened" even though the database
-// has the row. The stored `imageUrl` is rewritten to the Supabase public
-// storage URL when `serverResult.storageKey` is present, so the dashboard
-// renders the uploaded copy directly instead of resetting back to the
-// remote CDN (Facebook, Instagram, etc. block the API proxy).
-// imageUrl — the URL passed in (Facebook CDN, blob URL, etc.)
-// pageUrl — the page the image was on
-// pageTitle — page title
-// serverResult — null when upload failed; object when it succeeded
-// resolvedDataUrl — optional base64 data URL from the blob fetch step.
-//   Critical for re-sync: if the original CDN URL (Facebook, Instagram) has
-//   expired since the first save, we still have the bytes cached as a data URL
-//   and can re-upload without needing the original URL.
-function writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, resolvedDataUrl, clientRequestId) {
-  return new Promise(function(resolve, reject) {
-    chrome.storage.local.get(['mnemonics_session'], function(sess) {
-      if (chrome.runtime.lastError) {
-        reject(new Error('Không đọc được phiên đăng nhập: ' + chrome.runtime.lastError.message));
-        return;
-      }
-      const itemsKey = getUserItemsKey(sess.mnemonics_session);
-      chrome.storage.local.get([itemsKey], function(r) {
-        if (chrome.runtime.lastError) {
-          reject(new Error('Không đọc được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
-          return;
-        }
-        const items = r[itemsKey] || [];
-        // Prefer the Supabase Storage public URL so the dashboard can
-        // <img src=...> the cached copy without going through the proxy
-        // (which often fails for Facebook/Instagram/Twitter CDNs).
-        const renderedImageUrl = rewriteUploadedImageUrl(imageUrl, serverResult);
-        // If upload failed but we have a resolved data URL, use it so the card
-        // actually renders AND re-sync can re-upload without the CDN URL.
-        const effectiveImageUrl = (!serverResult && resolvedDataUrl)
-          ? resolvedDataUrl
-          : renderedImageUrl;
-        const newItem = {
-          id: Date.now(),
-          title: (pageTitle || 'Ảnh đã lưu').slice(0, 80),
-          excerpt: '',
-          note: '',
-          imageUrl: effectiveImageUrl,
-          sourceUrl: pageUrl || '',
-          url: (pageUrl || '').replace(/^https?:\/\//, '').slice(0, 80),
-          type: 'image',
-          tags: ['context-menu'],
-          savedAt: new Date().toISOString(),
-          date: 'Vừa xong',
-          space: 'Mới lưu',
-          // Mark the item as not-yet-uploaded whenever we don't have a
-          // serverResult; the dashboard surfaces a "Đồng bộ lên database"
-          // button on those rows. Once the user clicks it, we re-upload
-          // and clear the flag in place.
-          pendingUpload: !serverResult,
-          clientRequestId: clientRequestId || (serverResult && serverResult._clientRequestId) || null,
-          syncAttempts: serverResult ? 0 : 0,
-          nextRetryAt: serverResult ? null : new Date().toISOString(),
-          lastSyncAt: serverResult ? new Date().toISOString() : null,
-          syncError: null,
-          syncStatus: serverResult ? 'synced' : 'pending'
-        };
-        items.unshift(newItem);
-        const stored = items.slice(0, 80);
-        const payload = {};
-        payload[itemsKey] = stored;
-        chrome.storage.local.set(payload, function() {
-          if (chrome.runtime.lastError) {
-            reject(new Error('Không ghi được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
-            return;
-          }
-          resolve();
-        });
-      });
-    });
-  });
-}
-
-// Lắng nghe message DELETE_ITEM từ dashboard.
-// Upload a non-image capture (link or text/quote) to the API. Returns
-// the parsed JSON body on success. Throws with a human-readable message
-// on network failure / 4xx so callers can show it.
-async function uploadTextCapture(payload) {
-  let accessToken = await getValidAccessToken();
-  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu.');
-  if (!payload || !payload.title) throw new Error('Thiếu tiêu đề.');
-
-  async function send(token) {
-    return fetch(MNEMONICS_API_URL + '/api/v1/captures', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-  }
-
-  let response = await send(accessToken);
-  if (response.status === 401) {
-    accessToken = await forceRefreshAccessToken();
-    response = await send(accessToken);
-  }
-
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error && body.error.message ? body.error.message : 'API không lưu được.');
-  }
-  return body;
-}
-
-// Mirror of the non-image item into chrome.storage.local so the dashboard
-// shows it immediately even though the API list isn't queried. When
-// `serverResult` is null we mark `pendingUpload: true` so the dashboard
-// surfaces a "Đồng bộ" pill.
-function writeGenericLocalStore(item, serverResult) {
-  return new Promise(function(resolve, reject) {
-    chrome.storage.local.get(['mnemonics_session'], function(sess) {
-      if (chrome.runtime.lastError) {
-        reject(new Error('Không đọc được phiên đăng nhập: ' + chrome.runtime.lastError.message));
-        return;
-      }
-      const itemsKey = getUserItemsKey(sess.mnemonics_session);
-      chrome.storage.local.get([itemsKey], function(r) {
-        if (chrome.runtime.lastError) {
-          reject(new Error('Không đọc được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
-          return;
-        }
-        const items = r[itemsKey] || [];
-        const stored = Object.assign({}, item, {
-          pendingUpload: !serverResult,
-          syncAttempts: serverResult ? 0 : Number(item.syncAttempts || 0),
-          nextRetryAt: serverResult ? null : (item.nextRetryAt || new Date().toISOString()),
-          lastSyncAt: serverResult ? new Date().toISOString() : (item.lastSyncAt || null),
-          syncError: serverResult ? null : (item.syncError || null),
-          syncStatus: serverResult ? 'synced' : 'pending'
-        });
-        items.unshift(stored);
-        const trimmed = items.slice(0, 80);
-        const payload = {};
-        payload[itemsKey] = trimmed;
-        chrome.storage.local.set(payload, function() {
-          if (chrome.runtime.lastError) {
-            reject(new Error('Không ghi được dữ liệu dashboard: ' + chrome.runtime.lastError.message));
-            return;
-          }
-          resolve();
-        });
-      });
-    });
-  });
-}
-
 // Forward RELOAD_ITEMS / ITEM_SAVED broadcasts to every open dashboard
 // tab — keeps the cards-container in sync without a refresh.
 function notifyDashboards(type) {
@@ -741,195 +329,61 @@ function setupContextMenus() {
 
 chrome.runtime.onInstalled.addListener(function() {
   setupContextMenus();
-  ensurePendingSyncAlarm();
-  syncPendingItems();
 });
 // onStartup handles browser reboot; recreate menus and resume any pending
 // uploads that were left in local storage while the browser was offline.
 chrome.runtime.onStartup.addListener(function() {
   setupContextMenus();
-  ensurePendingSyncAlarm();
-  syncPendingItems();
 });
 setupContextMenus();
-ensurePendingSyncAlarm();
 
-if (chrome.alarms) {
-  chrome.alarms.onAlarm.addListener(function(alarm) {
-    if (alarm && alarm.name === PENDING_SYNC_ALARM) {
-      syncPendingItems();
-    }
-  });
-}
-
-// Xử lý khi user click context menu
+// Context-menu captures are confirmed by the API before the extension reports success.
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'save-link-to-mnemonics') {
     const linkUrl = info.linkUrl || '';
-    const pageTitle = tab.title || '';
-    const linkText = info.selectionText || '';
-    const title = (linkText || pageTitle || linkUrl).slice(0, 80) || 'Link đã lưu';
-
-    // Build the local-first item immediately so the dashboard shows it
-    // even before the server confirms. We push it again after the API
-    // call if we want — but here we just rely on the existing pattern.
-    const localItem = {
-      id: Date.now(),
-      clientRequestId: crypto.randomUUID(),
-      title: title,
-      note: '',
-      excerpt: '',
-      sourceUrl: linkUrl,
-      url: linkUrl.replace(/^https?:\/\//, '').slice(0, 80),
+    const title = (info.selectionText || tab.title || linkUrl).slice(0, 80) || 'Link đã lưu';
+    uploadTextCapture({
       type: 'link',
-      tags: ['link'],
-      savedAt: new Date().toISOString(),
-      date: 'Vừa xong'
-    };
-
-    // Try the server first. If it succeeds, drop pendingUpload. If it
-    // fails, still keep the local copy but mark it pendingUpload so the
-    // dashboard surfaces a "Đồng bộ" pill.
-    getAccessToken().then(function(session) {
-      const itemsKey = getUserItemsKey(session);
-      uploadTextCapture({
-        type: 'link',
-        title: title,
-        sourceUrl: linkUrl,
-        capturedAt: localItem.savedAt,
-        clientRequestId: localItem.clientRequestId
-      }).then(function() {
-        writeGenericLocalStore(localItem, { ok: true });
-        notifyDashboards('ITEM_SAVED');
-        chrome.notifications.create({
-          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
-          message: '🔗 Đã lưu link lên database!'
-        });
-      }).catch(function(error) {
-        console.warn('Mnemonics link upload failed:', error);
-        writeGenericLocalStore(localItem, null);
-        notifyDashboards('ITEM_SAVED');
-        chrome.notifications.create({
-          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lưu cục bộ',
-          message: 'Link chưa upload lên database: ' + (error.message || 'lỗi')
-        });
-      });
+      title,
+      sourceUrl: linkUrl,
+      capturedAt: new Date().toISOString(),
+      clientRequestId: crypto.randomUUID()
+    }).then(function() {
+      notifyDashboards('ITEM_SAVED');
+      chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics', message: '🔗 Đã lưu link lên database!' });
+    }).catch(function(error) {
+      chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lỗi lưu link', message: error.message || 'Không lưu được link.' });
     });
   }
 
   if (info.menuItemId === 'save-image-to-mnemonics') {
     const imageUrl = info.srcUrl || '';
-    const pageUrl = tab.url || '';
-    const pageTitle = tab.title || '';
-
     notifyCapture('Mnemonics', 'Đang lưu ảnh...', '…', '#f59e0b');
-    const clientRequestId = crypto.randomUUID();
-    uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, { clientRequestId })
-      .then((serverResult) => {
-        const dataUrl = serverResult && serverResult._resolvedDataUrl ? serverResult._resolvedDataUrl : null;
-        return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, serverResult, dataUrl, clientRequestId);
-      })
-      .then(() => {
-        chrome.tabs.query({}, (tabs) => {
-          tabs.forEach(t => {
-            if (t.url && t.url.includes('mnemonics-dashboard.html')) {
-              chrome.tabs.sendMessage(t.id, { type: 'ITEM_SAVED' }).catch(() => {});
-            }
-          });
-        });
+    uploadImageFromContextMenu(imageUrl, tab.url || '', tab.title || '', { clientRequestId: crypto.randomUUID() })
+      .then(function() {
+        notifyDashboards('ITEM_SAVED');
         notifyCapture('Mnemonics', 'Đã lưu ảnh vào database!', '', '#22c55e');
       })
-      .catch((error) => {
-        console.warn('Mnemonics image upload failed:', error);
-        const reason = (error && error.message) ? error.message : 'Lỗi không xác định';
-        // When upload fails, try to fetch the image via background fetch
-        // so we can persist it as a data URL for re-sync.
-        tryResolveImageViaBackground(imageUrl)
-          .then(function(dataUrl) {
-            // Pass resolvedDataUrl so the card renders AND re-sync works
-            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, dataUrl, clientRequestId);
-          })
-          .catch(function() {
-            // Could not resolve image at all — still save with original URL
-            return writeImageToLocalStore(imageUrl, pageUrl, pageTitle, null, null, clientRequestId);
-          })
-          .then(() => notifyCapture(
-            'Mnemonics - Lưu cục bộ',
-            'Ảnh chưa upload lên database, nhưng đã hiện trong dashboard. Chi tiết: ' + reason,
-            '!',
-            '#f59e0b'
-          ))
-          .catch((localError) => notifyCapture(
-            'Mnemonics - Lỗi lưu ảnh',
-            reason + '. ' + ((localError && localError.message) || ''),
-            '!',
-            '#ef4444'
-          ));
+      .catch(function(error) {
+        notifyCapture('Mnemonics - Lỗi lưu ảnh', error.message || 'Không lưu được ảnh.', '!', '#ef4444');
       });
   }
 
   if (info.menuItemId === 'save-to-mnemonics') {
     const selectedText = info.selectionText || '';
-    const pageUrl = tab.url || '';
-    const pageTitle = tab.title || '';
-
-    // Auto tags từ text được chọn (chỉ dùng cho local item; server
-    // sẽ sinh tag riêng nếu muốn). Khi text quá ngắn hoặc không có
-    // gì để chọn, fallback về pageUrl/anchor của tab.
-    const stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','was','were',
-      'this','that','with','from','have','will','your','page','home','có','của','và','với','từ',
-      'này','đó','cho','một','các','được','không','thì','đã','đang','sẽ'];
-    const words = selectedText.toLowerCase()
-      .replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !stopwords.includes(w));
-    const freq = {};
-    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-    const tags = Object.keys(freq).sort((a,b) => freq[b]-freq[a]).slice(0, 4);
-
-    const localItem = {
-      id: Date.now(),
-      clientRequestId: crypto.randomUUID(),
-      title: pageTitle.slice(0, 80) || 'Đoạn trích',
-      note: selectedText.slice(0, 500),
-      excerpt: selectedText.slice(0, 280),
-      sourceUrl: pageUrl,
-      url: pageUrl.replace(/^https?:\/\//, '').slice(0, 80),
-      type: 'quote',
-      tags: tags.length > 0 ? tags : ['trích dẫn'],
-      savedAt: new Date().toISOString(),
-      date: 'Vừa xong'
-    };
-
-    // Server schema dùng type 'text' cho selection, không phải 'quote'.
-    // Bỏ `tags` (server sẽ tự sinh) để tránh .strict() reject.
-    const serverPayload = {
+    uploadTextCapture({
       type: 'text',
-      title: localItem.title,
-      sourceUrl: pageUrl || undefined,
+      title: (tab.title || 'Đoạn trích').slice(0, 80),
+      sourceUrl: tab.url || undefined,
       selectedText: selectedText || undefined,
-      capturedAt: localItem.savedAt,
-      clientRequestId: localItem.clientRequestId
-    };
-
-    uploadTextCapture(serverPayload)
-      .then(function() {
-        writeGenericLocalStore(localItem, { ok: true });
-        notifyDashboards('ITEM_SAVED');
-        chrome.notifications.create({
-          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics',
-          message: '★ Đã lưu trích dẫn lên database!'
-        });
-      })
-      .catch(function(error) {
-        console.warn('Mnemonics text upload failed:', error);
-        writeGenericLocalStore(localItem, null);
-        notifyDashboards('ITEM_SAVED');
-        chrome.notifications.create({
-          type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lưu cục bộ',
-          message: 'Trích dẫn chưa upload lên database: ' + (error.message || 'lỗi')
-        });
-      });
+      capturedAt: new Date().toISOString(),
+      clientRequestId: crypto.randomUUID()
+    }).then(function() {
+      notifyDashboards('ITEM_SAVED');
+      chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics', message: '★ Đã lưu trích dẫn lên database!' });
+    }).catch(function(error) {
+      chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lỗi lưu', message: error.message || 'Không lưu được trích dẫn.' });
+    });
   }
 });
 
@@ -1019,37 +473,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const payload = msg.payload || {};
     uploadImageFromContextMenu(imageUrl, payload.sourceUrl || '', payload.title || '', {
       note: payload.note || '',
-      capturedAt: payload.capturedAt || new Date().toISOString()
+      capturedAt: payload.capturedAt || new Date().toISOString(),
+      clientRequestId: payload.clientRequestId || crypto.randomUUID()
     })
       .then((serverItem) => {
         sendResponse({ ok: true, data: serverItem });
       })
       .catch((error) => {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Upload failed' });
-      });
-    return true;
-  }
-
-  // Re-upload a single local item that was saved while the upload pipeline
-  // was failing (token expired, network down, …). The dashboard finds the
-  // matching row by its local id, sends the original imageUrl back here,
-  // and we re-run the same upload pipeline as a fresh context-menu save.
-  // On success the dashboard clears the `pendingUpload` flag.
-  if (msg && msg.type === 'RESYNC_ITEM') {
-    const imageUrl = msg.imageUrl || '';
-    const sourceUrl = msg.sourceUrl || '';
-    const title = msg.title || '';
-    const note = msg.note || '';
-    uploadImageFromContextMenu(imageUrl, sourceUrl, title, {
-      note: note,
-      capturedAt: msg.capturedAt || new Date().toISOString(),
-      clientRequestId: msg.clientRequestId || undefined
-    })
-      .then((serverItem) => {
-        sendResponse({ ok: true, data: serverItem });
-      })
-      .catch((error) => {
-        sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
       });
     return true;
   }
@@ -1102,29 +533,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Re-upload a link or text/quote item that initially failed to reach
-  // Supabase. Shares the same /api/v1/captures endpoint as the live
-  // context-menu flow.
-  if (msg && msg.type === 'RESYNC_TEXT_ITEM') {
-    const type = msg.itemType === 'link' ? 'link' : 'text';
-    const serverPayload = {
-      type: type,
-      title: msg.title || (type === 'link' ? 'Link đã lưu' : 'Đoạn trích'),
-      sourceUrl: msg.sourceUrl || undefined,
-      selectedText: msg.selectedText || undefined,
-      capturedAt: msg.capturedAt || new Date().toISOString(),
-      clientRequestId: msg.clientRequestId || crypto.randomUUID()
-    };
-    uploadTextCapture(serverPayload)
-      .then(function(serverItem) {
-        sendResponse({ ok: true, data: serverItem });
-      })
-      .catch(function(error) {
-        sendResponse({ ok: false, error: error && error.message ? error.message : 'Resync failed' });
-      });
-    return true;
-  }
-
   // Delete an item on the server. The dashboard optimistically drops
   // the row locally before sending this; if the call fails it re-adds.
   // We handle the 401-refresh-retry cycle by going through
@@ -1140,19 +548,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return deleteItemOnServer(itemId, accessToken);
       })
       .then(function() {
-        // Drop the cached API snapshot for the current user so the
-        // next loadFromExtension() call shows the deletion immediately.
-        chrome.storage.local.get(['mnemonics_session'], function(sess) {
-          const uid = sess && sess.mnemonics_session && sess.mnemonics_session.user
-            ? sess.mnemonics_session.user.id
-            : null;
-          const apiKey = 'mnemonics_api_items_' + (uid || 'guest');
-          chrome.storage.local.get([apiKey], function(r) {
-            const list = Array.isArray(r[apiKey]) ? r[apiKey] : [];
-            const filtered = list.filter(function(it) { return String(it.id) !== String(itemId); });
-            chrome.storage.local.set({ [apiKey]: filtered }, function() {});
-          });
-        });
         sendResponse({ ok: true });
       })
       .catch(function(error) {

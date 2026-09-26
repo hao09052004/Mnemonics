@@ -1,98 +1,51 @@
-# API: capture
+# API: extension captures
 
 > Owner: `agents/product/capture-quality-agent.md`.
-> Source-of-truth for any code path under `apps/api/capture`.
 
-## Endpoint
+Until an API deployment is configured, the browser extension sends captures to
+`http://localhost:4000`. The local API reads its `.env` configuration and writes
+to the configured primary Supabase project. Chrome storage is not a durable
+capture store or an API-list cache; it may hold screenshot bytes only while the
+cropper is open.
 
-```
-POST /api/capture
-Authorization: Bearer <jwt>          # Supabase user JWT, never in URL
-Content-Type: application/json
-```
+All endpoints require the user's Supabase access token:
 
-## Request body
-
-```jsonc
-{
-  "kind": "page" | "selection" | "image" | "screenshot",
-  "url": "https://...",              // required for page and screenshot
-  "title": "string",                 // optional, server falls back to <title>
-  "selection_html": "string",        // required when kind=selection
-  "selection_text": "string",        // required when kind=selection
-  "image_base64": "string",          // required when kind=image
-  "screenshot_url": "string",        // required when kind=screenshot, signed
-  "captured_at": "RFC3339",          // client-side timestamp, server may correct
-  "redact": ["email", "phone", "token"]  // extension-side redaction list
-}
+```http
+Authorization: Bearer <access-token>
 ```
 
-### Field rules
+The service-role key is server-only and must never be shipped in the extension.
 
-* `kind` must be one of the four enums; unknown kinds → `400 kind_unknown`.
-* `redact` items are matched by regex on `selection_text` and `title` server-side
-  as a defence-in-depth measure (the extension redacts first).
-* All binary payloads are stored in Supabase Storage; the row references them by URL.
+## Text and link captures
 
-## Response
+`POST /api/v1/captures` accepts JSON using the shared capture schema. Extension
+requests use `type` (`link` or `text`), `title`, optional `sourceUrl`, optional
+`selectedText`, optional `capturedAt`, and a stable UUID `clientRequestId`.
+The same authenticated user and `clientRequestId` returns the existing item with
+`200`; a new capture returns `201` and `{ "data": { "id", "status" } }`.
 
-### 2xx
+## Image and screenshot captures
 
-```jsonc
-{
-  "id": "uuid",
-  "status": "pending",   // pending | processing | ready | failed
-  "kind": "...",
-  "captured_at": "...",
-  "queued_jobs": ["ocr", "tag", "embed"]   // subset of {ocr, tag, embed}
-}
-```
+`POST /api/v1/captures/image` accepts `multipart/form-data`:
 
-### 4xx / 5xx
+- `file`: JPEG, PNG, or WebP, at most 10 MB.
+- `title`: capture title.
+- `note`, `sourceUrl`, and `capturedAt`: optional metadata.
+- `clientRequestId`: stable UUID reused when the same in-memory save is retried.
 
-```jsonc
-{
-  "error": {
-    "code": "kind_unknown" | "auth_required" | "tenant_unknown"
-           | "rate_limited" | "payload_too_large" | "internal_error",
-    "message": "string",
-    "request_id": "uuid"
-  }
-}
-```
+The API stores bytes in the private `mnemonics-assets` Supabase Storage bucket at
+`<user_id>/<item_id>/<filename>` and stores the user-scoped item and asset
+metadata in Postgres. A failed request is reported to the user and is not
+persisted as a local capture or retry record.
 
-## Status codes
+## Dashboard reads
 
-| Status | When                                                           |
-|--------|----------------------------------------------------------------|
-| 201    | Captured. `status='pending'`.                                  |
-| 200    | Captured but already known (deduplicated).                     |
-| 400    | Validation failed.                                             |
-| 401    | Missing or invalid JWT.                                        |
-| 403    | Tenant mismatch.                                               |
-| 413    | `payload_too_large` (default 4 MiB for images).                |
-| 429    | `rate_limited` (per-tenant, per-minute).                       |
-| 5xx    | Internal error. `request_id` returned for debugging.           |
+`GET /api/v1/items?limit=50&offset=0` is the authoritative extension dashboard
+read. It returns `{ "data": { "items", "total", "limit", "offset" } }`.
+Rows include `status`, tags, and an expiring signed `image_url` for image assets.
+The extension maps `image_url` to its render-ready `imageUrl`; server processing
+status is distinct from the removed local `pendingUpload` sync state.
 
-## Side effects
-
-1. Insert `documents` row with `status='pending'`.
-2. Enqueue OCR job **iff** `kind in ('image','screenshot')`.
-3. Always enqueue tag + embed jobs (worker picks them up after pending → processing).
-
-## Idempotency
-
-* The same `(tenant_id, url, selection_hash)` within 60s returns `200` with the
-  existing `id`.
-
-## Security
-
-* All requests are RLS-scoped to `auth.uid()`'s tenant.
-* `image_base64` is rejected if base64-decoded size > 4 MiB.
-* `selection_html` is sanitised server-side; `<script>` tags removed.
-
-## Related
-
-* Skill: [`../../skills/product/capture-extension/SKILL.md`](../../skills/product/capture-extension/SKILL.md).
-* Spec: [`0001-system-overview.md`](../0001-system-overview.md), [`data/supabase-schema.md`](../data/supabase-schema.md).
-* Workflow: [`../../workflows/product/capture-to-knowledge.md`](../../workflows/product/capture-to-knowledge.md).
+Legacy `mnemonics_items_<user_id>` rows explicitly marked
+`pendingUpload === true` are discarded locally without calling an API delete.
+No Supabase row or Storage object is deleted by that cleanup.
