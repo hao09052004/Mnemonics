@@ -8,7 +8,7 @@ import { createFakeUsers } from './fake-users.js';
 
 const VALID_PASSWORD = 'Password1!ok';
 
-function buildApp(opts: Parameters<typeof createFakeUsers>[0] = {}) {
+function buildApp(opts: Parameters<typeof createFakeUsers>[0] = {}, passwordResetRedirectUrl?: string) {
   const throttle = createMemoryThrottle();
   const audit = createMemoryAudit();
   const fake = createFakeUsers(opts);
@@ -18,7 +18,8 @@ function buildApp(opts: Parameters<typeof createFakeUsers>[0] = {}) {
     '00000000-0000-4000-8000-000000000001',
     undefined,
     fakeSupabase(),
-    { users: fake.users, throttle, audit }
+    { users: fake.users, throttle, audit },
+    { passwordResetRedirectUrl }
   );
   return { app, throttle, audit, ...fake };
 }
@@ -174,6 +175,67 @@ describe('POST /api/v1/auth/forgot-password', () => {
     const { app } = buildApp();
     const response = await request(app).post('/api/v1/auth/forgot-password').send({ email: 'no-at' });
     expect(response.status).toBe(200);
+  });
+
+  it('triggers the recovery provider with the configured redirectTo (registered email)', async () => {
+    const { app, recoveryRequests } = buildApp(
+      { existingEmail: 'known@example.com' },
+      'http://localhost:3000/reset-password'
+    );
+    const response = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'known@example.com' });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ user: null, session: null });
+    expect(recoveryRequests).toHaveLength(1);
+    expect(recoveryRequests[0]).toEqual({
+      email: 'known@example.com',
+      redirectTo: 'http://localhost:3000/reset-password'
+    });
+  });
+
+  it('still triggers the recovery provider for an unknown email (anti-enumeration: provider is called identically)', async () => {
+    const { app, recoveryRequests } = buildApp(
+      {},
+      'http://localhost:3000/reset-password'
+    );
+    const response = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'ghost@nowhere.com' });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ user: null, session: null });
+    // Public response is indistinguishable from Test A, but the provider
+    // is still invoked so Supabase can decide whether to send the email.
+    expect(recoveryRequests).toHaveLength(1);
+    expect(recoveryRequests[0]).toEqual({
+      email: 'ghost@nowhere.com',
+      redirectTo: 'http://localhost:3000/reset-password'
+    });
+  });
+
+  it('does not expose provider errors to the public response (anti-enumeration + secret protection)', async () => {
+    const { app, audit } = buildApp({ recoveryProviderFails: true });
+    const response = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'a@b.co' });
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ user: null, session: null });
+    // The provider error must NOT appear anywhere in the response body.
+    const bodyText = JSON.stringify(response.body);
+    expect(bodyText).not.toMatch(/rate_limited/);
+    expect(bodyText).not.toMatch(/error/);
+    // The audit row still records the call, preserving internal observability.
+    expect(audit.events.some((e) => e.kind === 'forgot_password' && e.email === 'a@b.co')).toBe(true);
+  });
+
+  it('does not call the legacy admin generateRecoveryLink path', async () => {
+    const { app, generateRecoveryLinkCalls } = buildApp(
+      { existingEmail: 'a@b.co' },
+      'http://localhost:3000/reset-password'
+    );
+    await request(app).post('/api/v1/auth/forgot-password').send({ email: 'a@b.co' });
+    // MNE-001 explicitly replaces admin.generateLink with anon.resetPasswordForEmail.
+    expect(generateRecoveryLinkCalls).toHaveLength(0);
   });
 });
 

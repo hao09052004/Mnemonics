@@ -1,5 +1,10 @@
 import type { Session, User } from '@supabase/supabase-js';
-import type { AuthResponseLike, LinkResponseLike, SupabaseUsersFacade } from '../supabase-users.js';
+import type {
+  AuthResponseLike,
+  LinkResponseLike,
+  RecoveryResponseLike,
+  SupabaseUsersFacade
+} from '../supabase-users.js';
 
 export interface FakeAuthOptions {
   /** When set, signUp will return this user; otherwise a deterministic uuid. */
@@ -8,6 +13,11 @@ export interface FakeAuthOptions {
   newSession?: Partial<Session> | null;
   /** Pre-existing verified (or not) emailVerified state. */
   emailConfirmed?: boolean;
+  /**
+   * When true, `requestPasswordRecovery` returns a recovery error so the
+   * route can exercise its internal logging/audit path. Defaults to false.
+   */
+  recoveryProviderFails?: boolean;
 }
 
 /**
@@ -21,11 +31,15 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
   refreshes: Array<unknown>;
   signOuts: Array<unknown>;
   meEmails: string[];
+  recoveryRequests: Array<{ email: string; redirectTo?: string }>;
+  generateRecoveryLinkCalls: Array<{ email: string }>;
 } {
   const signUps: Array<unknown> = [];
   const signIns: Array<unknown> = [];
   const refreshes: Array<unknown> = [];
   const signOuts: Array<unknown> = [];
+  const recoveryRequests: Array<{ email: string; redirectTo?: string }> = [];
+  const generateRecoveryLinkCalls: Array<{ email: string }> = [];
 
   function makeUser(email: string, confirmed: boolean): User {
     return {
@@ -130,11 +144,19 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
       meEmails.push(email);
       return toLike({ data: { user: makeUser(email, true), session: null }, error: null });
     },
-    async generateRecoveryLink(_email: string): Promise<LinkResponseLike> {
+    async generateRecoveryLink(email: string): Promise<LinkResponseLike> {
+      generateRecoveryLinkCalls.push({ email });
       return {
         data: { properties: { action_link: 'https://example.com/recover?token=foo' } },
         error: null
       };
+    },
+    async requestPasswordRecovery(email: string, redirectTo?: string): Promise<RecoveryResponseLike> {
+      recoveryRequests.push(redirectTo ? { email, redirectTo } : { email });
+      if (options.recoveryProviderFails) {
+        return { data: {}, error: { message: 'rate_limited' } };
+      }
+      return { data: {}, error: null };
     },
     async exchangeRecoverySession(accessToken: string, _refreshToken: string): Promise<AuthResponseLike> {
       if (accessToken.startsWith('bad')) {
@@ -147,5 +169,5 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
     }
   };
 
-  return { users, signUps, signIns, refreshes, signOuts, meEmails };
+  return { users, signUps, signIns, refreshes, signOuts, meEmails, recoveryRequests, generateRecoveryLinkCalls };
 }

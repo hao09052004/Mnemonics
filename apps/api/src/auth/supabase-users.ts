@@ -35,6 +35,16 @@ export interface AuthResponseLike {
   error: { message: string } | null;
 }
 
+/**
+ * Returned by `requestPasswordRecovery`. Mirrors Supabase's shape:
+ * a successful send returns `{ data: {}, error: null }`; a failure
+ * returns `{ data: null, error: { message } }`.
+ */
+export interface RecoveryResponseLike {
+  data: Record<string, never>;
+  error: { message: string } | null;
+}
+
 export interface LinkResponseLike {
   data: { properties: { action_link: string } | null } | null;
   error: { message: string } | null;
@@ -54,7 +64,15 @@ export interface SupabaseUsersFacade {
    * Supabase email rate limit.
    */
   confirmAndSignIn?(email: string, password: string, name?: string): Promise<AuthResponseLike>;
-  /** Service-role only. Used by forgot-password to generate a recovery link. */
+  /**
+   * Triggers Supabase's password recovery email delivery. Uses the anon
+   * client (Supabase sends the email itself when `resetPasswordForEmail`
+   * is called) — does NOT require the service-role key. The optional
+   * `redirectTo` is included in the recovery email so the user lands on
+   * the configured Mnemonics reset-password page.
+   */
+  requestPasswordRecovery?(email: string, redirectTo?: string): Promise<RecoveryResponseLike>;
+  /** Service-role only. Generates an admin recovery link (legacy path). */
   generateRecoveryLink?(email: string): Promise<LinkResponseLike>;
   /** Service-role only. Exchanges recovery tokens for a usable session. */
   exchangeRecoverySession?(accessToken: string, refreshToken: string): Promise<AuthResponseLike>;
@@ -156,6 +174,15 @@ export function createSupabaseUsers(client: SupabaseClient, serviceClient?: Supa
           };
         }
       : undefined,
+    requestPasswordRecovery: async (email, redirectTo) => {
+      // Uses the anon client — Supabase itself sends the recovery email.
+      // No service-role key required for this path.
+      const result = await client.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined);
+      if (result.error) {
+        return { data: {} as Record<string, never>, error: { message: result.error.message } };
+      }
+      return { data: {}, error: null };
+    },
     exchangeRecoverySession: serviceClient
       ? async (accessToken, refreshToken) => {
           const result = await serviceClient.auth.setSession({

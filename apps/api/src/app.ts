@@ -34,7 +34,15 @@ export function createApp(
   imageStorage?: ImageStorage,
   supabase?: SupabaseClient,
   authDeps?: AuthDeps,
-  options?: { autoConfirmRegistration?: boolean; demoMode?: boolean }
+  options?: {
+    autoConfirmRegistration?: boolean;
+    demoMode?: boolean;
+    /**
+     * Where Supabase should redirect the user after they click the
+     * recovery email link. Sourced from `PASSWORD_RESET_REDIRECT_URL`.
+     */
+    passwordResetRedirectUrl?: string;
+  }
 ): Application {
   const demoMode = options?.demoMode === true;
   const demoUser = {
@@ -66,7 +74,8 @@ export function createApp(
       throttle: authDeps.throttle,
       audit: authDeps.audit,
       supabase,
-      autoConfirm: options?.autoConfirmRegistration === true
+      autoConfirm: options?.autoConfirmRegistration === true,
+      passwordResetRedirectUrl: options?.passwordResetRedirectUrl
     }));
   }
 

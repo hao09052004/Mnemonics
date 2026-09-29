@@ -54,6 +54,16 @@ const authDeps = supabase
 		}
 	: undefined;
 
+// Password recovery redirect: must be configured for /forgot-password to
+// embed a useful link in the recovery email. We validate at startup so a
+// missing value fails fast rather than silently dropping the redirect.
+// The value is optional — if absent, Supabase still sends the email but
+// falls back to its own configured Site URL.
+const passwordResetRedirectUrl = process.env.PASSWORD_RESET_REDIRECT_URL;
+if (passwordResetRedirectUrl && !/^https?:\/\//.test(passwordResetRedirectUrl)) {
+	throw new Error('PASSWORD_RESET_REDIRECT_URL phải là URL hợp lệ (http/https)');
+}
+
 const repository = createItemRepository(pool);
 const app = createApp(
 	repository,
@@ -62,7 +72,7 @@ const app = createApp(
 	imageStorage,
 	supabase,
 	authDeps,
-	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true', demoMode }
+	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true', demoMode, passwordResetRedirectUrl }
 );
 
 // Set up job queue

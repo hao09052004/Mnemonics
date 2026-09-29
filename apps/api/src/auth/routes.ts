@@ -22,6 +22,12 @@ export interface AuthRouterDeps {
   audit: Audit;
   supabase: SupabaseClient; // for /me
   /**
+   * Redirect URL embedded in the password recovery email so the user lands
+   * on the configured Mnemonics reset-password page. Comes from
+   * `PASSWORD_RESET_REDIRECT_URL` in the API process environment.
+   */
+  passwordResetRedirectUrl?: string;
+  /**
    * Dev-only escape hatch: when true and the facade exposes `confirmAndSignIn`,
    * register will bypass email verification by marking the new user as
    * confirmed via the service-role client. Use this only when Supabase's
@@ -70,7 +76,7 @@ function logEvent(audit: Audit, kind: string, email: string | null, request: Req
 
 export function createAuthRouter(deps: AuthRouterDeps): Router {
   const router = Router();
-  const { users, throttle, audit, supabase, autoConfirm = false } = deps;
+  const { users, throttle, audit, supabase, autoConfirm = false, passwordResetRedirectUrl } = deps;
 
   // POST /api/v1/auth/register
   router.post('/register', async (request: Request, response: Response, next: NextFunction) => {
@@ -207,6 +213,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
   });
 
   // POST /api/v1/auth/forgot-password — always 200.
+  // Triggers Supabase's password recovery email delivery (via
+  // `resetPasswordForEmail`). The public response is intentionally neutral so
+  // the endpoint cannot be used to enumerate registered emails. Real
+  // provider failures are still recorded in the audit log.
   router.post('/forgot-password', async (request: Request, response: Response, next: NextFunction) => {
     try {
       const parsed = forgotInputSchema.safeParse(request.body);
@@ -216,8 +226,28 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         return;
       }
       const { email } = parsed.data;
-      await users.generateRecoveryLink?.(email).catch(() => undefined);
+      let providerError: string | null = null;
+      if (users.requestPasswordRecovery) {
+        const result = await users
+          .requestPasswordRecovery(email, passwordResetRedirectUrl)
+          .catch((error: unknown) => ({
+            data: {} as Record<string, never>,
+            error: { message: error instanceof Error ? error.message : 'unknown' }
+          }));
+        if (result.error) {
+          providerError = result.error.message;
+        }
+      }
       await logEvent(audit, 'forgot_password', email, request);
+      if (providerError) {
+        // Internal observability — the audit row already records the email,
+        // so we never log or return the provider error text to the client.
+        console.error('[auth] password recovery provider failed', {
+          requestId: request.id,
+          email,
+          error: providerError
+        });
+      }
       response.status(200).json(envelopeOrNull(null, null));
     } catch (error) { next(error); }
   });

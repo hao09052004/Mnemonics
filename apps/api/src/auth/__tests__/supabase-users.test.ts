@@ -10,6 +10,7 @@ function makeFakeSupabase(impls: Partial<{
   getUser: any;
   adminGenerateLink: any;
   setSession: any;
+  resetPasswordForEmail: any;
 }> = {}) {
   return {
     auth: {
@@ -21,7 +22,8 @@ function makeFakeSupabase(impls: Partial<{
       admin: {
         generateLink: impls.adminGenerateLink ?? (async () => ({ data: { properties: null }, error: null }))
       },
-      setSession: impls.setSession ?? (async () => ({ data: { user: null, session: null }, error: null }))
+      setSession: impls.setSession ?? (async () => ({ data: { user: null, session: null }, error: null })),
+      resetPasswordForEmail: impls.resetPasswordForEmail ?? (async () => ({ data: {}, error: null }))
     }
   } as unknown as SupabaseClient;
 }
@@ -150,5 +152,51 @@ describe('createSupabaseUsers', () => {
     const result = await u.exchangeRecoverySession!('at-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx', 'rt-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx');
     expect(calls[0]).toEqual({ access_token: 'at-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx', refresh_token: 'rt-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx' });
     expect(result.data?.session?.access_token).toBe('new');
+  });
+
+  it('requestPasswordRecovery calls resetPasswordForEmail on the anon client with redirectTo', async () => {
+    const calls: any[] = [];
+    const client = makeFakeSupabase({
+      resetPasswordForEmail: async (args: any, options: any) => { calls.push([args, options]); return { data: {}, error: null }; }
+    });
+    const u = createSupabaseUsers(client);
+    const result = await u.requestPasswordRecovery!('a@b.co', 'http://localhost:3000/reset-password');
+    expect(calls[0]).toEqual(['a@b.co', { redirectTo: 'http://localhost:3000/reset-password' }]);
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({});
+  });
+
+  it('requestPasswordRecovery omits options when no redirectTo is supplied', async () => {
+    const calls: any[] = [];
+    const client = makeFakeSupabase({
+      resetPasswordForEmail: async (args: any, options: any) => { calls.push([args, options]); return { data: {}, error: null }; }
+    });
+    await createSupabaseUsers(client).requestPasswordRecovery!('a@b.co');
+    expect(calls[0][1]).toBeUndefined();
+  });
+
+  it('requestPasswordRecovery forwards provider errors', async () => {
+    const client = makeFakeSupabase({ resetPasswordForEmail: async () => ({ data: null, error: { message: 'rate_limited' } }) });
+    const u = createSupabaseUsers(client);
+    const r = await u.requestPasswordRecovery!('a@b.co', 'http://localhost:3000/reset-password');
+    expect(r.error?.message).toBe('rate_limited');
+  });
+
+  it('requestPasswordRecovery uses the anon client, not the service-role client', async () => {
+    // Both clients are wired up; ensure only the anon `client` receives the
+    // resetPasswordForEmail call. The service client would expose the
+    // SUPABASE_SERVICE_ROLE_KEY in any error path, so we MUST NOT use it
+    // here.
+    const anonCalls: any[] = [];
+    const serviceCalls: any[] = [];
+    const anon = makeFakeSupabase({
+      resetPasswordForEmail: async (...args: any[]) => { anonCalls.push(args); return { data: {}, error: null }; }
+    });
+    const service = makeFakeSupabase({
+      resetPasswordForEmail: async (...args: any[]) => { serviceCalls.push(args); return { data: {}, error: null }; }
+    });
+    await createSupabaseUsers(anon, service).requestPasswordRecovery!('a@b.co');
+    expect(anonCalls).toHaveLength(1);
+    expect(serviceCalls).toHaveLength(0);
   });
 });
