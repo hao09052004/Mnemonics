@@ -117,6 +117,43 @@ describe('ApiClient', () => {
     expect(api.isAccessTokenExpired(fresh)).toBe(false);
   });
 
+  it('forgotPassword POSTs the email and returns void regardless of provider outcome', async () => {
+    const api = new ApiClient('http://x');
+    const requestSpy = vi.fn().mockResolvedValue({ data: { user: null, session: null } });
+    api['request'] = requestSpy;
+    await expect(api.forgotPassword('a@b.com')).resolves.toBeUndefined();
+    const [path, options] = requestSpy.mock.calls[0];
+    expect(path).toBe('/api/v1/auth/forgot-password');
+    expect(options).toMatchObject({ method: 'POST', body: { email: 'a@b.com' } });
+  });
+
+  it('resetPassword forwards access/refresh/newPassword and unwraps the envelope', async () => {
+    const api = new ApiClient('http://x');
+    const requestSpy = vi.fn().mockResolvedValue({ data: { user: sampleUser, session: sampleSession } });
+    api['request'] = requestSpy;
+    const out = await api.resetPassword({
+      accessToken: 'AT',
+      refreshToken: 'RT',
+      newPassword: 'NewPassword456!'
+    });
+    expect(out.session?.accessToken).toBe('AT');
+    expect(out.user?.email).toBe('a@b.com');
+    const [path, options] = requestSpy.mock.calls[0];
+    expect(path).toBe('/api/v1/auth/reset-password');
+    expect(options).toMatchObject({
+      method: 'POST',
+      body: { accessToken: 'AT', refreshToken: 'RT', newPassword: 'NewPassword456!' }
+    });
+  });
+
+  it('resetPassword surfaces weak-password 400 errors as ApiError', async () => {
+    const api = new ApiClient('http://x');
+    api['request'] = vi.fn().mockRejectedValue(new ApiError(400, 'weak', 'INVALID_AUTH_PAYLOAD'));
+    await expect(
+      api.resetPassword({ accessToken: 'AT', refreshToken: 'RT', newPassword: 'weak' })
+    ).rejects.toMatchObject({ status: 400, code: 'INVALID_AUTH_PAYLOAD' });
+  });
+
   it('refreshSession is single-flight — concurrent calls share one network request', async () => {
     const api = new ApiClient('http://x');
     const session = { accessToken: 'AT', refreshToken: 'RT', expiresAt: 1, user: sampleUser };

@@ -230,6 +230,37 @@ export class ApiClient {
     };
   }
 
+  /**
+   * Triggers the password recovery email. The server always returns 200 —
+   * clients MUST NOT use the outcome to enumerate registered emails.
+   */
+  async forgotPassword(email: string): Promise<void> {
+    await this.request<unknown>('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      body: { email }
+    });
+  }
+
+  /**
+   * Exchanges recovery tokens for a session and persists `newPassword` on
+   * the recovered user. Returns the same shape as `login()` so callers can
+   * drop straight into a dashboard session.
+   */
+  async resetPassword(request: {
+    accessToken: string;
+    refreshToken: string;
+    newPassword: string;
+  }): Promise<{ session: Session | null; user: AuthUser | null }> {
+    const envelope = await this.request<AuthEnvelope>('/api/v1/auth/reset-password', {
+      method: 'POST',
+      body: request
+    });
+    return {
+      session: this.envelopeToSession(envelope),
+      user: envelope?.data?.user ?? null
+    };
+  }
+
   async logout(accessToken: string): Promise<void> {
     await this.request<void>('/api/v1/auth/logout', {
       method: 'POST',

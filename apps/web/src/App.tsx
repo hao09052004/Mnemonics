@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { ItemCard } from './components/ItemCard';
-import { LoginForm } from './components/LoginForm';
+import { AuthPages } from './components/AuthPages';
 import { QuickCapture } from './components/QuickCapture';
 import { ApiClient, ApiError, type Item, type RelatedItem, type Session } from './lib/api-client';
 
@@ -227,7 +227,7 @@ export function App() {
   };
 
   if (!session) {
-    return <LoginForm api={api} onLogin={handleLogin} />;
+    return <AuthPages api={api} onLogin={handleLogin} />;
   }
 
   const displayItems = searchQuery ? (searchResults ?? []) : items;
