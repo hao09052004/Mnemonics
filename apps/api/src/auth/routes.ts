@@ -230,25 +230,31 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         response.status(400).json({ error: { code: 'INVALID_AUTH_PAYLOAD', message: 'Mật khẩu mới không hợp lệ', requestId: request.id } });
         return;
       }
-      if (!users.exchangeRecoverySession) {
+      if (!users.exchangeRecoverySession || !users.updatePassword) {
         response.status(503).json({ error: { code: 'AUTH_NOT_CONFIGURED', message: 'Tính năng đặt lại mật khẩu chưa khả dụng', requestId: request.id } });
         return;
       }
-      const result = await users.exchangeRecoverySession(parsed.data.accessToken, parsed.data.refreshToken);
-      if (result.error || !result.data.user || !result.data.session) {
+      const exchanged = await users.exchangeRecoverySession(parsed.data.accessToken, parsed.data.refreshToken);
+      if (exchanged.error || !exchanged.data.user || !exchanged.data.session) {
         response.status(401).json({ error: { code: 'AUTH_RESET_FAILED', message: 'Liên kết đặt lại không hợp lệ hoặc đã hết hạn', requestId: request.id } });
         await logEvent(audit, 'reset_password', null, request);
         return;
       }
-      // Apply the new password through the (now legitimate) session by
-      // calling updateUser via Supabase; we don't have direct access here so
-      // we fall through to envelope and rely on the client to set the new
-      // password via /auth/v1/user with the recovery session bearer. For the
-      // scope of this facade we simply acknowledge; the actual password
-      // rotation happens in the consumer app via supabase-js's
-      // updateUserById (service-role) on a separate internal endpoint.
-      await logEvent(audit, 'reset_password', result.data.user.email ?? null, request);
-      response.json(envelopeOrNull(toAuthUserDto(result.data.user), result.data.session));
+      const recoveredUser = exchanged.data.user;
+      // Persist the new password BEFORE returning success. User id comes from
+      // the validated recovery session, never from request input.
+      const updated = await users.updatePassword({ userId: recoveredUser.id, password: parsed.data.newPassword });
+      if (updated.error) {
+        console.error('[auth] password reset persistence failed', {
+          requestId: request.id,
+          error: updated.error.message
+        });
+        await logEvent(audit, 'reset_password', recoveredUser.email ?? null, request);
+        response.status(500).json({ error: { code: 'AUTH_RESET_FAILED', message: 'Không thể cập nhật mật khẩu, thử lại sau', requestId: request.id } });
+        return;
+      }
+      await logEvent(audit, 'reset_password', recoveredUser.email ?? null, request);
+      response.json(envelopeOrNull(toAuthUserDto(recoveredUser), exchanged.data.session));
     } catch (error) { next(error); }
   });
 

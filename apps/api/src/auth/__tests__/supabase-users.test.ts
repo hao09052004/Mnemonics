@@ -9,6 +9,7 @@ function makeFakeSupabase(impls: Partial<{
   signOut: any;
   getUser: any;
   adminGenerateLink: any;
+  adminUpdateUserById: any;
   setSession: any;
 }> = {}) {
   return {
@@ -19,7 +20,8 @@ function makeFakeSupabase(impls: Partial<{
       signOut: impls.signOut ?? (async () => ({ error: null })),
       getUser: impls.getUser ?? (async () => ({ data: { user: null }, error: null })),
       admin: {
-        generateLink: impls.adminGenerateLink ?? (async () => ({ data: { properties: null }, error: null }))
+        generateLink: impls.adminGenerateLink ?? (async () => ({ data: { properties: null }, error: null })),
+        updateUserById: impls.adminUpdateUserById ?? (async () => ({ data: { user: null }, error: null }))
       },
       setSession: impls.setSession ?? (async () => ({ data: { user: null, session: null }, error: null }))
     }
@@ -150,5 +152,44 @@ describe('createSupabaseUsers', () => {
     const result = await u.exchangeRecoverySession!('at-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx', 'rt-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx');
     expect(calls[0]).toEqual({ access_token: 'at-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx', refresh_token: 'rt-len-40-xxxxxxxxxxxxxxxxxxxxxxxxxx' });
     expect(result.data?.session?.access_token).toBe('new');
+  });
+
+  it('updatePassword is omitted when no service client is provided', async () => {
+    const u = createSupabaseUsers(makeFakeSupabase());
+    expect(u.updatePassword).toBeUndefined();
+  });
+
+  it('updatePassword forwards userId + password to admin.updateUserById', async () => {
+    const calls: any[] = [];
+    const service = makeFakeSupabase({
+      adminUpdateUserById: async (uid: any, attrs: any) => { calls.push([uid, attrs]); return { data: { user: fakeUser() }, error: null }; }
+    });
+    const u = createSupabaseUsers(makeFakeSupabase(), service);
+    const result = await u.updatePassword!({ userId: '00000000-0000-4000-8000-000000000001', password: 'NewPassword456!' });
+    expect(calls).toEqual([['00000000-0000-4000-8000-000000000001', { password: 'NewPassword456!' }]]);
+    expect(result.error).toBeNull();
+  });
+
+  it('updatePassword forwards provider errors', async () => {
+    const service = makeFakeSupabase({
+      adminUpdateUserById: async () => ({ data: null, error: { message: 'weak_password' } })
+    });
+    const u = createSupabaseUsers(makeFakeSupabase(), service);
+    const result = await u.updatePassword!({ userId: 'uid', password: 'short' });
+    expect(result.error?.message).toBe('weak_password');
+  });
+
+  it('updatePassword uses the service-role client, not the anon client', async () => {
+    // The anon client does NOT expose admin.updateUserById. We assert by
+    // proving that the implementation only wires admin on the service client
+    // and would not call into the anon client for password mutation.
+    const adminCalls: any[] = [];
+    const anon = makeFakeSupabase();
+    const service = makeFakeSupabase({
+      adminUpdateUserById: async (uid: any, attrs: any) => { adminCalls.push([uid, attrs]); return { data: { user: fakeUser() }, error: null }; }
+    });
+    const u = createSupabaseUsers(anon, service);
+    await u.updatePassword!({ userId: 'uid', password: 'pw' });
+    expect(adminCalls).toHaveLength(1);
   });
 });
