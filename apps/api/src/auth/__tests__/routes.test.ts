@@ -177,7 +177,10 @@ describe('POST /api/v1/auth/forgot-password', () => {
   });
 });
 
-describe('POST /api/v1/auth/reset-password', () => {
+describe('POST /api/v1/auth/reset-password (MNE-002 persistence)', () => {
+  const NEW_PASSWORD = 'NewPassword456!';
+  const OLD_PASSWORD = 'OldPassword123!';
+
   it('returns 200 on valid recovery tokens', async () => {
     const { app } = buildApp();
     const response = await request(app).post('/api/v1/auth/reset-password').send({
@@ -192,7 +195,7 @@ describe('POST /api/v1/auth/reset-password', () => {
   it('returns 401 on bad recovery token', async () => {
     const { app } = buildApp();
     const response = await request(app).post('/api/v1/auth/reset-password').send({
-      accessToken: 'badtok-bad-bad-bad-bad-badbadbad-bad', // long enough but rejected
+      accessToken: 'badtok-bad-bad-bad-bad-badbadbad-bad',
       refreshToken: 'b'.repeat(40),
       newPassword: VALID_PASSWORD
     });
@@ -209,6 +212,180 @@ describe('POST /api/v1/auth/reset-password', () => {
     });
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('INVALID_AUTH_PAYLOAD');
+  });
+
+  // ---- MNE-002 regression coverage ----
+
+  it('Test A: persists the new password via the facade on success', async () => {
+    const { app, updatePasswordCalls } = buildApp();
+    const response = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    expect(response.status).toBe(200);
+    expect(updatePasswordCalls).toHaveLength(1);
+    // userId must be the recovered user's id (hard-coded uuid in fake), NOT
+    // anything derived from the request.
+    expect(updatePasswordCalls[0].userId).toBe('00000000-0000-4000-8000-000000000001');
+    expect(updatePasswordCalls[0].password).toBe(NEW_PASSWORD);
+  });
+
+  it('Test B: login with the new password succeeds after reset', async () => {
+    const { app, passwords } = buildApp({
+      existingEmail: 'rotated@example.com',
+      emailConfirmed: true,
+      initialPassword: OLD_PASSWORD
+    });
+    const reset = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    expect(reset.status).toBe(200);
+
+    // Password store was overwritten — login now accepts NEW_PASSWORD.
+    expect(passwords.get('00000000-0000-4000-8000-000000000001')).toBe(NEW_PASSWORD);
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'rotated@example.com', password: NEW_PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.email).toBe('rotated@example.com');
+  });
+
+  it('Test C: login with the old password fails after reset', async () => {
+    const { app } = buildApp({
+      existingEmail: 'rotated@example.com',
+      emailConfirmed: true,
+      initialPassword: OLD_PASSWORD
+    });
+    const reset = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    expect(reset.status).toBe(200);
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'rotated@example.com', password: OLD_PASSWORD });
+    expect(login.status).toBe(401);
+    expect(login.body.error.code).toBe('AUTH_LOGIN_FAILED');
+  });
+
+  it('Test D: invalid recovery credentials never call updatePassword', async () => {
+    const { app, updatePasswordCalls } = buildApp();
+    const response = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'badtok-bad-bad-bad-bad-badbadbad-bad',
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    expect(response.status).toBe(401);
+    expect(updatePasswordCalls).toHaveLength(0);
+  });
+
+  it('Test E: weak new password never calls updatePassword', async () => {
+    const { app, updatePasswordCalls } = buildApp();
+    const response = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: '123456'
+    });
+    expect(response.status).toBe(400);
+    expect(updatePasswordCalls).toHaveLength(0);
+  });
+
+  it('Test F: provider failure does not report success and never logs the new password', async () => {
+    const { app, updatePasswordCalls, audit } = buildApp({ updatePasswordFails: true });
+    const response = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe('AUTH_RESET_FAILED');
+    // Provider error text must NOT leak to the public body.
+    const bodyText = JSON.stringify(response.body);
+    expect(bodyText).not.toMatch(/provider_password_update_failed/);
+
+    // Audit row exists for the failed attempt.
+    expect(audit.events.some((e) => e.kind === 'reset_password')).toBe(true);
+    // UpdatePassword was attempted (the route only knows after the call).
+    expect(updatePasswordCalls).toHaveLength(1);
+    // Secret material must never appear in any audit row.
+    for (const event of audit.events) {
+      const serialized = JSON.stringify(event);
+      expect(serialized).not.toContain(NEW_PASSWORD);
+      expect(serialized).not.toContain('a'.repeat(40));
+      expect(serialized).not.toContain('b'.repeat(40));
+    }
+  });
+
+  it('Test G: cannot reset another user by passing an arbitrary userId in the body', async () => {
+    const { app, updatePasswordCalls } = buildApp();
+    // Even if the request body smuggles a userId, the route must ignore it
+    // and derive the target from the validated recovery session.
+    const response = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD,
+      userId: '99999999-9999-4999-8999-999999999999'
+    });
+    // Schema is .strict() so this returns 400 INVALID_AUTH_PAYLOAD; that's the
+    // simplest defence. Assert the provider was never called regardless.
+    expect(response.status).toBe(400);
+    expect(updatePasswordCalls).toHaveLength(0);
+  });
+
+  it('Test H: end-to-end recovery → reset → login rotation', async () => {
+    // Most important regression test for MNE-002.
+    const { app } = buildApp({
+      existingEmail: 'e2e@example.com',
+      emailConfirmed: true,
+      initialPassword: OLD_PASSWORD
+    });
+
+    // Baseline: old password works.
+    const before = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'e2e@example.com', password: OLD_PASSWORD });
+    expect(before.status).toBe(200);
+
+    // Reset.
+    const reset = await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    expect(reset.status).toBe(200);
+
+    // After reset: old password fails, new password succeeds.
+    const oldAfter = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'e2e@example.com', password: OLD_PASSWORD });
+    expect(oldAfter.status).toBe(401);
+
+    const newAfter = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'e2e@example.com', password: NEW_PASSWORD });
+    expect(newAfter.status).toBe(200);
+    expect(newAfter.body.data.user.email).toBe('e2e@example.com');
+  });
+
+  it('Test I: recovery tokens and new password never appear in audit metadata', async () => {
+    const { app, audit } = buildApp();
+    await request(app).post('/api/v1/auth/reset-password').send({
+      accessToken: 'a'.repeat(40),
+      refreshToken: 'b'.repeat(40),
+      newPassword: NEW_PASSWORD
+    });
+    for (const event of audit.events) {
+      const serialized = JSON.stringify(event);
+      expect(serialized).not.toContain(NEW_PASSWORD);
+      expect(serialized).not.toContain('a'.repeat(40));
+      expect(serialized).not.toContain('b'.repeat(40));
+    }
   });
 });
 

@@ -58,6 +58,12 @@ export interface SupabaseUsersFacade {
   generateRecoveryLink?(email: string): Promise<LinkResponseLike>;
   /** Service-role only. Exchanges recovery tokens for a usable session. */
   exchangeRecoverySession?(accessToken: string, refreshToken: string): Promise<AuthResponseLike>;
+  /**
+   * Service-role only. Persists `password` for the user identified by
+   * `userId`. The route is responsible for deriving `userId` from the
+   * validated recovery session — never from request input.
+   */
+  updatePassword?(input: { userId: string; password: string }): Promise<{ error: { message: string } | null }>;
 }
 
 function toLike<T extends { data: any; error: any }>(value: T): AuthResponseLike {
@@ -163,6 +169,12 @@ export function createSupabaseUsers(client: SupabaseClient, serviceClient?: Supa
             refresh_token: refreshToken
           });
           return toLike(result);
+        }
+      : undefined,
+    updatePassword: serviceClient
+      ? async ({ userId, password }) => {
+          const result = await serviceClient.auth.admin.updateUserById(userId, { password });
+          return { error: result.error ? { message: result.error.message } : null };
         }
       : undefined
   };

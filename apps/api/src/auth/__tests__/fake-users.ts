@@ -8,6 +8,14 @@ export interface FakeAuthOptions {
   newSession?: Partial<Session> | null;
   /** Pre-existing verified (or not) emailVerified state. */
   emailConfirmed?: boolean;
+  /**
+   * Initial password seeded for the fake user. After `updatePassword`, the
+   * new password overwrites this entry so subsequent sign-in checks can
+   * verify the rotation really happened.
+   */
+  initialPassword?: string;
+  /** When true, updatePassword returns an error so the route can exercise its error path. */
+  updatePasswordFails?: boolean;
 }
 
 /**
@@ -21,11 +29,19 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
   refreshes: Array<unknown>;
   signOuts: Array<unknown>;
   meEmails: string[];
+  updatePasswordCalls: Array<{ userId: string; password: string }>;
+  /** Mutable in-memory password store keyed by user id — fake-only. */
+  passwords: Map<string, string>;
+  /** When true, updatePassword returns the configured providerErrorMessage. */
+  updatePasswordFails?: boolean;
+  updatePasswordProviderErrorMessage?: string;
 } {
   const signUps: Array<unknown> = [];
   const signIns: Array<unknown> = [];
   const refreshes: Array<unknown> = [];
   const signOuts: Array<unknown> = [];
+  const updatePasswordCalls: Array<{ userId: string; password: string }> = [];
+  const passwords = new Map<string, string>();
 
   function makeUser(email: string, confirmed: boolean): User {
     return {
@@ -93,9 +109,17 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
         error: null
       });
     },
-    async signIn({ email }: { email: string; password: string }): Promise<AuthResponseLike> {
-      signIns.push({ email });
+    async signIn({ email, password }: { email: string; password: string }): Promise<AuthResponseLike> {
+      signIns.push({ email, password });
       if (!options.existingEmail) {
+        return toLike({ data: { user: null, session: null }, error: { message: 'Invalid login credentials' } });
+      }
+      // If a password store was seeded (or already mutated by updatePassword),
+      // verify against it. Otherwise fall back to the legacy "always accepts
+      // any password" behaviour so unrelated tests keep passing.
+      const userId = makeUser(email, options.emailConfirmed ?? true).id;
+      const stored = passwords.get(userId);
+      if (stored !== undefined && stored !== password) {
         return toLike({ data: { user: null, session: null }, error: { message: 'Invalid login credentials' } });
       }
       return toLike({
@@ -144,8 +168,22 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
         data: { session: makeSession(), user: makeUser('a@b.co', true) },
         error: null
       });
+    },
+    async updatePassword({ userId, password }: { userId: string; password: string }): Promise<{ error: { message: string } | null }> {
+      updatePasswordCalls.push({ userId, password });
+      if (options.updatePasswordFails) {
+        return { error: { message: 'provider_password_update_failed' } };
+      }
+      passwords.set(userId, password);
+      return { error: null };
     }
   };
 
-  return { users, signUps, signIns, refreshes, signOuts, meEmails };
+  // Seed the initial password once the userId is known.
+  if (options.initialPassword && options.existingEmail) {
+    const seedUser = makeUser(options.existingEmail, options.emailConfirmed ?? true);
+    passwords.set(seedUser.id, options.initialPassword);
+  }
+
+  return { users, signUps, signIns, refreshes, signOuts, meEmails, updatePasswordCalls, passwords, updatePasswordFails: options.updatePasswordFails };
 }
