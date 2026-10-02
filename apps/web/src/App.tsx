@@ -24,7 +24,18 @@ interface ItemsResponse {
   offset: number;
 }
 
-const api = new ApiClient('http://localhost:4000');
+// In dev mode, vite proxies /api to http://localhost:4000, so using a
+// relative baseUrl lets the browser hit the same origin. In production
+// builds (or when running outside the vite proxy) we point straight at
+// the API host so this stays usable without a reverse proxy in front.
+const apiBaseUrl = (() => {
+  if (typeof window === 'undefined') return 'http://localhost:4000';
+  const { protocol, hostname, port } = window.location;
+  const isViteDev = (hostname === 'localhost' || hostname === '127.0.0.1') && port === '3000';
+  return isViteDev ? `${protocol}//${hostname}:3000` : 'http://localhost:4000';
+})();
+
+const api = new ApiClient(apiBaseUrl);
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
