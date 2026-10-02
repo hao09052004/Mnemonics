@@ -10,9 +10,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { ItemCard } from './components/ItemCard';
+import { ItemDetailModal } from './components/ItemDetailModal';
 import { LoginForm } from './components/LoginForm';
 import { QuickCapture } from './components/QuickCapture';
-import { ApiClient, ApiError, type Item, type RelatedItem, type Session } from './lib/api-client';
+import { TagSidebar } from './components/TagSidebar';
+import { ForgotPasswordForm } from './components/ForgotPasswordForm';
+import { ApiClient, ApiError, type Item, type ItemDetail, type RelatedItem, type Session } from './lib/api-client';
 
 interface ItemsResponse {
   items: Item[];
@@ -33,6 +36,11 @@ export function App() {
   const [filters, setFilters] = useState<{ kind?: string[]; tags?: string[] }>({});
   const [relatedItems, setRelatedItems] = useState<Record<string, RelatedItem[]>>({});
   const [relatedLoading, setRelatedLoading] = useState<Record<string, boolean>>({});
+  const [detailItemId, setDetailItemId] = useState<string | null>(null);
+  const [detailCache, setDetailCache] = useState<Record<string, ItemDetail>>({});
+  const [tagsRefreshKey, setTagsRefreshKey] = useState(0);
+  const [tagFilteredList, setTagFilteredList] = useState<Item[] | null>(null);
+  const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
 
   const sessionRef = useRef<Session | null>(null);
   const requestEpoch = useRef(0);
@@ -156,6 +164,7 @@ export function App() {
         setItems(result.items);
         const captured = result.items.find((item) => String(item.id) === String(itemId));
         if (captured?.status === 'ready' || captured?.status === 'failed') {
+          setTagsRefreshKey((key) => key + 1);
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -185,6 +194,52 @@ export function App() {
       setRelatedLoading((current) => ({ ...current, [itemId]: false }));
     }
   }, [relatedLoading]);
+
+  const handleSelectTag = useCallback(async (normalizedTag: string | null) => {
+    if (!sessionRef.current) return;
+
+    if (normalizedTag === null) {
+      setFilters((current) => ({ ...current, tags: undefined }));
+      setTagFilteredList(null);
+      return;
+    }
+
+    setFilters((current) => ({ ...current, tags: [normalizedTag] }));
+    setSearchQuery(''); // tag filter uses list endpoint, not search
+
+    const token = await api.getValidAccessToken();
+    if (!token) {
+      setSession(null);
+      return;
+    }
+    try {
+      const result = await api.itemsByTag(normalizedTag, token);
+      setTagFilteredList(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể lọc theo tag.');
+    }
+  }, []);
+
+  const handleOpenDetail = useCallback((itemId: string) => {
+    setDetailItemId(itemId);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailItemId(null);
+  }, []);
+
+  const handleDetailSaved = useCallback((updated: ItemDetail) => {
+    setDetailCache((current) => ({ ...current, [updated.id]: updated }));
+    setItems((current) => current.map((item) => (
+      item.id === updated.id ? { ...item, title: updated.title } : item
+    )));
+    setSearchResults((current) => current
+      ? current.map((item) => (item.id === updated.id ? { ...item, title: updated.title } : item))
+      : current);
+    setTagFilteredList((current) => current
+      ? current.map((item) => (item.id === updated.id ? { ...item, title: updated.title } : item))
+      : current);
+  }, []);
 
   const handleLogin = (newSession: Session) => {
     setSession(newSession);
@@ -217,6 +272,8 @@ export function App() {
       }
       await api.deleteItem(id, token);
       if (epoch !== requestEpoch.current) return;
+      setTagsRefreshKey((key) => key + 1);
+      if (tagFilteredList) setTagFilteredList((current) => current ? current.filter((item) => item.id !== id) : current);
       if (!searchQuery) loadList();
     } catch (err) {
       if (epoch !== requestEpoch.current) return;
@@ -227,15 +284,23 @@ export function App() {
   };
 
   if (!session) {
-    return <LoginForm api={api} onLogin={handleLogin} />;
+    if (authView === 'forgot') {
+      return <ForgotPasswordForm api={api} onCancel={() => setAuthView('login')} onResetRequested={() => undefined} />;
+    }
+    return <LoginForm api={api} onLogin={handleLogin} onForgotPassword={() => setAuthView('forgot')} />;
   }
 
-  const displayItems = searchQuery ? (searchResults ?? []) : items;
+  const displayItems: Item[] = searchQuery
+    ? (searchResults ?? [])
+    : tagFilteredList !== null
+      ? tagFilteredList
+      : items;
+  const activeTag = filters.tags?.[0] ?? null;
   const readyCount = items.filter((item) => item.status === 'ready').length;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 48px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 24px 48px' }}>
         <header style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -284,7 +349,8 @@ export function App() {
           >
             <div style={{ fontSize: 13, fontWeight: 800, color: '#3730a3' }}>⚡ Demo mode</div>
             <div style={{ marginTop: 4, fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
-              Thử 4 bước: <b>Lưu nhanh</b> → chờ <b>tag + embedding</b> → tìm kiếm → mở <b>Ý liên quan</b>.
+              Thử các bước: <b>Lưu nhanh</b> → chờ <b>tag + embedding</b> → tìm kiếm → mở <b>Ý liên quan</b>
+              → bấm vào card để xem chi tiết / sửa → click tag để lọc theo tag.
               Dữ liệu demo chạy hoàn toàn trên máy local.
             </div>
           </div>
@@ -294,61 +360,101 @@ export function App() {
 
         <SearchBar onSearch={handleSearch} initialQuery={searchQuery} loading={loading} />
 
-        <div style={{ marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select
-            value={filters.kind?.[0] || 'all'}
-            onChange={(e) => {
-              const value = e.target.value;
-              setFilters({ ...filters, kind: value === 'all' ? undefined : [value] });
-            }}
-            style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: 'white' }}
-          >
-            <option value="all">Tất cả loại</option>
-            <option value="link">Link</option>
-            <option value="text">Text</option>
-            <option value="image">Image</option>
-            <option value="screenshot">Screenshot</option>
-          </select>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 240px) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+          <TagSidebar
+            api={api}
+            accessToken={session.accessToken}
+            selectedTag={activeTag}
+            onSelect={handleSelectTag}
+            refreshKey={tagsRefreshKey}
+          />
 
-          <span style={{ fontSize: 12, color: '#64748b' }}>
-            {searchQuery ? `Đang tìm “${searchQuery}”` : `${displayItems.length} memories đang hiển thị`}
-          </span>
+          <div>
+            <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select
+                value={filters.kind?.[0] || 'all'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFilters({ ...filters, kind: value === 'all' ? undefined : [value] });
+                }}
+                style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: 'white' }}
+              >
+                <option value="all">Tất cả loại</option>
+                <option value="link">Link</option>
+                <option value="text">Text</option>
+                <option value="image">Image</option>
+                <option value="screenshot">Screenshot</option>
+              </select>
+
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                {searchQuery
+                  ? `Đang tìm “${searchQuery}”`
+                  : activeTag
+                    ? `Đang lọc theo tag #${activeTag}`
+                    : `${displayItems.length} memories đang hiển thị`}
+              </span>
+
+              {activeTag && (
+                <button
+                  type="button"
+                  data-testid="clear-tag-filter"
+                  onClick={() => handleSelectTag(null)}
+                  style={{ fontSize: 11, padding: '4px 10px', border: '1px solid #cbd5e1', borderRadius: 8, background: 'white', cursor: 'pointer', color: '#475569' }}
+                >
+                  Bỏ lọc
+                </button>
+              )}
+            </div>
+
+            {error && (
+              <div role="alert" style={{ padding: 12, marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#b91c1c' }}>
+                {error}
+              </div>
+            )}
+
+            {loading && displayItems.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 52, color: '#64748b' }}>Đang tải kiến thức...</div>
+            ) : displayItems.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: 52,
+                color: '#64748b',
+                background: 'white',
+                border: '1px dashed #cbd5e1',
+                borderRadius: 14
+              }}>
+                {searchQuery ? 'Không tìm thấy kết quả' : activeTag ? 'Chưa có memory nào với tag này' : 'Chưa có memory nào được lưu'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+                {displayItems.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    relatedItems={relatedItems[String(item.id)] || []}
+                    relatedLoading={Boolean(relatedLoading[String(item.id)])}
+                    onLoadRelated={() => handleLoadRelated(String(item.id))}
+                    onDelete={() => handleDelete(item.id)}
+                    onOpen={() => handleOpenDetail(item.id)}
+                    onSelectTag={(tag) => handleSelectTag(tag)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-
-        {error && (
-          <div role="alert" style={{ padding: 12, marginBottom: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#b91c1c' }}>
-            {error}
-          </div>
-        )}
-
-        {loading && displayItems.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 52, color: '#64748b' }}>Đang tải kiến thức...</div>
-        ) : displayItems.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: 52,
-            color: '#64748b',
-            background: 'white',
-            border: '1px dashed #cbd5e1',
-            borderRadius: 14
-          }}>
-            {searchQuery ? 'Không tìm thấy kết quả' : 'Chưa có memory nào được lưu'}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-            {displayItems.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                relatedItems={relatedItems[String(item.id)] || []}
-                relatedLoading={Boolean(relatedLoading[String(item.id)])}
-                onLoadRelated={() => handleLoadRelated(String(item.id))}
-                onDelete={() => handleDelete(item.id)}
-              />
-            ))}
-          </div>
-        )}
       </div>
+
+      {detailItemId && (
+        <ItemDetailModal
+          api={api}
+          itemId={detailItemId}
+          accessToken={session.accessToken}
+          initial={detailCache[detailItemId] ?? null}
+          onClose={handleCloseDetail}
+          onSaved={handleDetailSaved}
+        />
+      )}
     </div>
   );
 }

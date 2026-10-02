@@ -35,7 +35,7 @@ interface Session {
   user: AuthUser;
 }
 
-export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem };
+export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem, ItemDetail, UpdateItemRequest, TagListItem, TagItemsResponse, TagSuggestion, TagSuggestionResponse };
 
 interface LoginRequest {
   email: string;
@@ -90,6 +90,42 @@ interface Item {
   status?: string;
   image_url?: string;
   source_url?: string;
+}
+
+interface ItemDetail extends Item {
+  raw_text?: string | null;
+  ocr_text?: string | null;
+  notes?: string | null;
+}
+
+interface UpdateItemRequest {
+  title?: string;
+  notes?: string;
+}
+
+interface TagListItem {
+  id: string;
+  name: string;
+  normalized_name?: string;
+  item_count: number;
+  last_used_at?: string | null;
+}
+
+interface TagItemsResponse {
+  tag: string;
+  items: Item[];
+  total: number;
+}
+
+interface TagSuggestion {
+  tag: string;
+  score: number;
+  isExisting: boolean;
+}
+
+interface TagSuggestionResponse {
+  suggestions: TagSuggestion[];
+  existing_tags?: string[];
 }
 
 interface RelatedItem {
@@ -299,6 +335,76 @@ export class ApiClient {
   async deleteItem(id: string, accessToken: string): Promise<void> {
     await this.request<void>(`/api/v1/items/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+      accessToken,
+      parseJson: false
+    });
+  }
+
+  async getItem(id: string, accessToken: string): Promise<ItemDetail> {
+    const response = await this.request<{ item: ItemDetail }>(
+      `/api/v1/items/${encodeURIComponent(id)}`,
+      { accessToken }
+    );
+    return response.item;
+  }
+
+  async updateItem(id: string, updates: UpdateItemRequest, accessToken: string): Promise<void> {
+    await this.request<{ success: true }>(
+      `/api/v1/items/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        accessToken,
+        body: updates
+      }
+    );
+  }
+
+  async listTags(accessToken: string): Promise<TagListItem[]> {
+    const response = await this.request<{ tags: TagListItem[]; total: number }>(
+      '/api/v1/tags',
+      { accessToken }
+    );
+    return Array.isArray(response.tags) ? response.tags : [];
+  }
+
+  async itemsByTag(name: string, accessToken: string): Promise<TagItemsResponse> {
+    return this.request<TagItemsResponse>(
+      `/api/v1/tags/${encodeURIComponent(name)}/items`,
+      { accessToken }
+    );
+  }
+
+  async suggestTags(text: string, accessToken: string, max = 5): Promise<TagSuggestionResponse> {
+    return this.request<TagSuggestionResponse>('/api/v1/tags/suggest', {
+      method: 'POST',
+      accessToken,
+      body: { text, max }
+    });
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    // Always 200 — anti-enumeration. We deliberately swallow the body.
+    await this.request<unknown>('/api/v1/auth/forgot-password', {
+      method: 'POST',
+      body: { email }
+    });
+  }
+
+  async resetPassword(payload: { accessToken: string; refreshToken: string; newPassword: string }): Promise<Session> {
+    const envelope = await this.request<AuthEnvelope>('/api/v1/auth/reset-password', {
+      method: 'POST',
+      body: payload
+    });
+    const session = this.envelopeToSession(envelope);
+    if (!session) {
+      throw new ApiError(500, 'Không nhận được session sau khi đặt lại mật khẩu', 'AUTH_RESET_NO_SESSION');
+    }
+    return session;
+  }
+
+  async resendVerification(accessToken: string): Promise<void> {
+    await this.request<void>('/api/v1/auth/resend-verification', {
+      method: 'POST',
       accessToken,
       parseJson: false
     });

@@ -15,9 +15,10 @@ type Mode = 'login' | 'register';
 interface LoginFormProps {
   api: ApiClient;
   onLogin: (session: Session) => void;
+  onForgotPassword?: () => void;
 }
 
-export function LoginForm({ api, onLogin }: LoginFormProps) {
+export function LoginForm({ api, onLogin, onForgotPassword }: LoginFormProps) {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -182,6 +183,25 @@ export function LoginForm({ api, onLogin }: LoginFormProps) {
         >
           {loading ? 'Đang xử lý...' : (mode === 'login' ? 'Đăng nhập' : 'Đăng ký')}
         </button>
+
+        {mode === 'login' && onForgotPassword && (
+          <button
+            type="button"
+            data-testid="forgot-password-link"
+            onClick={onForgotPassword}
+            style={{
+              padding: '4px',
+              background: 'transparent',
+              border: 'none',
+              color: '#64748b',
+              cursor: 'pointer',
+              fontSize: 12,
+              textDecoration: 'underline'
+            }}
+          >
+            Quên mật khẩu?
+          </button>
+        )}
 
         <button
           type="button"
