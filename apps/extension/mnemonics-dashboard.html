@@ -620,6 +620,13 @@
   .btn-logout { display: none; border: 1.5px solid var(--gray-border); background: white; color: var(--black); font-size: 12px; font-weight: 800; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
   .auth-error { display: none; border: 1.5px solid #fecaca; background: #fff5f5; color: #b91c1c; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 700; line-height: 1.5; }
   .auth-error.show { display: block; }
+  .auth-success { display: none; border: 1.5px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 700; line-height: 1.5; }
+  .auth-success.show { display: block; }
+  .auth-forgot-link {
+    color: var(--purple); font-weight: 800; cursor: pointer; text-decoration: none;
+    font-size: 12px; padding: 0; border: none; background: transparent;
+  }
+  .auth-forgot-link:hover { text-decoration: underline; }
   @media (max-width: 900px) {
     .auth-page { grid-template-columns: 1fr; }
     .auth-visual { display: none; }
@@ -835,7 +842,10 @@
         </div>
         <div class="auth-row">
           <label class="auth-check"><input id="login-remember" type="checkbox" checked> Ghi nhớ đăng nhập</label>
-          <span class="auth-link" id="auth-demo-login">Dùng tài khoản demo</span>
+          <span style="display:flex;gap:14px;align-items:center">
+            <button type="button" class="auth-forgot-link" id="auth-forgot-link">🔑 Quên mật khẩu?</button>
+            <span class="auth-link" id="auth-demo-login">Dùng tài khoản demo</span>
+          </span>
         </div>
         <button class="auth-submit" id="btn-auth-login">ĐĂNG NHẬP</button>
       </div>
@@ -1385,6 +1395,26 @@
     <div class="modal-actions">
       <button class="modal-cancel" id="btn-modal-cancel">Hủy</button>
       <button class="modal-save" id="btn-modal-save">Lưu ký ức ✦</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FORGOT PASSWORD MODAL ===== -->
+<div class="modal-overlay" id="forgot-modal">
+  <div class="modal">
+    <div class="modal-title">🔑 Khôi phục mật khẩu</div>
+    <div class="auth-error" id="forgot-error"></div>
+    <div class="auth-success" id="forgot-success"></div>
+    <p style="font-size:13px;color:var(--gray-text);line-height:1.6;margin-bottom:16px">
+      Nhập email đã đăng ký. Chúng tôi sẽ gửi link đặt lại mật khẩu vào hộp thư của bạn.
+    </p>
+    <div class="modal-field">
+      <div class="modal-label">Email</div>
+      <input class="modal-input" id="forgot-email" type="email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="btn-forgot-cancel">Hủy</button>
+      <button class="modal-save" id="btn-forgot-submit">GỬI LINK KHÔI PHỤC</button>
     </div>
   </div>
 </div>

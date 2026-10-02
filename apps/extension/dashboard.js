@@ -277,6 +277,55 @@ async function handleLogin() {
   }
 }
 
+async function handleForgotPassword() {
+  var emailInput = document.getElementById('forgot-email');
+  var errEl = document.getElementById('forgot-error');
+  var succEl = document.getElementById('forgot-success');
+  var submitBtn = document.getElementById('btn-forgot-submit');
+  if (!emailInput || !errEl || !succEl || !submitBtn) return;
+
+  var email = normalizeEmail(emailInput.value);
+  if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
+  if (succEl) { succEl.classList.remove('show'); succEl.textContent = ''; }
+
+  if (!email) {
+    errEl.textContent = 'Vui lòng nhập email để khôi phục mật khẩu.';
+    errEl.classList.add('show');
+    return;
+  }
+  // Light client-side email shape check; the server is the source of truth.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Email chưa đúng định dạng.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  var originalLabel = submitBtn.textContent;
+  submitBtn.textContent = 'ĐANG GỬI...';
+  try {
+    var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000');
+    var response = await fetch(apiBase + '/api/v1/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    });
+    var body = await response.json().catch(function() { return {}; });
+    if (!response.ok) {
+      throw new Error(body.error && body.error.message ? body.error.message : 'Kh\u00f4ng th\u1ec3 g\u1eedi y\u00eau c\u1ea7u.');
+    }
+    succEl.textContent = 'Đã gửi yêu cầu khôi phục mật khẩu. Vui lòng kiểm tra hộp thư của bạn (kể cả thư mục spam).';
+    succEl.classList.add('show');
+    emailInput.value = '';
+  } catch (error) {
+    errEl.textContent = error.message || 'Có lỗi xảy ra, vui lòng thử lại.';
+    errEl.classList.add('show');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
+  }
+}
+
 function logoutUser() {
   // Best-effort backend revocation; ignore failures (idempotent on server).
   const token = (typeof currentUser === 'object' && currentUser) ? readAccessToken() : null;
@@ -2004,6 +2053,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var authDemoLogin = document.getElementById('auth-demo-login');
   if (authDemoLogin) authDemoLogin.addEventListener('click', loginDemoUser);
+
+  var authForgotLink = document.getElementById('auth-forgot-link');
+  if (authForgotLink) authForgotLink.addEventListener('click', function() {
+    var forgotModal = document.getElementById('forgot-modal');
+    var loginEmail = document.getElementById('login-email');
+    var forgotEmail = document.getElementById('forgot-email');
+    if (forgotEmail && loginEmail) forgotEmail.value = loginEmail.value || '';
+    var errEl = document.getElementById('forgot-error');
+    var succEl = document.getElementById('forgot-success');
+    if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
+    if (succEl) { succEl.classList.remove('show'); succEl.textContent = ''; }
+    if (forgotModal) forgotModal.classList.add('open');
+  });
+
+  var btnForgotCancel = document.getElementById('btn-forgot-cancel');
+  if (btnForgotCancel) btnForgotCancel.addEventListener('click', function() {
+    var forgotModal = document.getElementById('forgot-modal');
+    if (forgotModal) forgotModal.classList.remove('open');
+  });
+
+  var btnForgotSubmit = document.getElementById('btn-forgot-submit');
+  if (btnForgotSubmit) btnForgotSubmit.addEventListener('click', function(e) {
+    e.preventDefault();
+    handleForgotPassword();
+  });
+
+  var forgotEmailInput = document.getElementById('forgot-email');
+  if (forgotEmailInput) forgotEmailInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleForgotPassword();
+  });
 
   var btnAuthLogin = document.getElementById('btn-auth-login');
   if (btnAuthLogin) btnAuthLogin.addEventListener('click', function(e) {
