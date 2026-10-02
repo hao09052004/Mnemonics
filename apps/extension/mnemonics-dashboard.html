@@ -1245,12 +1245,20 @@
     <div class="settings-section">
       <div class="settings-section-title">👤 Tài khoản</div>
       <div class="settings-section-desc">Thông tin đăng nhập và gói dịch vụ.</div>
+
+      <!-- Banner xác thực email (chỉ hiện khi chưa verify) -->
+      <div id="settings-verify-banner" style="display:none;border:1.5px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.5;margin-bottom:14px;align-items:center;gap:12px">
+        <span style="flex:1;font-weight:700">📩 Email chưa xác nhận. Vui lòng kiểm tra hộp thư để kích hoạt tài khoản.</span>
+        <button class="settings-btn" id="btn-resend-verification" style="white-space:nowrap">✉️ Gửi lại</button>
+      </div>
+
       <div class="settings-row">
         <div>
           <div class="settings-row-label" id="settings-account-name">Khách</div>
           <div class="settings-row-hint" id="settings-account-email">Chưa đăng nhập</div>
         </div>
         <div class="settings-row-control">
+          <button class="settings-btn" id="settings-refresh-account" title="Đồng bộ thông tin tài khoản từ server">🔄 Làm mới</button>
           <button class="settings-btn" id="settings-account-btn">Đăng nhập</button>
         </div>
       </div>
@@ -1402,19 +1410,52 @@
 <!-- ===== FORGOT PASSWORD MODAL ===== -->
 <div class="modal-overlay" id="forgot-modal">
   <div class="modal">
-    <div class="modal-title">🔑 Khôi phục mật khẩu</div>
+    <div class="modal-title" id="forgot-modal-title">🔑 Khôi phục mật khẩu</div>
     <div class="auth-error" id="forgot-error"></div>
     <div class="auth-success" id="forgot-success"></div>
-    <p style="font-size:13px;color:var(--gray-text);line-height:1.6;margin-bottom:16px">
-      Nhập email đã đăng ký. Chúng tôi sẽ gửi link đặt lại mật khẩu vào hộp thư của bạn.
-    </p>
-    <div class="modal-field">
-      <div class="modal-label">Email</div>
-      <input class="modal-input" id="forgot-email" type="email" placeholder="you@example.com" autocomplete="email">
+
+    <!-- Step 1: request reset link -->
+    <div id="forgot-step-request">
+      <p style="font-size:13px;color:var(--gray-text);line-height:1.6;margin-bottom:16px">
+        Nhập email đã đăng ký. Chúng tôi sẽ gửi link đặt lại mật khẩu vào hộp thư của bạn.
+      </p>
+      <div class="modal-field">
+        <div class="modal-label">Email</div>
+        <input class="modal-input" id="forgot-email" type="email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="btn-forgot-cancel">Hủy</button>
+        <button class="modal-save" id="btn-forgot-submit">GỬI LINK KHÔI PHỤC</button>
+      </div>
     </div>
-    <div class="modal-actions">
-      <button class="modal-cancel" id="btn-forgot-cancel">Hủy</button>
-      <button class="modal-save" id="btn-forgot-submit">GỬI LINK KHÔI PHỤC</button>
+
+    <!-- Step 2: complete reset using tokens from the email -->
+    <div id="forgot-step-reset" style="display:none">
+      <p style="font-size:13px;color:var(--gray-text);line-height:1.6;margin-bottom:14px">
+        Dán link khôi phục từ email (hoặc nhập 2 token bên dưới) rồi đặt mật khẩu mới.
+      </p>
+      <div class="modal-field">
+        <div class="modal-label">Link khôi phục (tùy chọn)</div>
+        <input class="modal-input" id="forgot-reset-url" type="text" placeholder="https://...recovery?access_token=...&refresh_token=...">
+        <div class="settings-row-hint" style="margin-top:6px">Hệ thống sẽ tự tách <code>access_token</code> và <code>refresh_token</code> từ link.</div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Hoặc nhập token thủ công</div>
+        <input class="modal-input" id="forgot-access-token" type="text" placeholder="Access token" style="margin-bottom:8px">
+        <input class="modal-input" id="forgot-refresh-token" type="text" placeholder="Refresh token">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Mật khẩu mới</div>
+        <input class="modal-input" id="forgot-new-password" type="password" placeholder="Tối thiểu 10 ký tự, có chữ hoa/thường/số/ký hiệu">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Nhập lại mật khẩu</div>
+        <input class="modal-input" id="forgot-new-password-confirm" type="password" placeholder="Nhập lại mật khẩu mới">
+      </div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="btn-forgot-back">← Quay lại</button>
+        <button class="modal-save" id="btn-forgot-reset-submit">ĐẶT LẠI MẬT KHẨU</button>
+      </div>
     </div>
   </div>
 </div>

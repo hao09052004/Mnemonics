@@ -141,6 +141,14 @@ function getInitials(nameOrEmail) {
   return words.slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'M';
 }
 
+function showVerificationBanner() {
+  var banner = document.getElementById('settings-verify-banner');
+  if (!banner) return;
+  var verified = !!(currentUser && currentUser.emailVerified);
+  var loggedIn = !!(typeof currentUser === 'object' && currentUser && currentUser.email);
+  banner.style.display = (loggedIn && !verified) ? 'flex' : 'none';
+}
+
 function updateAuthUI() {
   const loginBtn = document.getElementById('btn-login');
   const signupBtn = document.getElementById('btn-signup');
@@ -163,6 +171,7 @@ function updateAuthUI() {
   if (userAvatar) userAvatar.textContent = initials;
   if (sidebarName) sidebarName.textContent = displayName;
   if (sidebarAvatar) sidebarAvatar.textContent = initials;
+  showVerificationBanner();
 }
 
 function loadAuthState(cb) {
@@ -324,6 +333,264 @@ async function handleForgotPassword() {
     submitBtn.disabled = false;
     submitBtn.textContent = originalLabel;
   }
+}
+
+function openForgotResetStep(prefill) {
+  var stepRequest = document.getElementById('forgot-step-request');
+  var stepReset = document.getElementById('forgot-step-reset');
+  var titleEl = document.getElementById('forgot-modal-title');
+  var errEl = document.getElementById('forgot-error');
+  var succEl = document.getElementById('forgot-success');
+  if (stepRequest) stepRequest.style.display = 'none';
+  if (stepReset) stepReset.style.display = 'block';
+  if (titleEl) titleEl.textContent = '🔑 Đặt lại mật khẩu';
+  if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
+  if (succEl) { succEl.classList.remove('show'); succEl.textContent = ''; }
+  var urlInput = document.getElementById('forgot-reset-url');
+  if (urlInput && prefill && prefill.url) urlInput.value = prefill.url;
+  var accInput = document.getElementById('forgot-access-token');
+  if (accInput && prefill && prefill.accessToken) accInput.value = prefill.accessToken;
+  var refInput = document.getElementById('forgot-refresh-token');
+  if (refInput && prefill && prefill.refreshToken) refInput.value = prefill.refreshToken;
+}
+
+function extractTokensFromResetUrl(url) {
+  if (!url) return null;
+  try {
+    var hashIdx = url.indexOf('#');
+    var searchIdx = url.indexOf('?');
+    var target = null;
+    if (hashIdx >= 0) {
+      // Supabase recovery links put tokens in the hash fragment.
+      target = url.substring(hashIdx + 1);
+    } else if (searchIdx >= 0) {
+      target = url.substring(searchIdx + 1);
+    } else {
+      return null;
+    }
+    var pairs = target.split('&');
+    var out = {};
+    pairs.forEach(function(pair) {
+      var eq = pair.indexOf('=');
+      if (eq < 0) return;
+      var k = decodeURIComponent(pair.substring(0, eq));
+      var v = decodeURIComponent(pair.substring(eq + 1));
+      out[k] = v;
+    });
+    if (out.access_token || out.refresh_token) {
+      return { accessToken: out.access_token || '', refreshToken: out.refresh_token || '' };
+    }
+  } catch (e) { /* fall through */ }
+  return null;
+}
+
+function validatePasswordShape(password) {
+  if (typeof password !== 'string' || password.length < 10) {
+    return 'Mật khẩu phải có ít nhất 10 ký tự.';
+  }
+  if (!/[a-z]/.test(password)) return 'Mật khẩu cần ít nhất 1 chữ thường.';
+  if (!/[A-Z]/.test(password)) return 'Mật khẩu cần ít nhất 1 chữ hoa.';
+  if (!/[0-9]/.test(password)) return 'Mật khẩu cần ít nhất 1 chữ số.';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Mật khẩu cần ít nhất 1 ký hiệu đặc biệt.';
+  return null;
+}
+
+async function handleForgotResetSubmit() {
+  var errEl = document.getElementById('forgot-error');
+  var succEl = document.getElementById('forgot-success');
+  var submitBtn = document.getElementById('btn-forgot-reset-submit');
+  if (!errEl || !succEl || !submitBtn) return;
+
+  errEl.classList.remove('show'); errEl.textContent = '';
+  succEl.classList.remove('show'); succEl.textContent = '';
+
+  var urlInput = document.getElementById('forgot-reset-url');
+  var accessInput = document.getElementById('forgot-access-token');
+  var refreshInput = document.getElementById('forgot-refresh-token');
+  var newPwInput = document.getElementById('forgot-new-password');
+  var confirmInput = document.getElementById('forgot-new-password-confirm');
+
+  var accessToken = (accessInput && accessInput.value) ? accessInput.value.trim() : '';
+  var refreshToken = (refreshInput && refreshInput.value) ? refreshInput.value.trim() : '';
+
+  // If a full URL was pasted, try to extract tokens from it.
+  if ((!accessToken || !refreshToken) && urlInput && urlInput.value) {
+    var extracted = extractTokensFromResetUrl(urlInput.value.trim());
+    if (extracted) {
+      accessToken = accessToken || extracted.accessToken;
+      refreshToken = refreshToken || extracted.refreshToken;
+      if (accessInput) accessInput.value = accessToken;
+      if (refreshInput) refreshInput.value = refreshToken;
+    }
+  }
+
+  var newPassword = newPwInput ? newPwInput.value : '';
+  var confirmPassword = confirmInput ? confirmInput.value : '';
+
+  if (!accessToken || !refreshToken) {
+    errEl.textContent = 'Cần có access token và refresh token (dán link khôi phục hoặc nhập tay).';
+    errEl.classList.add('show');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    errEl.textContent = 'Mật khẩu nhập lại không khớp.';
+    errEl.classList.add('show');
+    return;
+  }
+  var pwError = validatePasswordShape(newPassword);
+  if (pwError) {
+    errEl.textContent = pwError;
+    errEl.classList.add('show');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  var originalLabel = submitBtn.textContent;
+  submitBtn.textContent = 'ĐANG ĐẶT LẠI...';
+  try {
+    var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000');
+    var response = await fetch(apiBase + '/api/v1/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        newPassword: newPassword
+      })
+    });
+    var body = await response.json().catch(function() { return {}; });
+    if (!response.ok) {
+      throw new Error(body.error && body.error.message ? body.error.message : 'Không thể đặt lại mật khẩu.');
+    }
+    var data = body.data || {};
+    if (data.session && data.user) {
+      saveSession({ ...data.session, user: data.user }, function() {
+        showToast('Mật khẩu đã được đặt lại');
+        var forgotModal = document.getElementById('forgot-modal');
+        if (forgotModal) forgotModal.classList.remove('open');
+        loadFromExtension(function() { showPage('dashboard'); });
+      });
+    } else {
+      succEl.textContent = 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.';
+      succEl.classList.add('show');
+      var forgotModal = document.getElementById('forgot-modal');
+      setTimeout(function() {
+        if (forgotModal) forgotModal.classList.remove('open');
+        showPage('login');
+      }, 1500);
+    }
+  } catch (error) {
+    errEl.textContent = error.message || 'Có lỗi xảy ra, vui lòng thử lại.';
+    errEl.classList.add('show');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
+  }
+}
+
+async function handleResendVerification() {
+  var btn = document.getElementById('btn-resend-verification');
+  if (!btn) return;
+  var token = await getAccessToken();
+  if (!token) {
+    showToast('Bạn cần đăng nhập trước.');
+    return;
+  }
+  btn.disabled = true;
+  var originalLabel = btn.textContent;
+  btn.textContent = 'ĐANG GỬI...';
+  try {
+    var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000');
+    var response = await fetch(apiBase + '/api/v1/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+    });
+    if (response.status === 204 || response.ok) {
+      showToast('Đã gửi lại email xác nhận. Vui lòng kiểm tra hộp thư.');
+    } else {
+      var body = await response.json().catch(function() { return {}; });
+      throw new Error(body.error && body.error.message ? body.error.message : 'Không thể gửi lại email.');
+    }
+  } catch (error) {
+    showToast(error.message || 'Có lỗi xảy ra');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+async function handleRefreshAccount() {
+  var btn = document.getElementById('settings-refresh-account');
+  var nameEl = document.getElementById('settings-account-name');
+  var emailEl = document.getElementById('settings-account-email');
+  if (!btn) return;
+  var token = await getAccessToken();
+  if (!token) {
+    showToast('Bạn cần đăng nhập trước.');
+    return;
+  }
+  btn.disabled = true;
+  var originalLabel = btn.textContent;
+  btn.textContent = 'ĐANG TẢI...';
+  try {
+    var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'http://localhost:4000');
+    var response = await fetch(apiBase + '/api/v1/auth/me', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    var body = await response.json().catch(function() { return {}; });
+    if (!response.ok) {
+      // Token may have expired; try refresh once.
+      var refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await fetch(apiBase + '/api/v1/auth/me', {
+          method: 'GET',
+          headers: { Authorization: 'Bearer ' + refreshed }
+        });
+        body = await response.json().catch(function() { return {}; });
+      }
+      if (!response.ok) {
+        throw new Error(body.error && body.error.message ? body.error.message : 'Không thể tải thông tin.');
+      }
+    }
+    var user = body && body.data && body.data.user ? body.data.user : null;
+    if (!user) throw new Error('Phản hồi từ server không hợp lệ.');
+    currentUser = user;
+    saveSession({ accessToken: token, refreshToken: readRefreshToken(), expiresAt: readAccessTokenExpires(), user: user }, function() {
+      if (nameEl) nameEl.textContent = user.name || user.email;
+      if (emailEl) emailEl.textContent = user.emailVerified ? user.email : (user.email + ' · chưa xác nhận');
+    });
+    showVerificationBanner();
+    showToast('Đã đồng bộ thông tin tài khoản');
+    showToast('Đã đồng bộ thông tin tài khoản');
+  } catch (error) {
+    showToast(error.message || 'Có lỗi xảy ra');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+function readRefreshToken() {
+  try {
+    var raw = localStorage.getItem('mnemonics_session');
+    if (raw) {
+      var sess = JSON.parse(raw);
+      if (sess && sess.refreshToken) return sess.refreshToken;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function readAccessTokenExpires() {
+  try {
+    var raw = localStorage.getItem('mnemonics_session');
+    if (raw) {
+      var sess = JSON.parse(raw);
+      if (sess && sess.expiresAt) return sess.expiresAt;
+    }
+  } catch (e) {}
+  return null;
 }
 
 function logoutUser() {
@@ -2083,6 +2350,42 @@ document.addEventListener('DOMContentLoaded', function() {
   if (forgotEmailInput) forgotEmailInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') handleForgotPassword();
   });
+
+  var btnForgotBack = document.getElementById('btn-forgot-back');
+  if (btnForgotBack) btnForgotBack.addEventListener('click', function() {
+    var stepRequest = document.getElementById('forgot-step-request');
+    var stepReset = document.getElementById('forgot-step-reset');
+    var titleEl = document.getElementById('forgot-modal-title');
+    var errEl = document.getElementById('forgot-error');
+    var succEl = document.getElementById('forgot-success');
+    if (stepRequest) stepRequest.style.display = 'block';
+    if (stepReset) stepReset.style.display = 'none';
+    if (titleEl) titleEl.textContent = '🔑 Khôi phục mật khẩu';
+    if (errEl) { errEl.classList.remove('show'); errEl.textContent = ''; }
+    if (succEl) { succEl.classList.remove('show'); succEl.textContent = ''; }
+  });
+
+  var btnForgotResetSubmit = document.getElementById('btn-forgot-reset-submit');
+  if (btnForgotResetSubmit) btnForgotResetSubmit.addEventListener('click', function(e) {
+    e.preventDefault();
+    handleForgotResetSubmit();
+  });
+
+  var forgotUrlInput = document.getElementById('forgot-reset-url');
+  if (forgotUrlInput) forgotUrlInput.addEventListener('input', function() {
+    var extracted = extractTokensFromResetUrl(this.value.trim());
+    if (!extracted) return;
+    var accInput = document.getElementById('forgot-access-token');
+    var refInput = document.getElementById('forgot-refresh-token');
+    if (accInput && !accInput.value && extracted.accessToken) accInput.value = extracted.accessToken;
+    if (refInput && !refInput.value && extracted.refreshToken) refInput.value = extracted.refreshToken;
+  });
+
+  var btnResend = document.getElementById('btn-resend-verification');
+  if (btnResend) btnResend.addEventListener('click', handleResendVerification);
+
+  var btnRefreshAccount = document.getElementById('settings-refresh-account');
+  if (btnRefreshAccount) btnRefreshAccount.addEventListener('click', handleRefreshAccount);
 
   var btnAuthLogin = document.getElementById('btn-auth-login');
   if (btnAuthLogin) btnAuthLogin.addEventListener('click', function(e) {
