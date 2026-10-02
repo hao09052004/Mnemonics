@@ -723,6 +723,100 @@
   .empty-state svg { width: 48px; height: 48px; margin: 0 auto 16px; opacity: 0.3; }
   .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--black); margin-bottom: 8px; }
   .empty-state p { font-size: 14px; }
+
+  /* ============================================================
+   * Polish pass — applied by skills/product/redesign-existing-projects
+   * Audit fixes: tinted shadows, focus rings, press feedback,
+   * asymmetric features grid, smoother nav active state.
+   * Only adds rules; never overrides user-written class colours etc.
+   * ============================================================ */
+
+  /* T1 — tinted shadows on hover (purple-tinted instead of pure black) */
+  .memory-card:hover,
+  .space-card:hover {
+    box-shadow: 0 4px 18px rgba(91, 63, 228, 0.10), 0 1px 2px rgba(91, 63, 228, 0.04);
+    border-color: rgba(91, 63, 228, 0.20);
+  }
+  .space-item:hover {
+    border-color: rgba(91, 63, 228, 0.20);
+    box-shadow: 0 4px 18px rgba(91, 63, 228, 0.08), 0 1px 2px rgba(91, 63, 228, 0.04);
+  }
+  .book-panel { transition: box-shadow 0.2s, transform 0.2s; }
+  .book-panel:hover { box-shadow: 0 6px 22px rgba(91, 63, 228, 0.10); }
+
+  /* T2 — focus-visible (keyboard nav, accessibility) on bare buttons */
+  .btn-signup:focus-visible,
+  .hero-btn:focus-visible,
+  .btn-login:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 2px;
+  }
+  .nav-links a:focus-visible,
+  .sidebar-item:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 4px;
+    border-radius: 4px;
+  }
+  .field-input:focus-visible,
+  .input:focus-visible,
+  .textarea:focus-visible,
+  .search-bar:focus-within,
+  .space-detail-search:focus-within {
+    border-color: var(--purple) !important;
+    box-shadow: 0 0 0 3px rgba(91, 63, 228, 0.10);
+  }
+
+  /* T3 — press feedback (tactile feedback, transforms only) */
+  .btn-signup:active,
+  .hero-btn:active,
+  .btn-more:active,
+  .btn-done:active,
+  .btn-primary:active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+  .sidebar-item:active { background: var(--purple-light); }
+
+  /* T4 — nav active gets a subtle background, not just underline */
+  .nav-links a.active {
+    background: var(--purple-light);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border-bottom-color: transparent;
+  }
+
+  /* T5 — break the symmetric features-grid monotony:
+     first card spans 2 cols, others stack asymmetrically. */
+  .features-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .features-grid .feature-card:first-child {
+    grid-column: span 3;
+    grid-row: span 2;
+    padding: 40px 36px;
+  }
+  .features-grid .feature-card:first-child .feature-icon {
+    width: 48px; height: 48px;
+  }
+  .features-grid .feature-card:not(:first-child) {
+    grid-column: span 2;
+  }
+  @media (max-width: 768px) {
+    .features-grid { grid-template-columns: 1fr; }
+    .features-grid .feature-card,
+    .features-grid .feature-card:first-child {
+      grid-column: span 1;
+      grid-row: auto;
+      padding: 32px 28px;
+    }
+  }
+
+  /* T6 — book-rail (sticky right panel): reduce jump on huge screens */
+  .book-panel { transform: translateZ(0); }
+
+  /* T7 — small details: number alignment for stats. */
+  .dash-count,
+  .meta-value { font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -887,7 +981,7 @@
         <div class="auth-error" id="signup-error"></div>
         <div class="auth-field">
           <label>Tên hiển thị</label>
-          <input class="auth-input" id="signup-name" type="text" placeholder="VD: Jane Doe" autocomplete="name">
+          <input class="auth-input" id="signup-name" type="text" placeholder="VD: Nguyễn Minh Anh" autocomplete="name">
         </div>
         <div class="auth-field">
           <label>Email</label>
@@ -949,8 +1043,8 @@
           Cài đặt
         </div>
         <div class="user-row">
-          <div class="avatar">JD</div>
-          <div class="user-name">Jane Doe</div>
+          <div class="avatar">NA</div>
+          <div class="user-name">Nguyễn Minh Anh</div>
         </div>
       </div>
     </div>

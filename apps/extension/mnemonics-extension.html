@@ -62,7 +62,30 @@
   .success-sub { font-size: 13px; color: var(--gray-text); line-height: 1.5; }
   .success-tags { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
   .btn-more { margin-top: 4px; background: var(--purple); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn-done { margin-top: 4px; background: white; color: var(--black); border: 1.5px solid var(--gray-border); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-done { margin-top: 4px; background: white; color: var(--black); border: 1.5px solid var(--gray-border); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 0.15s; }
+  .btn-done:hover { border-color: var(--black); }
+
+  /* Polish pass — applied by skills/product/redesign-existing-projects */
+  .btn-save:focus-visible,
+  .btn-screenshot:focus-visible,
+  .btn-more:focus-visible,
+  .btn-done:focus-visible,
+  .type-chip:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 2px;
+  }
+  .btn-save:active,
+  .btn-screenshot:active,
+  .btn-more:active,
+  .btn-done:active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+  .field-input:focus { box-shadow: 0 0 0 3px rgba(91, 63, 228, 0.08); border-color: var(--purple); }
+  .screenshot-capture-box { transition: border-color 0.15s, background 0.15s; }
+  .screenshot-capture-box:hover { border-color: var(--purple); background: rgba(91, 63, 228, 0.04); }
+  .success-overlay.show .success-icon { animation: success-pop 320ms cubic-bezier(.34,1.56,.64,1); }
+  @keyframes success-pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 </style>
 </head>
 <body>
@@ -111,7 +134,7 @@
 </div>
 <div class="success-overlay" id="success-overlay">
   <div class="success-icon">✓</div>
-  <div class="success-title">Đã lưu thành công! ✦</div>
+  <div class="success-title">Đã lưu thành công</div>
   <p class="success-sub">Tags đã được tạo tự động.</p>
   <div class="success-tags" id="success-tags"></div>
   <button class="btn-more" id="btn-more">+ Lưu thêm</button>
