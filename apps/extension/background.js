@@ -74,6 +74,94 @@ async function getValidAccessToken() {
   return next.accessToken;
 }
 
+// Delete a single memory item by id. The API returns 204 No Content on
+// success so we MUST NOT parse the body. Token may be stale by the time
+// the dashboard asks us to delete (because we delete through the
+// background script specifically to handle refresh out-of-band), so
+// refresh once on 401 and retry before surfacing the error.
+async function deleteItemOnServer(itemId, accessToken) {
+  let token = accessToken;
+  let response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+  } catch (networkErr) {
+    throw new Error('Không kết nối được API: ' + (networkErr && networkErr.message ? networkErr.message : 'network error'));
+  }
+
+  if (response.status === 401) {
+    const refreshed = await forceRefreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      });
+    }
+  }
+
+  if (response.status === 204 || response.ok) return true;
+
+  let body = {};
+  try { body = await response.json(); } catch (_) { body = {}; }
+  const message = body && body.error && body.error.message
+    ? body.error.message
+    : 'API từ chối yêu cầu (HTTP ' + response.status + ').';
+  throw new Error(message);
+}
+
+// Toggle the `is_favorite` flag on an item. The dashboard sends the
+// intended next value (true/false) so the background doesn't have to
+// read state first — keeps the round-trip atomic. Goes through the
+// same `getValidAccessToken` → 401 → refresh → retry loop as every
+// other write.
+async function setFavoriteOnServer(itemId, isFavorite, accessToken) {
+  let token = accessToken;
+  let response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ isFavorite: !!isFavorite })
+    });
+  } catch (networkErr) {
+    throw new Error('Không kết nối được API: ' + (networkErr && networkErr.message ? networkErr.message : 'network error'));
+  }
+
+  if (response.status === 401) {
+    const refreshed = await forceRefreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ isFavorite: !!isFavorite })
+      });
+    }
+  }
+
+  if (response.ok) {
+    let body = {};
+    try { body = await response.json(); } catch (_) { body = {}; }
+    return body.item || { id: itemId, isFavorite: !!isFavorite };
+  }
+
+  let body = {};
+  try { body = await response.json(); } catch (_) { body = {}; }
+  const message = body && body.error && body.error.message
+    ? body.error.message
+    : 'API từ chối yêu cầu (HTTP ' + response.status + ').';
+  throw new Error(message);
+}
+
 
 // Force a refresh after the server rejects an otherwise-unexpired access token.
 // This is the recovery path for revoked/rotated JWTs; getValidAccessToken()
@@ -254,12 +342,48 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
     throw new Error('Định dạng ảnh không được hỗ trợ.');
   }
 
-  const form = new FormData();
-  form.append('file', blob, 'mnemonics-context-image');
-  form.append('title', (pageTitle || 'Ảnh đã lưu').slice(0, 500));
-  form.append('note', noteText.slice(0, 4000));
-  form.append('sourceUrl', pageUrl || '');
-  form.append('capturedAt', capturedAt);
+// Derive a sensible filename for the multipart upload. The browser
+// loses the original filename when we fetch the image via the local
+// proxy (a Blob has no `name`) and the API uses
+// `request.file.originalname` to build the storage key. Without a
+// real extension Supabase falls back to `application/octet-stream`
+// for the `Content-Type`, so the signed URL serves back the bytes
+// without an image MIME type and Chrome blocks it.
+function extensionForMime(mime) {
+  switch (mime) {
+    case 'image/jpeg': return 'jpg';
+    case 'image/png': return 'png';
+    case 'image/webp': return 'webp';
+    case 'image/gif': return 'gif';
+    case 'image/svg+xml': return 'svg';
+    default: return 'jpg';
+  }
+}
+
+function tryExtractFilename(url) {
+  if (!url) return '';
+  try {
+    var u = new URL(url);
+    var last = u.pathname.split('/').pop() || '';
+    // Strip query / hash and keep only the basename.
+    return last.split('?').slice(-1)[0] || last;
+  } catch (_) { return ''; }
+}
+
+function pickUploadFilename(imageUrl, mime) {
+  var ext = extensionForMime(mime);
+  var fromUrl = tryExtractFilename(imageUrl);
+  if (fromUrl && /\.(jpe?g|png|webp|gif|svg)$/i.test(fromUrl)) return fromUrl;
+  var ts = Date.now();
+  return 'capture-' + ts + '.' + ext;
+}
+
+const form = new FormData();
+form.append('file', blob, pickUploadFilename(imageUrl, mimeType));
+form.append('title', (pageTitle || 'Ảnh đã lưu').slice(0, 500));
+form.append('note', noteText.slice(0, 4000));
+form.append('sourceUrl', pageUrl || '');
+form.append('capturedAt', capturedAt);
   const clientRequestId = extra && extra.clientRequestId ? extra.clientRequestId : crypto.randomUUID();
   form.append('clientRequestId', clientRequestId);
 
@@ -298,6 +422,70 @@ function notifyDashboards(type) {
       }
     });
   });
+}
+
+// Lightweight toast-style notification. The full implementation lives in the
+// dashboard itself; the background script only has chrome.notifications so we
+// surface a tiny status pill that the next dashboard open can pick up via
+// the ITEM_SAVED broadcast.
+function notifyCapture(title, message, glyph, color) {
+  // 1) Persist a pending status so the dashboard can render it when it
+  // next opens (covers the case where the dashboard isn't open at all).
+  try {
+    const status = {
+      title: title || 'Mnemonics',
+      message: message || '',
+      glyph: glyph || '•',
+      color: color || '#5B3FE4',
+      at: new Date().toISOString()
+    };
+    chrome.storage.local.set({ mnemonics_last_capture_status: status });
+  } catch (_) { /* storage may be unavailable; ignore */ }
+
+  // 2) Show a native notification as immediate feedback.
+  try {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon48.png',
+      title: title || 'Mnemonics',
+      message: (glyph ? glyph + '  ' : '') + (message || '')
+    });
+  } catch (_) { /* notifications may be blocked; ignore */ }
+}
+
+// Text / link capture from the context menu. Mirrors `sendCaptureToApi`
+// in api-client.js so we don't need a cross-context import (the service
+// worker is independent from the page's globals).
+async function uploadTextCapture(payload) {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu.');
+  if (!payload || !payload.type) throw new Error('Thiếu loại capture.');
+  if (!payload.clientRequestId) payload.clientRequestId = crypto.randomUUID();
+  if (!payload.capturedAt) payload.capturedAt = new Date().toISOString();
+
+  let response;
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/captures', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + accessToken
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (networkErr) {
+    throw new Error('Không kết nối được API: ' + (networkErr && networkErr.message ? networkErr.message : 'network error'));
+  }
+
+  let body = {};
+  try { body = await response.json(); } catch (_) { body = {}; }
+  if (!response.ok) {
+    const message = body && body.error && body.error.message
+      ? body.error.message
+      : 'API từ chối yêu cầu (HTTP ' + response.status + ').';
+    throw new Error(message);
+  }
+  return body;
 }
 
 
@@ -552,6 +740,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .catch(function(error) {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Delete failed' });
+      });
+    return true;
+  }
+
+  // Flip the `is_favorite` flag on an item. The dashboard sends the
+  // intended next value (true/false). We mirror the DELETE_ITEM flow
+  // for token refresh; on success we echo the new item back so the
+  // dashboard can reconcile without re-fetching the whole list.
+  if (msg && msg.type === 'TOGGLE_FAVORITE_ITEM') {
+    const itemId = msg.itemId;
+    if (!itemId) {
+      sendResponse({ ok: false, error: 'itemId is required' });
+      return true;
+    }
+    const next = !!msg.next;
+    const isFavorite = msg.isFavorite !== undefined ? !!msg.isFavorite : next;
+    getValidAccessToken()
+      .then(function(accessToken) {
+        return setFavoriteOnServer(itemId, isFavorite, accessToken);
+      })
+      .then(function(item) {
+        sendResponse({ ok: true, item: item });
+      })
+      .catch(function(error) {
+        sendResponse({ ok: false, error: error && error.message ? error.message : 'Favorite failed' });
       });
     return true;
   }

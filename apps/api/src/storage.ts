@@ -10,6 +10,11 @@ export interface ImageStorage {
   upload(input: ImageUpload): Promise<void>;
   remove(storageKey: string): Promise<void>;
   createSignedUrl(storageKey: string, expiresInSeconds: number): Promise<string | null>;
+  // Public URL works without a signed token when the bucket is public.
+  // Returned as a plain path so callers can decide how to compose the
+  // origin (`https://<project>.supabase.co/...`). Returns null when the
+  // bucket isn't public.
+  createPublicUrl(storageKey: string): Promise<string | null>;
 }
 
 export function normalizeSupabaseUrl(value: string): string {
@@ -37,6 +42,25 @@ export function createSupabaseImageStorage(url: string, serviceRoleKey: string, 
 }
 
 function createImageStorage(client: SupabaseClient, bucket: string): ImageStorage {
+  // Cache the bucket's public flag so we don't issue a metadata request
+  // on every signed-URL call. `undefined` = not yet checked, `null` =
+  // bucket not found, `true`/`false` = public status.
+  let publicBucketCache: boolean | null | undefined = undefined;
+
+  async function isBucketPublic(): Promise<boolean> {
+    if (publicBucketCache !== undefined) return publicBucketCache === true;
+    try {
+      // The Storage client doesn't expose a "getBucket" method, but
+      // listBuckets + name lookup is cheap enough to cache.
+      const { data } = await client.storage.listBuckets();
+      const found = (data || []).find(b => b.name === bucket);
+      publicBucketCache = found ? Boolean(found.public) : false;
+    } catch {
+      publicBucketCache = false;
+    }
+    return publicBucketCache === true;
+  }
+
   return {
     async upload({ storageKey, buffer, mimeType }) {
       const { error } = await client.storage.from(bucket).upload(storageKey, buffer, {
@@ -54,6 +78,15 @@ function createImageStorage(client: SupabaseClient, bucket: string): ImageStorag
         .createSignedUrl(storageKey, expiresInSeconds);
       if (error || !data?.signedUrl) return null;
       return data.signedUrl;
+    },
+    async createPublicUrl(storageKey) {
+      // Don't hand back a public URL when the bucket is private — the
+      // browser would just receive a 400 and the user would think the
+      // image is broken. Returning null lets the caller fall back to
+      // the placeholder path.
+      if (!(await isBucketPublic())) return null;
+      const { data } = client.storage.from(bucket).getPublicUrl(storageKey);
+      return data?.publicUrl || null;
     }
   };
 }

@@ -649,6 +649,11 @@ let items = [];
 // ===== SORT / FILTER / TIME STATE =====
 let currentSortBy = 'newest';
 let currentFormatFilter = 'all';
+// When the user clicks the heart on a card and lands on the
+// Favorites page (or toggles the chip), we filter the dashboard to
+// only show memories with `isFavorite === true`. Other filters
+// (format, time) still apply on top.
+let currentFavoritesOnly = false;
 let currentTimeFilter = 'all';
 
 // Classify an item by format for filtering/sorting
@@ -690,6 +695,7 @@ function applySortFilter(list) {
   var out = list.filter(function(item) {
     if (currentFormatFilter !== 'all' && getItemFormat(item) !== currentFormatFilter) return false;
     if (!passesTimeFilter(item)) return false;
+    if (currentFavoritesOnly && !item.isFavorite) return false;
     return true;
   });
   out.sort(function(a, b) {
@@ -919,13 +925,15 @@ function apiItemToLocalShape(item) {
     date: 'Just now',
     space: '',
     status: item.status || null,
+    isFavorite: item.is_favorite === true,
     serverSynced: true,
     pendingUpload: false
   };
 }
 
-async function fetchItemsFromApi(uid, accessToken) {
+async function fetchItemsFromApi(uid, accessToken, options) {
   if (!uid || !accessToken) return null;
+  const silent = !!(options && options.silent);
   const epoch = ++apiRequestEpoch;
 
   async function request(token) {
@@ -951,7 +959,12 @@ async function fetchItemsFromApi(uid, accessToken) {
     }
 
     if (response.status === 401) {
-      saveSession(null);
+      // Silent polls (every 3s) must NOT log the user out — that would
+      // create a flashing redirect loop where each refresh failure
+      // bounces the dashboard back to the landing page. The next
+      // explicit loadFromExtension call (after ITEM_SAVED or user
+      // action) can still decide to clear the session.
+      if (!silent) saveSession(null);
       return null;
     }
     if (!response.ok) return null;
@@ -986,18 +999,23 @@ function getAccessTokenAsync() {
   });
 }
 
-function loadFromExtension(cb) {
+// `silent` = true on polling fetches so a transient error doesn't show
+// the "Could not load saved memories" toast and kick the user out of
+// the dashboard every 3 seconds. Initial loads (silent=false) still
+// surface the error.
+function loadFromExtension(cb, options) {
+  const silent = !!(options && options.silent);
   const uid = currentUser && currentUser.id ? currentUser.id : 'guest';
   const itemsKey = userCacheKey(uid);
   const apiCacheKey = userApiCacheKey(uid);
 
   // Captures are server-authoritative. Local capture arrays are inspected
   // only to discard explicitly pending legacy rows; they are never rendered.
-  cleanupLegacyPendingCaptures(uid).then(function() {
+  return cleanupLegacyPendingCaptures(uid).then(function() {
     return getAccessTokenAsync();
   }).then(function(accessToken) {
     if (!accessToken) throw new Error('Sign in to load saved memories.');
-    return fetchItemsFromApi(uid, accessToken);
+    return fetchItemsFromApi(uid, accessToken, { silent: silent });
   }).then(function(serverItems) {
     if (!serverItems) throw new Error('Could not load saved memories.');
     baseMemoryItems = serverItems;
@@ -1009,9 +1027,14 @@ function loadFromExtension(cb) {
       localStorage.removeItem(apiCacheKey);
     }
   }).catch(function(error) {
-    baseMemoryItems = [];
-    refreshDashboardItems();
-    if (typeof showToast === 'function') showToast(error.message);
+    // Silent polls (the 3-second background sync) shouldn't kick the
+    // user out or spam toasts on every transient error. The dashboard
+    // keeps whatever items it already had on screen.
+    if (!silent) {
+      baseMemoryItems = [];
+      refreshDashboardItems();
+      if (typeof showToast === 'function') showToast(error.message);
+    }
   }).finally(function() {
     if (cb) cb();
   });
@@ -1056,12 +1079,74 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
   });
 }
 
-// Fallback: poll every 3 seconds to make sure we stay in sync
-setInterval(loadFromExtension, 3000);
+// Fallback: poll every 10 seconds to make sure we stay in sync, but
+// skip the round-trip entirely while the tab is hidden — Chrome
+// throttles background timers to 1/min anyway and a hidden dashboard
+// doesn't need a refresh. Silent mode keeps transient errors from
+// spamming toasts and from kicking the user back to the landing
+// page mid-session.
+function shouldSyncNow() {
+  if (typeof document === 'undefined') return true;
+  if (document.visibilityState !== 'visible') return false;
+  // Don't fight the user: if they're actively scrolling or have the
+  // search box focused, defer by a few seconds.
+  if (window.__mnemonicsUserActive && Date.now() - window.__mnemonicsUserActive < 2500) {
+    return false;
+  }
+  return true;
+}
+
+function scheduleSync() {
+  if (window.__mnemonicsSyncScheduled) return;
+  window.__mnemonicsSyncScheduled = setTimeout(function () {
+    window.__mnemonicsSyncScheduled = null;
+    if (!shouldSyncNow()) {
+      scheduleSync();
+      return;
+    }
+    loadFromExtension(null, { silent: true }).finally(scheduleSync);
+  }, 10000);
+}
+scheduleSync();
+
+if (typeof document !== 'undefined') {
+  // Reset the active-window when the tab comes back so the next sync
+  // fires immediately.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && !window.__mnemonicsSyncScheduled) {
+      scheduleSync();
+    }
+  });
+  // Track user activity so we don't tear the DOM out from under their
+  // scroll. `wheel` covers mouse + trackpad; `scroll` catches keyboard
+  // page-up/page-down.
+  ['wheel', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
+    document.addEventListener(evt, function () {
+      window.__mnemonicsUserActive = Date.now();
+    }, { passive: true, capture: true });
+  });
+}
 
 function updateCount() {
   const el = document.getElementById('item-count');
   if (el) el.textContent = items.length + ' memories saved this month.';
+}
+
+// Sync the favorites chip's visual state with `currentFavoritesOnly`.
+// Called both from the chip handler and from the sidebar entry so the
+// two entry points never disagree.
+function updateFavoritesChip() {
+  var chip = document.getElementById('favorites-chip');
+  if (!chip) return;
+  chip.classList.toggle('active', currentFavoritesOnly);
+  chip.setAttribute('aria-pressed', currentFavoritesOnly ? 'true' : 'false');
+}
+
+// Exposed only for tests so the favorites-filter behaviour can be
+// exercised without DOM side effects.
+function setFavoritesOnlyForTests(value) {
+  currentFavoritesOnly = !!value;
+  updateFavoritesChip();
 }
 
 let searchTimeout = null;
@@ -1199,15 +1284,33 @@ function renderCards(data) {
   function pendingBadgeHtml() { return ''; }
 
   if (data.length === 0) {
-    container.innerHTML = `<div class="empty-state" style="column-span:all">
-      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="24" cy="24" r="20"/><path d="M16 20h16M16 28h10"/></svg>
-      <h3>No results found</h3>
-      <p>Try a different keyword or add a new memory</p>
-    </div>`;
+    if (currentFavoritesOnly) {
+      container.innerHTML = `<div class="empty-state" style="column-span:all">
+        <svg viewBox="0 0 48 48" fill="currentColor" stroke="currentColor" stroke-width="1.5" style="color:#ec4899"><path d="M24 42s-14-8-18-19c-2-5.5 2-12 8-12 3 0 5 1.5 6.5 3.5C22 12.5 24 11 27 11c6 0 10 6.5 8 12-4 11-11 19-11 19z"/></svg>
+        <h3>Chưa có thẻ nhớ yêu thích</h3>
+        <p>Click vào biểu tượng trái tim trên bất kỳ thẻ nhớ nào để thêm vào đây.</p>
+      </div>`;
+    } else {
+      container.innerHTML = `<div class="empty-state" style="column-span:all">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="24" cy="24" r="20"/><path d="M16 20h16M16 28h10"/></svg>
+        <h3>No results found</h3>
+        <p>Try a different keyword or add a new memory</p>
+      </div>`;
+    }
+    renderCards._lastSigs = null;
     return;
   }
 
-  container.innerHTML = data.map(item => {
+  // ----- Smooth-scroll reconciliation --------------------------------
+  // Re-rendering the entire cards container on every 3-second sync
+  // wipes every <img> node, which forces the browser to re-download
+  // already-loaded images and re-trigger fade-in transitions, causing
+  // the visible "lag behind my scroll" jank. Instead we render once,
+  // and on subsequent renders we keep the existing DOM nodes for cards
+  // whose signature didn't change; only the cards that genuinely
+  // mutated get their content swapped in. This makes the regular
+  // background sync effectively free.
+  const cardHtmls = data.map(item => {
     const isNew = item.date === 'Just now' || item.date === 'Today';
     const typeLabel = item.sourceType === 'reminder'
       ? (item.tags && item.tags.includes('meeting') ? 'MEETING MINUTES' : 'TODO LIST')
@@ -1222,12 +1325,48 @@ function renderCards(data) {
       const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Screenshot' : 'Saved image'));
       const imageSrc = escapeHtml(imageSrcForRender(item.imageUrl));
       const pageSrc = escapeHtml(item.sourceUrl || item.sourcePageUrl || item.pageUrl || item.url || '');
+      // Show a short excerpt below the image so the card has the
+      // [image → title → description] rhythm from the design sketch
+      // instead of just an orphan image.
+      const descText = item.note || item.excerpt || '';
+      const descBlock = descText
+        ? `<p class="card-excerpt">${escapeHtml(descText.length > 220 ? descText.slice(0, 220) + '…' : descText)}</p>`
+        : '';
+      const tagsBlock = Array.isArray(item.tags) && item.tags.length
+        ? `<div class="card-tags">${item.tags.slice(0, 6).map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+        : '';
       const pendingBadge = pendingBadgeHtml(item);
       body = `<div class="card-image-wrap image-clickable" data-image-preview="${imageSrc}" data-image-title="${imageTitle}" data-page-url="${pageSrc}" title="Click to view image">
-        <img src="${imageSrc}" alt="${imageTitle}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;">
+        <img src="${imageSrc}" alt="${imageTitle}" data-image-fallback="${escapeHtml(item.id)}" loading="lazy" decoding="async" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;display:block;">
         <div class="image-click-badge">${item.type === 'screenshot' ? 'View screenshot' : 'View image'}</div>
-        ${item.title ? `<div class="card-title" style="margin-top:8px">${imageTitle}</div>` : ''}
         ${pendingBadge}
+      </div>
+      <div class="card-body" style="padding-top:10px">
+        <div class="card-title">${imageTitle}</div>
+        ${descBlock}
+        ${tagsBlock}
+      </div>`;
+    } else if ((item.type === 'image' || item.type === 'screenshot') && !item.imageUrl) {
+      // Captured but the asset isn't available (upload failed mid-flight
+      // or the Supabase signed URL was cleared). Render the placeholder
+      // card so the row still has title + description instead of
+      // silently disappearing from the dashboard. Click to lazy-fetch a
+      // fresh signed URL via /api/v1/items/:id/image-url.
+      const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Screenshot' : 'Saved image'));
+      const descText = item.note || item.excerpt || '';
+      const descBlock = descText
+        ? `<p class="card-excerpt">${escapeHtml(descText.length > 220 ? descText.slice(0, 220) + '…' : descText)}</p>`
+        : '';
+      const tagsBlock = Array.isArray(item.tags) && item.tags.length
+        ? `<div class="card-tags">${item.tags.slice(0, 6).map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+        : '';
+      body = `<div class="card-body">
+        <div class="card-image-wrap image-clickable" data-image-lazy="${escapeHtml(item.id)}" data-image-title="${imageTitle}" title="Click to load image" style="cursor:pointer">
+          <div class="image-lazy-placeholder" style="background:var(--gray-bg);height:140px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--gray-mid);font-size:12px;font-weight:700;letter-spacing:0.5px">BẤM ĐỂ TẢI ẢNH</div>
+        </div>
+        <div class="card-title" style="margin-top:10px">${imageTitle}</div>
+        ${descBlock}
+        ${tagsBlock}
       </div>`;
     } else if (item.type === 'link') {
       const linkUrl = escapeHtml(normalizeExternalUrl(item.sourceUrl || item.url || item.note || ''));
@@ -1292,10 +1431,17 @@ function renderCards(data) {
       </div>`;
     }
 
-    return `<div class="memory-card" data-memory-id="${escapeHtml(String(item.id || ''))}">
+    const heartBtn = `<button type="button" class="card-favorite-btn ${item.isFavorite ? 'is-favorite' : ''}" data-favoriteid="${item.id}" title="${item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}" aria-label="Toggle favorite" aria-pressed="${item.isFavorite ? 'true' : 'false'}">
+            <svg viewBox="0 0 24 24" fill="${item.isFavorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 21s-7.5-4.6-9.7-9.2C.7 8.5 2.4 4 6.3 4c2.1 0 3.6 1.1 4.7 2.7C12.1 5.1 13.6 4 15.7 4c3.9 0 5.6 4.5 4 7.8C19.5 16.4 12 21 12 21z"/>
+            </svg>
+          </button>`;
+
+    return `<div class="memory-card ${item.isFavorite ? 'is-favorite-card' : ''}" data-memory-id="${escapeHtml(String(item.id || ''))}">
       ${item.type !== 'note' ? `<div class="card-header">
         <span class="card-type ${typeClass}">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
         <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">NEW</span>' : ''}
+          ${heartBtn}
           <div class="card-menu-wrap">
             <span class="card-menu" data-menuid="${item.id}">?</span>
             <div class="card-dropdown" id="dropdown-${item.id}">
@@ -1303,7 +1449,17 @@ function renderCards(data) {
             </div>
           </div>
         </div>
-      </div>` : ''}
+      </div>` : `<div class="card-header card-header-note">
+        <div style="display:flex;gap:6px;align-items:center;margin-left:auto">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">NEW</span>' : ''}
+          ${heartBtn}
+          <div class="card-menu-wrap">
+            <span class="card-menu" data-menuid="${item.id}">?</span>
+            <div class="card-dropdown" id="dropdown-${item.id}">
+              <div class="card-dropdown-item danger" data-deleteid="${item.id}">? Delete</div>
+            </div>
+          </div>
+        </div>
+      </div>`}
       ${body}
       ${relatedMemoriesHtml(item)}
       ${item.type !== 'quote' ? `<div class="card-footer">
@@ -1311,7 +1467,98 @@ function renderCards(data) {
         <span class="card-space">${item.space || ''}</span>
       </div>` : ''}
     </div>`;
-  }).join('');
+  });
+
+  // Per-item signature. If a card's signature hasn't changed we reuse
+  // the existing DOM node; otherwise we swap it. The signature covers
+  // everything that affects the rendered HTML.
+  function signatureFor(item) {
+    var img = (item.imageUrl || '').slice(-120);
+    return [
+      item.id,
+      item.title || '',
+      item.note || '',
+      item.excerpt || '',
+      item.quote || '',
+      img,
+      (item.tags || []).join('|'),
+      item.type,
+      item.sourceType || '',
+      item.space || '',
+      item.date || '',
+      item.status || '',
+      item.isFavorite ? '1' : '0'
+    ].join('\u0001');
+  }
+
+  const prevSigs = renderCards._lastSigs;
+  const newSigs = data.map(signatureFor);
+  let allUnchanged = false;
+  if (prevSigs && prevSigs.length === newSigs.length) {
+    allUnchanged = true;
+    for (let i = 0; i < newSigs.length; i++) {
+      if (prevSigs[i] !== newSigs[i]) { allUnchanged = false; break; }
+    }
+  }
+
+  if (allUnchanged) {
+    // Background sync round-tripped with zero mutations: do not even
+    // touch the DOM. Scroll position and image decode state stay
+    // exactly where the user left them.
+    return;
+  }
+
+  // Index the existing DOM by `data-memory-id` so we can decide per
+  // card whether to keep, replace, or insert.
+  const existingById = new Map();
+  for (const child of Array.from(container.children)) {
+    const mid = child.getAttribute && child.getAttribute('data-memory-id');
+    if (mid) existingById.set(mid, child);
+  }
+
+  // If the visible order (ids) is also unchanged, do surgical swaps
+  // that preserve the DOM nodes for cards that didn't mutate.
+  let sameOrder = prevSigs && prevSigs.length === newSigs.length;
+  if (sameOrder) {
+    for (let i = 0; i < newSigs.length; i++) {
+      if (prevSigs[i].split('\u0001')[0] !== newSigs[i].split('\u0001')[0]) {
+        sameOrder = false;
+        break;
+      }
+    }
+  }
+
+  if (sameOrder) {
+    // Surgical path: keep the existing DOM node for cards whose
+    // signature didn't change, and only re-parse the cards that mutated.
+    const cards = newSigs.map((sig, idx) => {
+      const prev = prevSigs[idx];
+      const id = sig.split('\u0001')[0];
+      if (prev === sig && existingById.has(id)) {
+        return existingById.get(id);
+      }
+      // Signature changed (or id missing): re-parse just this card's
+      // HTML so the rest of the list keeps its scroll-anchored nodes
+      // intact.
+      const tmp = document.createElement('div');
+      tmp.innerHTML = cardHtmls[idx];
+      return tmp.firstElementChild;
+    });
+    const placeholder = document.createDocumentFragment();
+    for (const node of cards) if (node) placeholder.appendChild(node);
+    container.innerHTML = '';
+    container.appendChild(placeholder);
+    renderCards._lastSigs = newSigs;
+    return;
+  }
+
+  // Different order/length: fall back to a full replace, but use a
+  // DocumentFragment so the browser only reflows once.
+  const html = cardHtmls.join('');
+  container.innerHTML = '';
+  const fragment = document.createRange().createContextualFragment(html);
+  container.appendChild(fragment);
+  renderCards._lastSigs = newSigs;
 }
 
 // ===== RENDER SPACES =====
@@ -1831,6 +2078,58 @@ function normalizeExternalUrl(url) {
   return '';
 }
 
+// Lazy-load the image for a placeholder card. The user clicked the
+// placeholder so they expect to see the image — fetch a fresh signed
+// URL, persist it on the matching item, and re-render the dashboard so
+// the placeholder becomes a real image card.
+async function lazyLoadItemImage(placeholderEl) {
+  if (!placeholderEl) return;
+  var itemId = placeholderEl.dataset.imageLazy;
+  var title = placeholderEl.dataset.imageTitle || '';
+  if (!itemId) return;
+
+  // Visual feedback so the click doesn't feel like a no-op while we
+  // hit the API.
+  var placeholderInner = placeholderEl.querySelector('.image-lazy-placeholder');
+  if (placeholderInner) placeholderInner.textContent = 'ĐANG TẢI…';
+
+  try {
+    var token = await getAccessTokenAsync();
+    if (!token) {
+      token = await refreshAccessToken();
+    }
+    if (!token) throw new Error('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.');
+    var apiBase = (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : (window.MNEMONICS_API_URL || 'http://localhost:4000'));
+    var response = await fetch(apiBase + '/api/v1/items/' + encodeURIComponent(itemId) + '/image-url', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (!response.ok) {
+      var errBody = await response.json().catch(function() { return {}; });
+      throw new Error(errBody.error && errBody.error.message ? errBody.error.message : 'API từ chối (HTTP ' + response.status + ').');
+    }
+    var body = await response.json().catch(function() { return {}; });
+    var freshUrl = body && body.data && body.data.image_url;
+    if (!freshUrl) throw new Error('API không trả về URL ảnh.');
+
+    // Persist the URL on the item so the next render keeps it.
+    var item = baseMemoryItems.find(function(i) { return String(i.id) === String(itemId); });
+    if (item) item.imageUrl = freshUrl;
+
+    if (typeof showToast === 'function') showToast('Đã tải ảnh');
+
+    // Either show inline by re-rendering the dashboard, or pop the full
+    // viewer if the user double-clicked. The simplest path is the
+    // preview overlay so the user gets an immediate "yes this worked"
+    // before the masonry updates on the next poll.
+    openImagePreview(freshUrl, title, item ? item.sourceUrl : '');
+    refreshDashboardItems();
+  } catch (error) {
+    if (placeholderInner) placeholderInner.textContent = 'BẤM ĐỂ THỬ LẠI';
+    if (typeof showToast === 'function') showToast('Không tải được ảnh: ' + (error.message || 'unknown'));
+  }
+}
+
 // Render-time helper: when an item's imageUrl is a remote http(s) URL we
 // can't display it directly because the browser blocks cross-origin
 // <img> requests. Rewrite it through the API image proxy which sets
@@ -2110,6 +2409,36 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+// Supabase Storage signed URLs expire after 1 hour. When the dashboard
+// has been open longer than that, <img> tags break with no UI feedback.
+// Hook a delegated `error` listener on the cards container so we can
+// react to broken images without needing an inline `onerror=` handler
+// (which the extension's CSP would block anyway).
+function attachImageErrorRecovery() {
+  var cardsEl = document.getElementById('cards');
+  if (!cardsEl || cardsEl.dataset.mnemonicsImageRecovery === '1') return;
+  cardsEl.dataset.mnemonicsImageRecovery = '1';
+  cardsEl.addEventListener('error', function (event) {
+    var target = event.target;
+    if (!target || target.tagName !== 'IMG') return;
+    if (target.dataset.mnemonicsRetried === '1') {
+      // Already retried this session — don't loop.
+      target.style.background = 'var(--gray-bg)';
+      target.alt = 'Ảnh không khả dụng';
+      return;
+    }
+    target.dataset.mnemonicsRetried = '1';
+    // Throttle: if multiple images break at once (very common — they
+    // all expire together), we only want to fetch the list once.
+    if (!window.__mnemonicsImageErrorTimer) {
+      window.__mnemonicsImageErrorTimer = setTimeout(function () {
+        window.__mnemonicsImageErrorTimer = null;
+        loadFromExtension(null, { silent: true });
+      }, 400);
+    }
+  }, true /* capture: error events don't bubble */);
+}
+
 // ===== SETTINGS =====
 const DEFAULT_SETTINGS = {
   theme: 'light',
@@ -2283,6 +2612,11 @@ function clearAllData() {
 // ===== BIND ALL EVENT LISTENERS (no inline onclick) =====
 document.addEventListener('DOMContentLoaded', function() {
   try {
+  // Wire the delegated image-error recovery BEFORE anything else so we
+  // catch broken Supabase signed URLs on first paint, not after a
+  // subsequent render.
+  attachImageErrorRecovery();
+
   // Nav
   var navLogo = document.getElementById('nav-logo');
   if (navLogo) navLogo.addEventListener('click', function() { showPage('landing'); });
@@ -2421,6 +2755,17 @@ document.addEventListener('DOMContentLoaded', function() {
   var sidebarReminders = document.getElementById('sidebar-reminders');
   if (sidebarReminders) sidebarReminders.addEventListener('click', function() { showPage('reminders'); });
 
+  // Favorites: enter the dashboard with `currentFavoritesOnly = true`,
+  // matching the user's mental model "I clicked Yêu thích → see only
+  // hearts". Toggling it back off requires clicking the chip again or
+  // the dashboard sidebar entry.
+  var sidebarFavorites = document.getElementById('sidebar-favorites');
+  if (sidebarFavorites) sidebarFavorites.addEventListener('click', function() {
+    currentFavoritesOnly = true;
+    updateFavoritesChip();
+    showPage('dashboard');
+  });
+
   var sidebarSettings = document.getElementById('sidebar-settings');
   if (sidebarSettings) sidebarSettings.addEventListener('click', function() { showPage('settings'); });
 
@@ -2434,10 +2779,21 @@ document.addEventListener('DOMContentLoaded', function() {
   var formatChips = document.getElementById('format-chips');
   if (formatChips) formatChips.addEventListener('click', function(e) {
     var chip = e.target.closest('[data-format]');
-    if (!chip) return;
-    currentFormatFilter = chip.dataset.format;
-    this.querySelectorAll('.format-chip').forEach(function(c) { c.classList.toggle('active', c === chip); });
-    renderDashboard();
+    if (chip) {
+      currentFormatFilter = chip.dataset.format;
+      this.querySelectorAll('.format-chip').forEach(function(c) { c.classList.toggle('active', c === chip); });
+      renderDashboard();
+      return;
+    }
+    // The Favorites chip lives in the same chip row but uses a
+    // different data-attribute, so the format handler above doesn't
+    // touch it. Toggle the global `currentFavoritesOnly` flag instead.
+    var favChip = e.target.closest('[data-favorites-only]');
+    if (favChip) {
+      currentFavoritesOnly = !currentFavoritesOnly;
+      updateFavoritesChip();
+      renderDashboard();
+    }
   });
 
   // ---- Book rail interactions ----
@@ -2676,6 +3032,17 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
+    // Lazy-load placeholder — the captured image exists on the server
+    // but the inline `imageUrl` came back null (signed URL signing
+    // hiccuped when listing items). On click, ask the API for a
+    // freshly-signed URL, persist it on the item, and re-render the
+    // card so the user sees the actual image without a page reload.
+    var lazyTarget = e.target.closest('[data-image-lazy]');
+    if (lazyTarget) {
+      lazyLoadItemImage(lazyTarget);
+      return;
+    }
+
     var dashboardReminderTask = e.target.closest('[data-dashboard-reminder-id][data-dashboard-task-index]');
     if (dashboardReminderTask) {
       e.preventDefault();
@@ -2794,6 +3161,19 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // Click the heart: toggle the favorite flag. The button stops
+  // propagation so it doesn't bubble up to the menu-close handler
+  // listening on document. `e.preventDefault` keeps the button from
+  // triggering any form-submit if the dashboard is ever embedded in
+  // one.
+  var favBtn = e.target.closest('[data-favoriteid]');
+  if (favBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleFavorite(favBtn.dataset.favoriteid);
+    return;
+  }
+
   // Click to open link
   var linkBtn = e.target.closest('[data-open-link]');
   if (linkBtn) {
@@ -2873,6 +3253,70 @@ function sendDeleteToServer(id) {
   });
 }
 
+// ===== FAVORITE ITEM =====
+//
+// Optimistic flip: the user clicks the heart, we immediately update
+// the in-memory item, re-render the dashboard (the reconciler only
+// touches cards whose `isFavorite` flag actually changed, so neighbours
+// stay put), then ask the background script to PATCH the row on the
+// server. On failure we revert the local flip and toast the error.
+function toggleFavorite(id) {
+  var target = baseMemoryItems.find(function(i) { return String(i.id) === String(id); });
+  if (!target) {
+    showToast('Memory not found.');
+    return;
+  }
+
+  if (target.pendingUpload === true || !/^[0-9a-f-]{8,}/i.test(String(target.id))) {
+    // Not yet synced. Until it is, there's no server-side flag to flip.
+    showToast('Save this memory first to favorite it.');
+    return;
+  }
+
+  var next = !target.isFavorite;
+  // Optimistic update on the underlying record + any composed
+  // dashboard item so the next render sees the new value.
+  target.isFavorite = next;
+  for (var k = 0; k < items.length; k++) {
+    if (String(items[k].id) === String(id)) items[k].isFavorite = next;
+  }
+  renderDashboard();
+
+  sendFavoritePatch(id, next).then(function() {
+    // No-op on success — the optimistic flip is the truth until the
+    // next background sync round-trip re-reads the row. A toast here
+    // would be noise on every click.
+  }).catch(function(err) {
+    // Rollback so the UI doesn't lie about the persisted state.
+    target.isFavorite = !next;
+    for (var j = 0; j < items.length; j++) {
+      if (String(items[j].id) === String(id)) items[j].isFavorite = !next;
+    }
+    renderDashboard();
+    showToast('Could not update favorite: ' + (err && err.message ? err.message : 'unknown error'));
+  });
+}
+
+function sendFavoritePatch(id, isFavorite) {
+  return new Promise(function(resolve, reject) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      reject(new Error('This page must run inside the extension to favorite items.'));
+      return;
+    }
+    chrome.runtime.sendMessage(
+      { type: 'TOGGLE_FAVORITE_ITEM', itemId: id, isFavorite: isFavorite },
+      function(response) {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || 'Could not reach the background script.'));
+          return;
+        }
+        if (response && response.ok) resolve(response.item);
+        else reject(new Error((response && response.error) || 'Favorite API failed.'));
+      }
+    );
+  });
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { userCacheKey, userApiCacheKey, apiItemToLocalShape, isPendingItem, discardExplicitPending, cleanupLegacyPendingCaptures, mergeServerItems, fetchItemsFromApi, loadFromExtension };
+  module.exports = { userCacheKey, userApiCacheKey, apiItemToLocalShape, isPendingItem, discardExplicitPending, cleanupLegacyPendingCaptures, mergeServerItems, fetchItemsFromApi, loadFromExtension, toggleFavorite };
 }

@@ -184,22 +184,23 @@ export function LoginForm({ api, onLogin, onForgotPassword }: LoginFormProps) {
           {loading ? 'Đang xử lý...' : (mode === 'login' ? 'Đăng nhập' : 'Đăng ký')}
         </button>
 
-        {mode === 'login' && onForgotPassword && (
+        {onForgotPassword && (
           <button
             type="button"
             data-testid="forgot-password-link"
             onClick={onForgotPassword}
             style={{
-              padding: '4px',
+              padding: '6px',
               background: 'transparent',
-              border: 'none',
-              color: '#64748b',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              color: '#475569',
               cursor: 'pointer',
               fontSize: 12,
-              textDecoration: 'underline'
+              fontWeight: 600
             }}
           >
-            Quên mật khẩu?
+            🔑 Quên mật khẩu?
           </button>
         )}
 
