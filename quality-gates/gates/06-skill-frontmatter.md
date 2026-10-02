@@ -11,7 +11,7 @@ For every `skills/**/SKILL.md`:
 
 * If `source: hand-authored` → the SKILL.md itself must contain the full
   contract frontmatter (per [`../../specs/0003-skill-contract.md`](../../specs/0003-skill-contract.md)).
-* Otherwise (`source: superpowers|mattpocock|karpathy|ponytail`) → a
+* Otherwise (`source: superpowers|mattpocock|karpathy|ponytail|taste-skill`) → a
   companion `skill.meta.yaml` must exist with the same contract fields and a
   `vendored_skill_md: SKILL.md` reference.
 * The vendored SKILL.md body must be byte-identical to

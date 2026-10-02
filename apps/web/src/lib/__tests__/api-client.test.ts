@@ -144,3 +144,88 @@ describe('ApiClient real-network paths (sanity)', () => {
     await expect(api.login({ email: 'a@b.com', password: 'secretsecret1!' })).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+describe('ApiClient item/tag detail endpoints', () => {
+  it('getItem unwraps the { item } envelope', async () => {
+    const api = new ApiClient('http://x');
+    const fn = vi.fn().mockResolvedValue({ item: { id: 'i1', kind: 'text', title: 't', captured_at: '2026-01-01T00:00:00Z', notes: 'n' } });
+    api['request'] = fn as unknown as typeof api['request'];
+    const out = await api.getItem('i1', 'AT');
+    expect(out.id).toBe('i1');
+    expect(out.notes).toBe('n');
+    const calledWith = (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(calledWith[0]).toBe('/api/v1/items/i1');
+  });
+
+  it('updateItem sends PATCH with title + notes payload', async () => {
+    const api = new ApiClient('http://x');
+    const fn = vi.fn().mockResolvedValue({ success: true });
+    api['request'] = fn as unknown as typeof api['request'];
+    await api.updateItem('i2', { title: 'T2', notes: 'N2' }, 'AT');
+    const call = (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('/api/v1/items/i2');
+    expect(call[1]).toMatchObject({ method: 'PATCH', body: { title: 'T2', notes: 'N2' } });
+  });
+
+  it('listTags returns the tags array', async () => {
+    const api = new ApiClient('http://x');
+    api['request'] = vi.fn().mockResolvedValue({ tags: [{ id: 't1', name: 'foo', item_count: 3 }], total: 1 });
+    const out = await api.listTags('AT');
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('foo');
+  });
+
+  it('itemsByTag passes the tag name in the URL', async () => {
+    const api = new ApiClient('http://x');
+    const fn = vi.fn().mockResolvedValue({ tag: 'foo', items: [], total: 0 });
+    api['request'] = fn as unknown as typeof api['request'];
+    await api.itemsByTag('foo bar', 'AT');
+    const call = (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('/api/v1/tags/foo%20bar/items');
+  });
+
+  it('suggestTags POSTs text + max', async () => {
+    const api = new ApiClient('http://x');
+    const fn = vi.fn().mockResolvedValue({ suggestions: [], existing_tags: [] });
+    api['request'] = fn as unknown as typeof api['request'];
+    await api.suggestTags('hello world', 'AT', 3);
+    const call = (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('/api/v1/tags/suggest');
+    expect(call[1]).toMatchObject({ method: 'POST', body: { text: 'hello world', max: 3 } });
+  });
+});
+
+describe('ApiClient forgot-password / reset-password / resend-verification', () => {
+  it('forgotPassword always POSTs the email and never throws on 200', async () => {
+    const api = new ApiClient('http://x');
+    const fn = vi.fn().mockResolvedValue({ data: { user: null, session: null } });
+    api['request'] = fn as unknown as typeof api['request'];
+    await expect(api.forgotPassword('a@b.com')).resolves.toBeUndefined();
+    const call = (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('/api/v1/auth/forgot-password');
+    expect(call[1]).toMatchObject({ method: 'POST', body: { email: 'a@b.com' } });
+  });
+
+  it('resetPassword returns the new session', async () => {
+    const api = new ApiClient('http://x');
+    api['request'] = vi.fn().mockResolvedValue({ data: { user: sampleUser, session: sampleSession } });
+    const out = await api.resetPassword({ accessToken: 'AT', refreshToken: 'RT', newPassword: 'NewPass123!' });
+    expect(out.accessToken).toBe('AT');
+  });
+
+  it('resetPassword throws a meaningful ApiError when no session is returned', async () => {
+    const api = new ApiClient('http://x');
+    api['request'] = vi.fn().mockResolvedValue({ data: { user: null, session: null } });
+    await expect(api.resetPassword({ accessToken: 'AT', refreshToken: 'RT', newPassword: 'NewPass123!' })).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('resendVerification sends POST with bearer token', async () => {
+    const api = new ApiClient('http://x');
+    const fn = vi.fn().mockResolvedValue(undefined);
+    api['request'] = fn as unknown as typeof api['request'];
+    await expect(api.resendVerification('AT')).resolves.toBeUndefined();
+    const call = (fn as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('/api/v1/auth/resend-verification');
+    expect(call[1]).toMatchObject({ method: 'POST', accessToken: 'AT' });
+  });
+});

@@ -162,7 +162,27 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         }
 
         const itemId = crypto.randomUUID();
-        storageKey = `${userId}/${itemId}/${request.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        // Build a safe, deterministic storage key. We MUST keep the
+        // MIME-derived extension so Supabase can serve the bytes back
+        // with the right `Content-Type`; otherwise the signed URL hands
+        // the browser `application/octet-stream` and Chrome refuses to
+        // render it as an image.
+        const safeBaseName = request.file.originalname
+          .replace(/[^a-zA-Z0-9._-]/g, '_')
+          .replace(/^\.+/, '')
+          .slice(0, 100) || 'image';
+        const mimeExt = (() => {
+          switch (request.file.mimetype) {
+            case 'image/jpeg': return 'jpg';
+            case 'image/png': return 'png';
+            case 'image/webp': return 'webp';
+            case 'image/gif': return 'gif';
+            default: return '';
+          }
+        })();
+        const hasExt = /\.(jpe?g|png|webp|gif)$/i.test(safeBaseName);
+        const finalName = hasExt ? safeBaseName : `${safeBaseName}.${mimeExt || 'jpg'}`;
+        storageKey = `${userId}/${itemId}/${finalName}`;
 
         if (parsed.data.type !== 'image') {
           response.status(400).json({

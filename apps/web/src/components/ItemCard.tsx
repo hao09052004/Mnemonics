@@ -24,9 +24,11 @@ interface ItemCardProps {
   relatedItems?: RelatedItem[];
   relatedLoading?: boolean;
   onLoadRelated?: () => void;
+  onOpen?: () => void;
+  onSelectTag?: (normalizedTag: string) => void;
 }
 
-export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = false, onLoadRelated }: ItemCardProps) {
+export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = false, onLoadRelated, onOpen, onSelectTag }: ItemCardProps) {
   const [relatedOpen, setRelatedOpen] = useState(false);
 
   const getTypeIcon = (kind: string) => {
@@ -65,13 +67,23 @@ export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = f
   return (
     <div
       data-testid={`item-card-${item.id}`}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={() => onOpen?.()}
+      onKeyDown={(e) => {
+        if (onOpen && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
       style={{
         border: '1px solid #e5e7eb',
         borderRadius: 12,
         padding: 16,
         background: 'white',
-        transition: 'box-shadow 0.2s',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+        transition: 'box-shadow 0.2s, transform 0.1s',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+        cursor: onOpen ? 'pointer' : 'default'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -99,18 +111,26 @@ export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = f
       {item.tags && item.tags.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
           {item.tags.slice(0, 5).map(tag => (
-            <span
+            <button
               key={tag}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectTag?.(tag.toLowerCase());
+              }}
+              data-testid={`item-tag-${item.id}-${tag}`}
               style={{
                 fontSize: 11,
                 padding: '2px 8px',
                 background: '#eef2ff',
                 color: '#4338ca',
-                borderRadius: 12
+                border: 0,
+                borderRadius: 12,
+                cursor: onSelectTag ? 'pointer' : 'default'
               }}
             >
               #{tag}
-            </span>
+            </button>
           ))}
         </div>
       )}
@@ -120,7 +140,8 @@ export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = f
           <button
             type="button"
             data-testid={`related-toggle-${item.id}`}
-            onClick={async () => {
+            onClick={(e) => {
+              e.stopPropagation();
               const nextOpen = !relatedOpen;
               setRelatedOpen(nextOpen);
               if (nextOpen && relatedItems.length === 0) onLoadRelated();
@@ -172,6 +193,7 @@ export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = f
           href={item.source_url}
           target="_blank"
           rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
           style={{ display: 'inline-block', marginTop: 10, color: '#4f46e5', fontSize: 11, textDecoration: 'none' }}
         >
           Mở nguồn ↗
@@ -180,7 +202,10 @@ export function ItemCard({ item, onDelete, relatedItems = [], relatedLoading = f
 
       {onDelete && (
         <button
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           data-testid="delete-item"
           style={{
             marginTop: 12,

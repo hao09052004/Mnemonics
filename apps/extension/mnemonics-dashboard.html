@@ -218,6 +218,22 @@
   .card-dropdown-item:hover { background: var(--gray-bg); }
   .card-dropdown-item.danger { color: #ef4444; }
   .card-dropdown-item.danger:hover { background: #fff5f5; }
+  .card-favorite-btn { background: none; border: none; padding: 4px; display: inline-flex; align-items: center; justify-content: center; color: var(--gray-mid); cursor: pointer; border-radius: 6px; transition: color 0.15s ease, transform 0.15s ease, background 0.15s ease; }
+  .card-favorite-btn:hover { color: #ec4899; }
+  .card-favorite-btn:active { transform: scale(0.92); }
+  .card-favorite-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card-favorite-btn svg { width: 16px; height: 16px; display: block; }
+  .card-favorite-btn.is-favorite { color: #ec4899; }
+  .card-favorite-btn.is-favorite svg { animation: card-fav-pop 0.25s ease-out; }
+  .is-favorite-card { border: 1.5px solid #f9a8d4; }
+  .format-chip.favorites-chip { display: inline-flex; align-items: center; gap: 4px; }
+  .format-chip.favorites-chip.active { background: #ec4899; color: white; border-color: #ec4899; }
+  .format-chip.favorites-chip.active svg { color: white; }
+  @keyframes card-fav-pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
   .card-body { padding: 0 14px 14px; }
   .card-title { font-size: 15px; font-weight: 700; line-height: 1.35; margin-bottom: 8px; letter-spacing: -0.2px; }
   .card-excerpt { font-size: 13px; color: var(--gray-text); line-height: 1.6; margin-bottom: 10px; }
@@ -620,6 +636,13 @@
   .btn-logout { display: none; border: 1.5px solid var(--gray-border); background: white; color: var(--black); font-size: 12px; font-weight: 800; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
   .auth-error { display: none; border: 1.5px solid #fecaca; background: #fff5f5; color: #b91c1c; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 700; line-height: 1.5; }
   .auth-error.show { display: block; }
+  .auth-success { display: none; border: 1.5px solid #bbf7d0; background: #f0fdf4; color: #166534; border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 700; line-height: 1.5; }
+  .auth-success.show { display: block; }
+  .auth-forgot-link {
+    color: var(--purple); font-weight: 800; cursor: pointer; text-decoration: none;
+    font-size: 12px; padding: 0; border: none; background: transparent;
+  }
+  .auth-forgot-link:hover { text-decoration: underline; }
   @media (max-width: 900px) {
     .auth-page { grid-template-columns: 1fr; }
     .auth-visual { display: none; }
@@ -716,6 +739,100 @@
   .empty-state svg { width: 48px; height: 48px; margin: 0 auto 16px; opacity: 0.3; }
   .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--black); margin-bottom: 8px; }
   .empty-state p { font-size: 14px; }
+
+  /* ============================================================
+   * Polish pass — applied by skills/product/redesign-existing-projects
+   * Audit fixes: tinted shadows, focus rings, press feedback,
+   * asymmetric features grid, smoother nav active state.
+   * Only adds rules; never overrides user-written class colours etc.
+   * ============================================================ */
+
+  /* T1 — tinted shadows on hover (purple-tinted instead of pure black) */
+  .memory-card:hover,
+  .space-card:hover {
+    box-shadow: 0 4px 18px rgba(91, 63, 228, 0.10), 0 1px 2px rgba(91, 63, 228, 0.04);
+    border-color: rgba(91, 63, 228, 0.20);
+  }
+  .space-item:hover {
+    border-color: rgba(91, 63, 228, 0.20);
+    box-shadow: 0 4px 18px rgba(91, 63, 228, 0.08), 0 1px 2px rgba(91, 63, 228, 0.04);
+  }
+  .book-panel { transition: box-shadow 0.2s, transform 0.2s; }
+  .book-panel:hover { box-shadow: 0 6px 22px rgba(91, 63, 228, 0.10); }
+
+  /* T2 — focus-visible (keyboard nav, accessibility) on bare buttons */
+  .btn-signup:focus-visible,
+  .hero-btn:focus-visible,
+  .btn-login:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 2px;
+  }
+  .nav-links a:focus-visible,
+  .sidebar-item:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 4px;
+    border-radius: 4px;
+  }
+  .field-input:focus-visible,
+  .input:focus-visible,
+  .textarea:focus-visible,
+  .search-bar:focus-within,
+  .space-detail-search:focus-within {
+    border-color: var(--purple) !important;
+    box-shadow: 0 0 0 3px rgba(91, 63, 228, 0.10);
+  }
+
+  /* T3 — press feedback (tactile feedback, transforms only) */
+  .btn-signup:active,
+  .hero-btn:active,
+  .btn-more:active,
+  .btn-done:active,
+  .btn-primary:active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+  .sidebar-item:active { background: var(--purple-light); }
+
+  /* T4 — nav active gets a subtle background, not just underline */
+  .nav-links a.active {
+    background: var(--purple-light);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border-bottom-color: transparent;
+  }
+
+  /* T5 — break the symmetric features-grid monotony:
+     first card spans 2 cols, others stack asymmetrically. */
+  .features-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .features-grid .feature-card:first-child {
+    grid-column: span 3;
+    grid-row: span 2;
+    padding: 40px 36px;
+  }
+  .features-grid .feature-card:first-child .feature-icon {
+    width: 48px; height: 48px;
+  }
+  .features-grid .feature-card:not(:first-child) {
+    grid-column: span 2;
+  }
+  @media (max-width: 768px) {
+    .features-grid { grid-template-columns: 1fr; }
+    .features-grid .feature-card,
+    .features-grid .feature-card:first-child {
+      grid-column: span 1;
+      grid-row: auto;
+      padding: 32px 28px;
+    }
+  }
+
+  /* T6 — book-rail (sticky right panel): reduce jump on huge screens */
+  .book-panel { transform: translateZ(0); }
+
+  /* T7 — small details: number alignment for stats. */
+  .dash-count,
+  .meta-value { font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -835,7 +952,10 @@
         </div>
         <div class="auth-row">
           <label class="auth-check"><input id="login-remember" type="checkbox" checked> Ghi nhớ đăng nhập</label>
-          <span class="auth-link" id="auth-demo-login">Dùng tài khoản demo</span>
+          <span style="display:flex;gap:14px;align-items:center">
+            <button type="button" class="auth-forgot-link" id="auth-forgot-link">🔑 Quên mật khẩu?</button>
+            <span class="auth-link" id="auth-demo-login">Dùng tài khoản demo</span>
+          </span>
         </div>
         <button class="auth-submit" id="btn-auth-login">ĐĂNG NHẬP</button>
       </div>
@@ -877,7 +997,7 @@
         <div class="auth-error" id="signup-error"></div>
         <div class="auth-field">
           <label>Tên hiển thị</label>
-          <input class="auth-input" id="signup-name" type="text" placeholder="VD: Jane Doe" autocomplete="name">
+          <input class="auth-input" id="signup-name" type="text" placeholder="VD: Nguyễn Minh Anh" autocomplete="name">
         </div>
         <div class="auth-field">
           <label>Email</label>
@@ -933,14 +1053,18 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a6 6 0 100 12A6 6 0 008 2z"/><path d="M8 5v4l2.5 2.5"/></svg>
         Nhắc nhở
       </div>
+      <div class="sidebar-item" id="sidebar-favorites">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 14s-5-3-5-7.5C3 4 4.5 2.5 6.5 2.5c1 0 1.7.5 2.2 1.2.5-.7 1.2-1.2 2.2-1.2 2 0 3.5 1.5 3.5 4 0 1.5-.7 2.9-1.6 4C11.5 11.7 8 14 8 14z"/></svg>
+        Yêu thích
+      </div>
       <div class="sidebar-bottom">
         <div class="sidebar-settings" id="sidebar-settings">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:15px;height:15px"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/></svg>
           Cài đặt
         </div>
         <div class="user-row">
-          <div class="avatar">JD</div>
-          <div class="user-name">Jane Doe</div>
+          <div class="avatar">NA</div>
+          <div class="user-name">Nguyễn Minh Anh</div>
         </div>
       </div>
     </div>
@@ -993,6 +1117,10 @@
           <div class="format-chip" data-format="link">🔗 Link</div>
           <div class="format-chip" data-format="file">📎 Tệp</div>
           <div class="format-chip" data-format="quote">💬 Trích dẫn</div>
+          <div class="format-chip favorites-chip" id="favorites-chip" data-favorites-only="true" title="Chỉ hiển thị thẻ nhớ đã đánh dấu yêu thích" aria-pressed="false">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="width:11px;height:11px"><path d="M8 14s-5-3-5-7.5C3 4 4.5 2.5 6.5 2.5c1 0 1.7.5 2.2 1.2.5-.7 1.2-1.2 2.2-1.2 2 0 3.5 1.5 3.5 4 0 1.5-.7 2.9-1.6 4C11.5 11.7 8 14 8 14z"/></svg>
+            Yêu thích
+          </div>
         </div>
         <div class="control-group" style="margin-left:auto">
           <span class="control-label">Sắp xếp</span>
@@ -1235,12 +1363,20 @@
     <div class="settings-section">
       <div class="settings-section-title">👤 Tài khoản</div>
       <div class="settings-section-desc">Thông tin đăng nhập và gói dịch vụ.</div>
+
+      <!-- Banner xác thực email (chỉ hiện khi chưa verify) -->
+      <div id="settings-verify-banner" style="display:none;border:1.5px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.5;margin-bottom:14px;align-items:center;gap:12px">
+        <span style="flex:1;font-weight:700">📩 Email chưa xác nhận. Vui lòng kiểm tra hộp thư để kích hoạt tài khoản.</span>
+        <button class="settings-btn" id="btn-resend-verification" style="white-space:nowrap">✉️ Gửi lại</button>
+      </div>
+
       <div class="settings-row">
         <div>
           <div class="settings-row-label" id="settings-account-name">Khách</div>
           <div class="settings-row-hint" id="settings-account-email">Chưa đăng nhập</div>
         </div>
         <div class="settings-row-control">
+          <button class="settings-btn" id="settings-refresh-account" title="Đồng bộ thông tin tài khoản từ server">🔄 Làm mới</button>
           <button class="settings-btn" id="settings-account-btn">Đăng nhập</button>
         </div>
       </div>
@@ -1385,6 +1521,59 @@
     <div class="modal-actions">
       <button class="modal-cancel" id="btn-modal-cancel">Hủy</button>
       <button class="modal-save" id="btn-modal-save">Lưu ký ức ✦</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FORGOT PASSWORD MODAL ===== -->
+<div class="modal-overlay" id="forgot-modal">
+  <div class="modal">
+    <div class="modal-title" id="forgot-modal-title">🔑 Khôi phục mật khẩu</div>
+    <div class="auth-error" id="forgot-error"></div>
+    <div class="auth-success" id="forgot-success"></div>
+
+    <!-- Step 1: request reset link -->
+    <div id="forgot-step-request">
+      <p style="font-size:13px;color:var(--gray-text);line-height:1.6;margin-bottom:16px">
+        Nhập email đã đăng ký. Chúng tôi sẽ gửi link đặt lại mật khẩu vào hộp thư của bạn.
+      </p>
+      <div class="modal-field">
+        <div class="modal-label">Email</div>
+        <input class="modal-input" id="forgot-email" type="email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="btn-forgot-cancel">Hủy</button>
+        <button class="modal-save" id="btn-forgot-submit">GỬI LINK KHÔI PHỤC</button>
+      </div>
+    </div>
+
+    <!-- Step 2: complete reset using tokens from the email -->
+    <div id="forgot-step-reset" style="display:none">
+      <p style="font-size:13px;color:var(--gray-text);line-height:1.6;margin-bottom:14px">
+        Dán link khôi phục từ email (hoặc nhập 2 token bên dưới) rồi đặt mật khẩu mới.
+      </p>
+      <div class="modal-field">
+        <div class="modal-label">Link khôi phục (tùy chọn)</div>
+        <input class="modal-input" id="forgot-reset-url" type="text" placeholder="https://...recovery?access_token=...&refresh_token=...">
+        <div class="settings-row-hint" style="margin-top:6px">Hệ thống sẽ tự tách <code>access_token</code> và <code>refresh_token</code> từ link.</div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Hoặc nhập token thủ công</div>
+        <input class="modal-input" id="forgot-access-token" type="text" placeholder="Access token" style="margin-bottom:8px">
+        <input class="modal-input" id="forgot-refresh-token" type="text" placeholder="Refresh token">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Mật khẩu mới</div>
+        <input class="modal-input" id="forgot-new-password" type="password" placeholder="Tối thiểu 10 ký tự, có chữ hoa/thường/số/ký hiệu">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Nhập lại mật khẩu</div>
+        <input class="modal-input" id="forgot-new-password-confirm" type="password" placeholder="Nhập lại mật khẩu mới">
+      </div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="btn-forgot-back">← Quay lại</button>
+        <button class="modal-save" id="btn-forgot-reset-submit">ĐẶT LẠI MẬT KHẨU</button>
+      </div>
     </div>
   </div>
 </div>

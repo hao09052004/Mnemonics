@@ -1,18 +1,23 @@
 /**
- * Apply a single migration to the Supabase database.
+ * Apply a single migration to the Supabase database. Replaces the older
+ * apply-migration.mts which depended on `pg` being a direct dep of @mnemonics/api.
  *
  * Usage: node --experimental-strip-types apps/api/scripts/apply-migration.mts <file>
  *
- * Reads `DATABASE_URL` from .env, prints each statement as it runs, and
- * exits non-zero if any statement fails. Intended for the human to run
- * by hand during local dev; CI applies migrations differently.
+ * Reads `DATABASE_URL` from .env (current working dir first, then repo root),
+ * prints the result, and exits non-zero if it fails.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { Pool } from 'pg';
 import { config } from 'dotenv';
+import { createPool } from '@mnemonics/database';
 
-config({ path: resolve(process.cwd(), '.env') });
+const cwdEnv = resolve(process.cwd(), '.env');
+const rootEnv = resolve(process.cwd(), '..', '..', '.env');
+config({ path: cwdEnv });
+if (!process.env.DATABASE_URL && (await import('node:fs')).existsSync(rootEnv)) {
+  config({ path: rootEnv });
+}
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -27,7 +32,7 @@ if (!file) {
 }
 
 const sql = readFileSync(resolve(file), 'utf8');
-const pool = new Pool({ connectionString: url });
+const pool = createPool(url);
 
 async function main() {
   console.log(`Applying migration from ${file} (${sql.length} bytes)`);

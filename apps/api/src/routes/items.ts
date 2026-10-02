@@ -8,6 +8,7 @@ import express, { type Application, type Response, type Request } from 'express'
 import type { Pool } from 'pg';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ImageStorage } from '../storage.js';
 
 export interface ItemRouterDeps {
   pool: Pool;
@@ -15,6 +16,7 @@ export interface ItemRouterDeps {
   supabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
+  imageStorage?: ImageStorage;
 }
 
 interface AuthedRequest extends Request {
@@ -23,7 +25,7 @@ interface AuthedRequest extends Request {
 }
 
 export function createItemRouter(deps: ItemRouterDeps): Application {
-  const { pool, repository, supabase, expectedToken, developmentUserId } = deps;
+  const { pool, repository, supabase, expectedToken, developmentUserId, imageStorage } = deps;
   const router = express.Router() as Application;
 
   // Simple auth middleware
@@ -72,16 +74,19 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
         const userId = req.userId!;
         const limit = Math.min(parseInt(String(req.query.limit || '50'), 10), 100);
         const offset = parseInt(String(req.query.offset || '0'), 10);
+        const favoritesOnly = String(req.query.favorite || '') === 'true';
 
         const result = await pool.query<Record<string, unknown>>(
           `SELECT id, type, title, source_url, raw_text, ocr_text,
                   status, client_request_id, captured_at, created_at, updated_at,
+                  is_favorite,
                   (SELECT storage_key FROM assets WHERE assets.item_id = items.id LIMIT 1) AS asset_storage_key
            FROM items
            WHERE user_id = $1
+             AND ($4::boolean = false OR is_favorite = true)
            ORDER BY created_at DESC
            LIMIT $2 OFFSET $3`,
-          [userId, limit, offset]
+          [userId, limit, offset, favoritesOnly]
         );
 
         const itemIds = result.rows.map((row) => String(row.id));
@@ -103,15 +108,24 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
         }
 
         // Build a signed URL for each image so the renderer never has to
-        // call the API per row. We use the same bucket as the upload
-        // pipeline; if signing is unavailable the renderer falls back to
-        // a storage-key-aware placeholder.
+        // call the API per row. If signing fails we try the public URL
+        // path (works when the bucket is configured public) and only
+        // fall back to a placeholder when neither is available.
         async function signedUrlFor(storageKey: string | null): Promise<string | null> {
           if (!storageKey) return null;
-          if (supabase) {
+          if (!supabase && !imageStorage) return null;
+          if (imageStorage && typeof imageStorage.createSignedUrl === 'function') {
             try {
-              const { data } = await supabase.storage.from('mnemonics-assets').createSignedUrl(storageKey, 60 * 60);
-              return data?.signedUrl ?? null;
+              const signed = await imageStorage.createSignedUrl(storageKey, 60 * 60);
+              if (signed) return signed;
+            } catch {
+              // fall through to public URL
+            }
+          }
+          if (imageStorage && typeof imageStorage.createPublicUrl === 'function') {
+            try {
+              const publicUrl = await imageStorage.createPublicUrl(storageKey);
+              if (publicUrl) return publicUrl;
             } catch {
               return null;
             }
@@ -131,13 +145,15 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           captured_at: row.captured_at,
           created_at: row.created_at,
           updated_at: row.updated_at,
+          is_favorite: row.is_favorite === true,
           tags: tagsByItem.get(String(row.id)) ?? [],
           image_url: await signedUrlFor(row.asset_storage_key as string | null)
         })));
 
         const total = await pool.query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM items WHERE user_id = $1`,
-          [userId]
+          `SELECT COUNT(*) as count FROM items
+           WHERE user_id = $1 AND ($2::boolean = false OR is_favorite = true)`,
+          [userId, favoritesOnly]
         );
 
         res.json({
@@ -199,9 +215,10 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
     async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
+        const itemId = String(req.params.id);
 
         // First get the item to check ownership and get storage key for cleanup
-        const item = await repository.findById(String(req.params.id));
+        const item = await repository.findById(itemId);
         if (!item) {
           res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
           return;
@@ -212,6 +229,16 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           return;
         }
 
+        // Collect every storage key attached to this item BEFORE we
+        // wipe the asset rows — we have to clean the Supabase Storage
+        // objects too, otherwise deleting a memory leaves orphan files
+        // in the bucket (and costs storage forever).
+        const assetRows = await pool.query<{ storage_key: string }>(
+          `SELECT storage_key FROM assets WHERE item_id = $1`,
+          [itemId]
+        );
+        const storageKeys = assetRows.rows.map((row) => row.storage_key);
+
         // Delete in transaction
         const client = await pool.connect();
         try {
@@ -220,31 +247,31 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           // Delete tag associations
           await client.query(
             `DELETE FROM item_tags WHERE item_id = $1`,
-            [String(req.params.id)]
+            [itemId]
           );
 
           // Delete embeddings
           await client.query(
             `DELETE FROM item_embeddings WHERE item_id = $1`,
-            [String(req.params.id)]
+            [itemId]
           );
 
           // Delete assets
           await client.query(
             `DELETE FROM assets WHERE item_id = $1`,
-            [String(req.params.id)]
+            [itemId]
           );
 
           // Delete jobs
           await client.query(
             `DELETE FROM jobs WHERE item_id = $1`,
-            [String(req.params.id)]
+            [itemId]
           );
 
           // Delete the item
           await client.query(
             `DELETE FROM items WHERE id = $1`,
-            [String(req.params.id)]
+            [itemId]
           );
 
           await client.query('COMMIT');
@@ -253,6 +280,25 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           throw error;
         } finally {
           client.release();
+        }
+
+        // Best-effort storage cleanup, *after* the DB commit so a
+        // failure here doesn't leave the row pointing at a removed
+        // file. We log but don't fail the request — the user-visible
+        // outcome is "the memory is gone", and an orphan file is far
+        // cheaper to clean up later than a stuck delete.
+        if (imageStorage && storageKeys.length > 0) {
+          await Promise.all(
+            storageKeys.map((storageKey) =>
+              imageStorage.remove(storageKey).catch((err: unknown) => {
+                // eslint-disable-next-line no-console
+                console.warn(
+                  `[items.delete] failed to remove storage object ${storageKey}:`,
+                  err
+                );
+              })
+            )
+          );
         }
 
         res.status(204).send();
@@ -269,9 +315,14 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
     async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
       try {
         const userId = req.userId!;
-        const updates = req.body as { title?: string; notes?: string };
+        const itemId = String(req.params.id);
+        const updates = req.body as {
+          title?: string;
+          notes?: string;
+          isFavorite?: boolean;
+        };
 
-        const item = await repository.findById(String(req.params.id));
+        const item = await repository.findById(itemId);
         if (!item) {
           res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
           return;
@@ -295,20 +346,94 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           values.push(updates.notes);
         }
 
+        if (updates.isFavorite !== undefined) {
+          if (typeof updates.isFavorite !== 'boolean') {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_IS_FAVORITE',
+                message: 'isFavorite must be a boolean'
+              }
+            });
+            return;
+          }
+          updateFields.push(`is_favorite = $${values.length + 1}`);
+          values.push(updates.isFavorite);
+        }
+
         if (updateFields.length === 0) {
           res.status(400).json({ error: { code: 'NO_UPDATES', message: 'No fields to update' } });
           return;
         }
 
         updateFields.push(`updated_at = NOW()`);
-        values.push(String(req.params.id));
+        values.push(itemId);
 
         await pool.query(
           `UPDATE items SET ${updateFields.join(', ')} WHERE id = $${values.length}`,
           values
         );
 
-        res.json({ success: true });
+        res.json({
+          success: true,
+          item: { id: itemId, isFavorite: updates.isFavorite ?? undefined }
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  // GET /api/v1/items/:id/image-url - Refresh a signed URL for an
+  // image asset. Used by the dashboard when the original signed URL has
+  // expired (Supabase Storage signed URLs are short-lived) and we want
+  // to re-display the card without a full page reload.
+  router.get(
+    '/items/:id/image-url',
+    requireAuth,
+    async (req: AuthedRequest, res: Response, next: (err?: unknown) => void) => {
+      try {
+        const userId = req.userId!;
+        const itemId = String(req.params.id);
+
+        const item = await repository.findById(itemId);
+        if (!item || item.userId !== userId) {
+          res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
+          return;
+        }
+
+        const assets = await pool.query<{ storage_key: string }>(
+          `SELECT storage_key FROM assets WHERE item_id = $1 LIMIT 1`,
+          [itemId]
+        );
+        const storageKey = assets.rows[0]?.storage_key || null;
+
+        if (!storageKey) {
+          res.status(404).json({ error: { code: 'NO_IMAGE_ASSET', message: 'Item has no image asset' } });
+          return;
+        }
+
+        let imageUrl: string | null = null;
+        if (imageStorage && typeof imageStorage.createSignedUrl === 'function') {
+          try {
+            imageUrl = await imageStorage.createSignedUrl(storageKey, 60 * 60);
+          } catch {
+            imageUrl = null;
+          }
+        }
+        if (!imageUrl && imageStorage && typeof imageStorage.createPublicUrl === 'function') {
+          try {
+            imageUrl = await imageStorage.createPublicUrl(storageKey);
+          } catch {
+            imageUrl = null;
+          }
+        }
+
+        if (!imageUrl) {
+          res.status(503).json({ error: { code: 'IMAGE_URL_UNAVAILABLE', message: 'Could not produce an image URL' } });
+          return;
+        }
+
+        res.json({ data: { id: itemId, image_url: imageUrl } });
       } catch (error) {
         next(error);
       }

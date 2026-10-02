@@ -1,22 +1,15 @@
-import { Pool } from 'pg';
-import fs from 'node:fs';
-
-const env = fs.readFileSync('../../.env', 'utf8');
-const m = env.match(/DATABASE_URL=([^\r\n]+)/);
-const url = m ? m[1].trim() : '';
-console.log('URL prefix:', url.slice(0, 40), 'len:', url.length);
-
-const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
-
-(async () => {
-  try {
-    const t = await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename");
-    console.log('Tables:', t.rows.map((r) => r.tablename).join(', '));
-    const j = await pool.query("SELECT to_regclass('public.jobs') AS jobs");
-    console.log('jobs regclass:', j.rows[0].jobs);
-    await pool.end();
-  } catch (e) {
-    console.error('ERR:', e.message);
-    process.exit(1);
-  }
-})();
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import { createPool } from '@mnemonics/database';
+config({ path: resolve(process.cwd(), '.env') });
+config({ path: resolve(process.cwd(), '../../.env') });
+const pool = createPool(process.env.DATABASE_URL || '');
+const r = await pool.query("SELECT id, type, status, attempts, max_attempts, item_id, created_at FROM jobs WHERE status = 'pending'");
+console.log('---pending jobs---');
+r.rows.forEach(row => console.log(`  ${row.id.slice(0,8)} ${row.type.padEnd(6)} ${row.status.padEnd(10)} att=${row.attempts}/${row.max_attempts} item=${row.item_id.slice(0,8)} created=${row.created_at.toISOString()}`));
+console.log('Total pending:', r.rowCount);
+const proc = await pool.query("SELECT id, type, status, attempts, max_attempts, item_id, updated_at FROM jobs WHERE status = 'processing'");
+console.log('---processing jobs---');
+proc.rows.forEach(row => console.log(`  ${row.id.slice(0,8)} ${row.type.padEnd(6)} ${row.status.padEnd(10)} att=${row.attempts}/${row.max_attempts} item=${row.item_id.slice(0,8)} updated=${row.updated_at.toISOString()}`));
+console.log('Total processing:', proc.rowCount);
+await pool.end();

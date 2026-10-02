@@ -55,7 +55,12 @@ function loadDashboardModule() {
     body: { classList: { toggle: vi.fn() } }
   };
   // Strip the DOMContentLoaded bootstrap so we don't try to mount UI.
-  const idx = src.indexOf('document.addEventListener');
+  // Multiple `document.addEventListener(...)` calls may now live in
+  // the file (visibilitychange, wheel/scroll tracking, etc.), so
+  // anchor on the DOMContentLoaded variant instead of the first
+  // `document.addEventListener`.
+  const marker = "document.addEventListener('DOMContentLoaded'";
+  const idx = src.indexOf(marker);
   const stripped = idx >= 0 ? src.slice(0, idx) : src;
   const sandboxFn = new Function(
     'chrome', 'document', 'window', 'localStorage', 'crypto', 'console', 'Date', 'Map', 'Set', 'JSON', 'fetch',
