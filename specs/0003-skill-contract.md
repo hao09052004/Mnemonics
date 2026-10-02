@@ -9,7 +9,7 @@ from agents or workflows. Each must declare the frontmatter below.
 
 Two flavours are recognised:
 
-* **Vendored** — `source:` is `superpowers|mattpocock|karpathy|ponytail`,
+* **Vendored** — `source:` is `superpowers|mattpocock|karpathy|ponytail|taste-skill`,
   body is **byte-identical** to upstream. The companion
   `skill.meta.yaml` declares our contract fields.
 * **Hand-authored** — `source: hand-authored`, body is fully under our control.
@@ -21,7 +21,7 @@ Two flavours are recognised:
 ```yaml
 name: <kebab-case>             # taken from SKILL.md frontmatter if present, else folder
 version: 0.1.0
-source: superpowers | mattpocock | karpathy | ponytail
+source: superpowers | mattpocock | karpathy | ponytail | taste-skill
 status: stable
 layer: skills
 maturity: experimental

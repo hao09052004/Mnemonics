@@ -75,7 +75,8 @@ mnemonics-csp-fixed/
     ├── mattpocock-skills/              github.com/mattpocock/skills
     ├── karpathy-skills/                github.com/multica-ai/andrej-karpathy-skills
     ├── agency-agents/                  github.com/msitarzewski/agency-agents
-    └── superpowers/                    github.com/obra/superpowers
+    ├── superpowers/                    github.com/obra/superpowers
+    └── taste-skill/                    github.com/Leonxlnx/taste-skill
 ```
 
 Anything you add must land in exactly **one** of these layers. If you are tempted to
@@ -112,7 +113,7 @@ It is invoked **by name**, often by an agent or a workflow.
 
 * **`skills/core/`** — reusable across any project.
 * **`skills/product/`** — Mnemonics-specific (e.g. `ocr-pipeline`, `auto-tagging`,
-  `semantic-search`).
+  `semantic-search`, `redesign-existing-projects`).
 * **`skills/_templates/`** — the SKILL.md frontmatter template and authoring guide.
 
 Skill-loading rules:
@@ -236,5 +237,41 @@ If you skip step 1 or 2, the next reviewer will catch you.
 * Adding a new layer (e.g. `policies/`) requires an ADR first.
 * Editing any agent/skill/workflow must not change its **`source:`** field.
 * Updating `specs/0001-system-overview.md` requires review by `agents/core/code-reviewer.md`.
+
+## 11. Taste-skill (UI/UX design)
+
+The [`vendor/taste-skill/`](vendor/taste-skill/) repo (Leonxlnx, MIT, 91.9k stars)
+ships 12 design skills (anti-slop typography, motion, layout, brutalist/minimalist/soft
+variants, image-generation boards, output-enforcement). We track it as a gitlink so it
+stays byte-identical to upstream. The contract in `specs/0003-skill-contract.md`
+recognises `source: taste-skill` as a valid vendored flavour.
+
+When to invoke:
+
+* **Fix UI of an existing screen** (e.g. the extension dashboard) →
+  `skills/product/redesign-existing-projects/SKILL.md` (vendored copy of
+  `vendor/taste-skill/skills/redesign-skill/SKILL.md`). Run
+  [`skills/core/karpathy-guidelines/SKILL.md`](skills/core/karpathy-guidelines/SKILL.md)
+  first to keep changes surgical.
+* **Greenfield UI design** → `vendor/taste-skill/skills/taste-skill/SKILL.md`
+  directly (the upstream v2 default). If you need a local hand-authored wrapper,
+  copy into `skills/product/<name>/` with a `skill.meta.yaml` declaring
+  `source: taste-skill`.
+* **Image-only reference boards** → `vendor/taste-skill/skills/imagegen-frontend-web/`
+  or `imagegen-frontend-mobile/`. Never use these to ship UI code; they output images
+  only.
+
+To consume a vendored skill without copying, point agents/workflows at
+`vendor/taste-skill/skills/<name>/SKILL.md` directly. To pin a custom version,
+copy into `skills/product/` and bump `version:`.
+
+To update the vendored copy:
+
+```bash
+cd vendor/taste-skill && git pull --ff-only origin main
+cd ../..
+node quality-gates/runners/check-skills.mjs   # verifies every local SKILL.md is still byte-identical
+git add vendor/taste-skill && git commit -m "vendor: bump taste-skill"
+```
 
 — end of AGENTS.md —

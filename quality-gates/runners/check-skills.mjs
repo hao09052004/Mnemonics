@@ -19,6 +19,7 @@ const VENDOR_PATHS = {
   mattpocock:   "vendor/mattpocock-skills",
   karpathy:     "vendor/karpathy-skills",
   ponytail:     "vendor/ponytail",
+  "taste-skill": "vendor/taste-skill",
 };
 
 const errors = [];
