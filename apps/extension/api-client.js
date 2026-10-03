@@ -108,6 +108,7 @@ function uploadImageCapture(imageDataUrl, payload, accessToken) {
       var ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
       var form = new FormData();
       form.append('file', blob, 'mnemonics-screenshot.' + ext);
+      form.append('type', payload.type || 'screenshot');
       form.append('title', payload.title || 'Ảnh chụp màn hình');
       form.append('note', payload.note || '');
       form.append('sourceUrl', payload.sourceUrl || '');

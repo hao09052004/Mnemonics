@@ -9,6 +9,12 @@ export type ImageUpload = {
 export interface ImageStorage {
   upload(input: ImageUpload): Promise<void>;
   remove(storageKey: string): Promise<void>;
+  /**
+   * Read the raw bytes of a stored asset. Used by the OCR job to feed
+   * the image into the provider without exposing a URL. Returns null if
+   * the object is missing.
+   */
+  download(storageKey: string): Promise<Buffer | null>;
   createSignedUrl(storageKey: string, expiresInSeconds: number): Promise<string | null>;
   // Public URL works without a signed token when the bucket is public.
   // Returned as a plain path so callers can decide how to compose the
@@ -41,6 +47,44 @@ export function createSupabaseImageStorage(url: string, serviceRoleKey: string, 
   return createImageStorage(client, bucket);
 }
 
+/**
+ * In-memory image storage for the demo / dev path. Stores up to
+ * 64 MiB across all keys. Bytes are returned as-is on download. The
+ * OCR handler only needs download + remove, but the capture route
+ * also calls upload + createSignedUrl, so all four methods are
+ * implemented. Used when no Supabase storage is configured.
+ */
+export function createInMemoryImageStorage(): ImageStorage {
+  const store = new Map<string, { buffer: Buffer; mimeType: string }>();
+  const MAX_TOTAL = 64 * 1024 * 1024;
+  return {
+    async upload({ storageKey, buffer, mimeType }) {
+      let total = 0;
+      for (const v of store.values()) total += v.buffer.length;
+      if (total + buffer.length > MAX_TOTAL) {
+        throw new Error(`IMAGE_STORAGE_FULL (limit ${MAX_TOTAL} bytes)`);
+      }
+      store.set(storageKey, { buffer, mimeType });
+    },
+    async remove(storageKey) {
+      store.delete(storageKey);
+    },
+    async download(storageKey) {
+      const v = store.get(storageKey);
+      if (!v) return null;
+      return v.buffer;
+    },
+    async createSignedUrl(storageKey) {
+      const v = store.get(storageKey);
+      if (!v) return null;
+      return `memory://${storageKey}`;
+    },
+    async createPublicUrl(storageKey) {
+      return store.has(storageKey) ? `memory://${storageKey}` : null;
+    },
+  };
+}
+
 function createImageStorage(client: SupabaseClient, bucket: string): ImageStorage {
   // Cache the bucket's public flag so we don't issue a metadata request
   // on every signed-URL call. `undefined` = not yet checked, `null` =
@@ -71,6 +115,30 @@ function createImageStorage(client: SupabaseClient, bucket: string): ImageStorag
     },
     async remove(storageKey) {
       await client.storage.from(bucket).remove([storageKey]);
+    },
+    async download(storageKey: string): Promise<Buffer | null> {
+      const { data, error } = await client.storage.from(bucket).download(storageKey);
+      if (error || !data) return null;
+      // The Supabase JS client returns a Blob in the browser and a
+      // Node-compatible stream/Buffer in Node. Convert both to Buffer.
+      if (typeof data.arrayBuffer === 'function') {
+        const ab = await data.arrayBuffer();
+        return Buffer.from(ab);
+      }
+      if (data instanceof Buffer) return data;
+      // Last-resort path for older clients that return a stream.
+      if (typeof (data as { getReader?: () => unknown }).getReader === 'function') {
+        const reader = (data as unknown as ReadableStream<Uint8Array>).getReader();
+        const chunks: Uint8Array[] = [];
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        return Buffer.concat(chunks);
+      }
+      return null;
     },
     async createSignedUrl(storageKey, expiresInSeconds) {
       const { data, error } = await client.storage

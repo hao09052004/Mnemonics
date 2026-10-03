@@ -35,7 +35,7 @@ export const dashboardSummarySchema = z.object({
 });
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 
-export const captureTypes = ['link', 'text', 'image'] as const;
+export const captureTypes = ['link', 'text', 'image', 'screenshot'] as const;
 export type CaptureType = (typeof captureTypes)[number];
 
 export const itemStatuses = ['pending', 'processing', 'ready', 'failed'] as const;
@@ -71,6 +71,20 @@ export const captureInputSchema = z.discriminatedUnion('type', [
   }).strict(),
   z.object({
     type: z.literal('image'),
+    title: z.string().trim().min(1).max(500),
+    sourceUrl: sourceUrlSchema,
+    image: imageReferenceSchema,
+    selectedText: z.string().trim().max(100_000).optional(),
+    capturedAt: capturedAtSchema,
+    clientRequestId: z.string().uuid()
+  }).strict(),
+  // `screenshot` is the extension's screenshot flow. The capture
+  // shape is identical to `image`; we keep them as separate types
+  // so the OCR + visual-similarity pipeline can prefer the right
+  // side of the same code path without forcing the schema to grow
+  // a discriminator field.
+  z.object({
+    type: z.literal('screenshot'),
     title: z.string().trim().min(1).max(500),
     sourceUrl: sourceUrlSchema,
     image: imageReferenceSchema,

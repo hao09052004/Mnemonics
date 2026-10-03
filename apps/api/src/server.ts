@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createItemRepository, createPool } from '@mnemonics/database';
 import { createClient } from '@supabase/supabase-js';
 import { createApp } from './app.js';
-import { createSupabaseImageStorage } from './storage.js';
+import { createSupabaseImageStorage, createInMemoryImageStorage } from './storage.js';
 import { createAudit } from './auth/audit.js';
 import { createThrottle } from './auth/throttle.js';
 import { createSupabaseUsers } from './auth/supabase-users.js';
@@ -17,6 +17,7 @@ import { createMonitoringRouter } from './monitoring/monitoring-router.js';
 import { metricsMiddleware } from './monitoring/metrics.js';
 import { captureLimiter, searchLimiter } from './middleware/rate-limit.js';
 import { createGraphRouter } from './routes/graph.js';
+import { createAiService } from '@mnemonics/ai';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(currentDirectory, '../../../.env') });
@@ -66,11 +67,14 @@ const app = createApp(
 );
 
 // Set up job queue
+const aiService = await createAiService();
 const { queue, router: jobRouter } = createJobRouter({
 	pool,
 	repository,
 	supabase: serviceSupabase,
 	authSupabase: supabase,
+	imageStorage: imageStorage ?? createInMemoryImageStorage(),
+	ai: aiService,
 	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
 	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
 	openAiKey: process.env.OPENAI_API_KEY

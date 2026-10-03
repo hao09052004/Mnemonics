@@ -170,3 +170,35 @@ user force every enrichment to local-only. When toggled OFF:
 - CLIP local downloads a ~150 MB model on first use. Cache it on
   disk; subsequent boots are sub-second. CPU-only inference is
   ~1–3 s per image on a modern laptop. GPU is dramatically faster.
+
+## M1 — Real OCR pipeline
+
+When you save an image or a screenshot the API runs an OCR job with
+this shape:
+
+```
+capture (image | screenshot)
+  └─→ Sharp pre-process (auto-rotate, downscale ≤ 2000px, re-encode)
+        └─→ OCR.Space (cloud, soft-daily-quota persisted in `ocr_quota`)
+              └─→ Tesseract (local, only if cloud returns empty / fails)
+                    └─→ persist ocr_text + ocr_engine + ocr_language
+                          + ocr_error_code (if any) + ocr_processed_at
+```
+
+Things to know:
+
+* The handler **never** fails the capture. If OCR errors, the item is
+  marked `processing → ready` with `ocr_error_code` set; tag + embed
+  still run so the memory is searchable by the title you typed.
+* `ocr_quota` is a per-user, per-day counter stored in Postgres
+  (`packages/database/migrations/012_ocr_metadata_and_quota.sql`).
+  The first successful OCR.Space call bumps it; the soft cap is
+  `OCR_SPACE_DAILY_SOFT_LIMIT` (default 450). Past the cap the
+  handler short-circuits to Tesseract only.
+* The extension always tags screenshot captures with
+  `type: 'screenshot'` on the way to `/api/v1/captures/image`. The
+  server honours the field and the OCR job is enqueued for both
+  `image` and `screenshot` kinds.
+* `pnpm ai:check` shows the OCR engine currently in use. A
+  successful `ocrspace` run increments the counter — re-run after a
+  capture to see `x/N today` go up.

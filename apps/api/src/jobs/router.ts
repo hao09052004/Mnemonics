@@ -7,11 +7,13 @@
 import express, { type Application } from 'express';
 import type { Pool } from 'pg';
 import { JobQueue } from './queue.js';
-import { OcrHandler } from './handlers/ocr.js';
+import { OcrHandler, makeOcrStorageKeyResolver } from './handlers/ocr.js';
 import { TagHandler } from './handlers/tag.js';
 import { EmbedHandler } from './handlers/embed.js';
 import type { ItemRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ImageStorage } from '../storage.js';
+import type { AiService } from '@mnemonics/ai';
 import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
 
 export interface JobRouterDeps {
@@ -19,6 +21,8 @@ export interface JobRouterDeps {
   repository: ItemRepository;
   supabase?: SupabaseClient;
   authSupabase?: SupabaseClient;
+  imageStorage: ImageStorage;
+  ai: AiService;
   expectedToken?: string;
   developmentUserId?: string;
   openAiKey?: string;
@@ -33,6 +37,8 @@ export function createJobRouter(deps: JobRouterDeps): {
     repository,
     supabase,
     authSupabase,
+    imageStorage,
+    ai,
     expectedToken = 'mnemonics-dev-token',
     developmentUserId = '00000000-0000-4000-8000-000000000001',
     openAiKey
@@ -44,7 +50,13 @@ export function createJobRouter(deps: JobRouterDeps): {
   });
 
   // Create handlers
-  const ocrHandler = new OcrHandler(queue, repository, openAiKey);
+  const ocrHandler = new OcrHandler({
+    queue,
+    repository,
+    imageStorage,
+    ai,
+    resolveAssetKey: makeOcrStorageKeyResolver(pool),
+  });
   const tagHandler = new TagHandler(queue, repository, openAiKey);
   const embedHandler = new EmbedHandler(queue, repository, supabase, openAiKey, pool);
 

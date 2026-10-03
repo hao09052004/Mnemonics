@@ -130,6 +130,9 @@ function createInMemoryRepository() {
         ocrText: null,
         ocrEngine: null,
         ocrConfidence: null,
+        ocrLanguage: null,
+        ocrProcessedAt: null,
+        ocrErrorCode: null,
         capturedAt: capture.capturedAt
       };
       items.set(id, item);
@@ -138,18 +141,23 @@ function createInMemoryRepository() {
     },
 
     async createPendingImageItem({ userId, capture, itemId }: NewImageItem) {
-      if (capture.type !== 'image') throw new Error('Expected image capture');
+      if (capture.type !== 'image' && capture.type !== 'screenshot') {
+        throw new Error('Expected image or screenshot capture');
+      }
       const item = {
         id: itemId,
         userId,
         status: 'pending' as const,
-        type: 'image',
+        type: capture.type,
         title: capture.title,
         sourceUrl: capture.sourceUrl ?? null,
         rawText: capture.selectedText ?? null,
         ocrText: null,
         ocrEngine: null,
         ocrConfidence: null,
+        ocrLanguage: null,
+        ocrProcessedAt: null,
+        ocrErrorCode: null,
         capturedAt: capture.capturedAt
       };
       items.set(itemId, item);
@@ -169,6 +177,8 @@ function createInMemoryRepository() {
       item.ocrText = ocrText;
       item.ocrEngine = options?.engine ?? null;
       item.ocrConfidence = options?.confidence ?? null;
+      item.ocrErrorCode = (options as { errorCode?: string } | undefined)?.errorCode ?? null;
+      item.ocrLanguage = (options as { language?: string } | undefined)?.language ?? null;
     },
 
     async updateTags(id, _tags) {
@@ -177,6 +187,14 @@ function createInMemoryRepository() {
 
     async saveEmbedding(id, _userId, _embedding, _model) {
       if (!items.has(id)) throw new Error('Item not found');
+    },
+
+    async getOcrQuotaForDate() {
+      return null;
+    },
+
+    async bumpOcrQuotaForDate() {
+      return 1;
     }
   };
 
@@ -186,7 +204,92 @@ function createInMemoryRepository() {
 function createFakeStorage(): ImageStorage {
   return {
     async upload() {},
-    async remove() {}
+    async remove() {},
+    async download() {
+      return null;
+    },
+    async createSignedUrl() {
+      return null;
+    },
+    async createPublicUrl() {
+      return null;
+    }
+  };
+}
+
+// Stub AI service used by the OCR handler in tests. We deliberately
+// keep it inert — the existing capture-pipeline test wants to see
+// `ocrEngine: 'none'`, which is the behaviour the legacy OCR handler
+// had before M1. Real OCR coverage lives in the dedicated M1 tests.
+function createStubAi() {
+  return {
+    config: {
+      freeOnly: true,
+      demoMode: true,
+      text: { provider: 'heuristic', geminiApiKey: undefined, geminiModel: 'deterministic-keyword-v1' },
+      embeddings: {
+        provider: 'noop',
+        geminiApiKey: undefined,
+        geminiModel: 'gemini-embedding-001',
+        geminiDimensions: 1536,
+        openaiApiKey: undefined,
+        openaiModel: 'text-embedding-3-small'
+      },
+      ocr: {
+        provider: 'ocrspace',
+        ocrSpaceApiKey: undefined,
+        ocrSpaceDailySoftLimit: 450,
+        localFallback: true
+      },
+      vision: { provider: 'local', clipModel: 'Xenova/clip-vit-base-patch32' }
+    },
+    text: {
+      async generateTags() { return []; },
+      async summarize() { return ''; },
+      info() { return { name: 'heuristic', model: 'deterministic-keyword-v1' }; }
+    },
+    embeddings: {
+      async embedOne() { return []; },
+      async embedMany() { return []; },
+      info() { return { name: 'noop', model: 'none', dimensions: 1536 }; }
+    },
+    primaryOcr: {
+      async recognize() { return { text: '', engine: 'none', confidence: 0 }; },
+      info() { return { name: 'none', model: 'none' }; }
+    },
+    fallbackOcr: {
+      async recognize() { return { text: '', engine: 'none', confidence: 0 }; },
+      info() { return { name: 'none', model: 'none' }; }
+    },
+    visual: {
+      async embed() { throw new Error('not implemented'); },
+      async warmup() {},
+      info() { return { name: 'clip-local', model: 'Xenova/clip-vit-base-patch32', dimensions: 512, loaded: false }; }
+    },
+    async recognizeWithFallback() {
+      return { text: '', engine: 'none', confidence: 0 };
+    },
+    tagCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
+    summaryCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
+    embeddingCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
+    ocrCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
+    async health() {
+      return {
+        config: {
+          freeOnly: true,
+          demoMode: true,
+          text: 'heuristic:deterministic-keyword-v1',
+          embeddings: 'noop:none',
+          ocr: 'none:none',
+          visual: 'clip-local:Xenova/clip-vit-base-patch32'
+        },
+        textReady: false,
+        embeddingsReady: false,
+        ocrReady: false,
+        visualReady: false,
+        notes: []
+      };
+    }
   };
 }
 
@@ -200,7 +303,7 @@ describe('capture processing pipeline E2E', () => {
   it('processes text capture from pending to ready', async () => {
     const { pool } = createInMemoryPool();
     const { repository, items } = createInMemoryRepository();
-    const { queue } = createJobRouter({ pool: pool as any, repository });
+    const { queue } = createJobRouter({ pool: pool as any, repository, imageStorage: createFakeStorage(), ai: createStubAi() as any });
 
     const app = express();
     app.use(express.json());
@@ -236,7 +339,7 @@ describe('capture processing pipeline E2E', () => {
   it('processes image capture through OCR -> tag -> embed -> ready', async () => {
     const { pool } = createInMemoryPool();
     const { repository, items } = createInMemoryRepository();
-    const { queue } = createJobRouter({ pool: pool as any, repository });
+    const { queue } = createJobRouter({ pool: pool as any, repository, imageStorage: createFakeStorage(), ai: createStubAi() as any });
 
     const app = express();
     app.use('/api/v1', createCaptureRouter({
@@ -249,6 +352,7 @@ describe('capture processing pipeline E2E', () => {
     const response = await request(app)
       .post('/api/v1/captures/image')
       .set('Authorization', 'Bearer mnemonics-dev-token')
+      .field('type', 'image')
       .field('title', 'Pipeline screenshot')
       .field('clientRequestId', '99999999-9999-4999-8999-999999999999')
       .attach('file', Buffer.from('fake-image'), {
@@ -263,7 +367,12 @@ describe('capture processing pipeline E2E', () => {
 
     const item = items.get(response.body.data.id);
     expect(item?.status).toBe('ready');
-    expect(item?.ocrEngine).toBe('none');
+    // When the asset is missing (which is the in-memory test path —
+    // the fake pool has no `assets` table) the handler records
+    // ocrErrorCode='NO_ASSET' and leaves ocrEngine unset. Real
+    // assets exercise the rest of the pipeline and write
+    // ocrEngine='ocrspace' or 'tesseract'.
+    expect(item?.ocrErrorCode).toBe('NO_ASSET');
     expect(item?.ocrText).toBe('');
 
     queue.stop();

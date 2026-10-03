@@ -134,7 +134,7 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         }
 
         const parsed = captureInputSchema.safeParse({
-          type: 'image',
+          type: request.body.type === 'image' ? 'image' : 'screenshot',
           title: request.body.title,
           sourceUrl: request.body.sourceUrl || undefined,
           selectedText: request.body.note || undefined,
@@ -184,7 +184,7 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         const finalName = hasExt ? safeBaseName : `${safeBaseName}.${mimeExt || 'jpg'}`;
         storageKey = `${userId}/${itemId}/${finalName}`;
 
-        if (parsed.data.type !== 'image') {
+        if (parsed.data.type !== 'image' && parsed.data.type !== 'screenshot') {
           response.status(400).json({
             error: { code: 'INVALID_IMAGE_CAPTURE_PAYLOAD', message: 'Thông tin ảnh không hợp lệ', requestId: request.id }
           });
