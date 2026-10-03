@@ -113,7 +113,7 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
     text: {
       provider: textProvider,
       geminiApiKey: readString(env, "GEMINI_API_KEY"),
-      geminiModel: readString(env, "GEMINI_MODEL", "gemini-2.5-flash") ?? "gemini-2.5-flash",
+      geminiModel: readString(env, "GEMINI_MODEL", "gemini-3.8-flash") ?? "gemini-3.8-flash",
     },
     embeddings: {
       provider: embeddingProvider,

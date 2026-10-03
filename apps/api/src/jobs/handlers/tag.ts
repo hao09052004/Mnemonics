@@ -46,8 +46,19 @@ export class TagHandler {
 
       await this.repository.updateStatus(job.itemId, "processing");
 
-      const tags = await this.generateTags(item);
-      await this.repository.updateTags(job.itemId, tags);
+      // User-supplied tags (added via PATCH /items/:id before the
+      // tag job ran) must be preserved. Auto-tagging is only an
+      // enrichment on top of an empty tag set — overriding
+      // hand-picked tags is destructive and surprising.
+      const existingTags = await this.repository.getTagsForItem(job.itemId);
+      const tags = existingTags.length > 0 ? existingTags : await this.generateTags(item);
+      if (existingTags.length === 0) {
+        await this.repository.updateTags(job.itemId, tags);
+      } else {
+        console.log(
+          `[TagHandler] Skipping auto-tag for item ${job.itemId} (user supplied ${existingTags.length} tag(s))`
+        );
+      }
 
       await this.queue.markCompleted(job.id);
 

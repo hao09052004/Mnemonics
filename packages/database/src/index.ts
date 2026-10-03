@@ -50,6 +50,8 @@ export interface ItemRepository {
     }
   ): Promise<void>;
   updateTags(id: string, tags: string[]): Promise<void>;
+  /** Read the names of all tags attached to an item. Empty array if none. */
+  getTagsForItem(id: string): Promise<string[]>;
   saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void>;
   /** Read today's OCR quota row for a user. Returns null if no row exists. */
   getOcrQuotaForDate(userId: string, isoDate: string): Promise<OcrQuotaRow | null>;
@@ -281,6 +283,18 @@ export function createItemRepository(pool: Pool): ItemRepository {
       } finally {
         client.release();
       }
+    },
+
+    async getTagsForItem(id: string): Promise<string[]> {
+      const result = await pool.query<{ name: string }>(
+        `SELECT t.name
+         FROM tags t
+         JOIN item_tags it ON it.tag_id = t.id
+         WHERE it.item_id = $1
+         ORDER BY t.name`,
+        [id]
+      );
+      return result.rows.map((row) => row.name);
     },
 
     async saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void> {
