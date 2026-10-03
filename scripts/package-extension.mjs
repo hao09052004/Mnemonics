@@ -125,14 +125,50 @@ async function buildStoreBundle(store, outName) {
 
 function bakePlaceholders(content, rel, store) {
   // The store tag is informational only — both stores consume the
-  // exact same JS bundle. We only rewrite the API URL placeholder
-  // and any webUrl placeholder if a web URL was supplied.
+  // exact same JS bundle.
+  //
+  // Two complementary replacement forms are supported:
+  //
+  //   1. Legacy `__MNEMONICS_*__` placeholder tokens (older source
+  //      trees). Always replaced unconditionally.
+  //   2. Concrete dev URLs that ship in the current source tree
+  //      (e.g. `http://localhost:4000` for the API, empty string
+  //      for the web URL). These are only replaced when the
+  //      corresponding env var is set, so a `Load unpacked` build
+  //      keeps working without env vars while a production bake
+  //      overrides them.
+  //
+  // Source tree convention is documented in apps/extension/SOURCE-DEFAULTS.md.
   let out = content;
-  out = out.replaceAll('__MNEMONICS_API_URL__', apiUrl());
-  if (webUrl()) {
-    out = out.replaceAll('__MNEMONICS_WEB_URL__', webUrl());
-  } else {
-    out = out.replaceAll('__MNEMONICS_WEB_URL__', '');
+  const api = apiUrl();
+  const web = webUrl();
+
+  // Legacy token form: always replace.
+  if (out.includes('__MNEMONICS_API_URL__')) {
+    out = out.replaceAll('__MNEMONICS_API_URL__', api);
+  }
+  if (out.includes('__MNEMONICS_WEB_URL__')) {
+    out = out.replaceAll('__MNEMONICS_WEB_URL__', web);
+  }
+
+  // Dev-default form: only override when env was explicitly set to
+  // something OTHER than the dev default itself, so an absent env
+  // is a no-op.
+  const DEV_API = 'http://localhost:4000';
+  if (api !== DEV_API && out.includes(DEV_API)) {
+    out = out.replaceAll(DEV_API, api);
+  }
+
+  // Web URL: source ships `MNEMONICS_WEB_URL = ''` (empty) as the
+  // dev default. If MNEMONICS_WEB_URL is set, rewrite to the prod
+  // value. We do NOT touch the empty-string case because that's the
+  // intended dev sentinel.
+  if (web) {
+    const safeWeb = web.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    out = out.replaceAll(
+      "var MNEMONICS_WEB_URL = ''",
+      `var MNEMONICS_WEB_URL = '${safeWeb}'`
+    );
   }
   // Only prepend the JS-comment banner to .js files. Adding it to
   // .json or .html files would corrupt them.

@@ -65,7 +65,11 @@ The output is `dist/mnemonics-chrome-extension.zip` plus an
 unzipped directory for `Load unpacked` testing. The packager:
 
 - Strips `tests/`, `*.test.js`, source maps, `README.md`
-- Replaces the `__MNEMONICS_API_URL__` placeholder in `manifest.json`
+- Replaces the legacy `__MNEMONICS_API_URL__` placeholder in `manifest.json`
+  (kept for back-compat with older source trees)
+- Overrides the dev default `http://localhost:4000` in the CSP and the
+  empty-string `MNEMONICS_WEB_URL` in `extension.js` whenever the
+  corresponding env var is set. See `apps/extension/SOURCE-DEFAULTS.md`.
 - Emits a STORE-only zip (no compression; both stores accept this)
 
 Verify the zip before uploading:
@@ -74,8 +78,9 @@ Verify the zip before uploading:
 # 1. Confirm the manifest in the zip is valid JSON.
 unzip -p dist/mnemonics-chrome-extension.zip manifest.json | python -m json.tool
 
-# 2. Confirm no placeholder is left in any baked file.
-unzip -p dist/mnemonics-chrome-extension.zip manifest.json | grep -c __MNEMONICS_API_URL__
+# 2. Confirm no placeholder AND no dev default is left in any baked file.
+unzip -p dist/mnemonics-chrome-extension.zip manifest.json \
+  | grep -E -c '__MNEMONICS_API_URL__|localhost:4000'
 # expected: 0
 
 # 3. Confirm the CSP points at your prod API.

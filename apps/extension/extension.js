@@ -13,7 +13,11 @@ var cropMode = null;
 var cropStart = null;
 var cropOffset = null;
 
-var MNEMONICS_WEB_URL = '__MNEMONICS_WEB_URL__';
+// Dev default: empty so popup falls back to the bundled offline
+// dashboard (`mnemonics-dashboard.html`). The packager
+// (scripts/package-extension.mjs) replaces this with MNEMONICS_WEB_URL
+// when building a production bundle. See SOURCE-DEFAULTS.md.
+var MNEMONICS_WEB_URL = '';
 
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('open-dashboard').addEventListener('click', function() {
