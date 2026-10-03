@@ -2280,14 +2280,19 @@ function readerRenderTags(item) {
       '<button type="button" class="reader-tag-x" data-rmtag="' + (typeof escapeHtml === 'function' ? escapeHtml(tag) : tag) + '" aria-label="Xóa tag">&times;</button>';
     wrap.appendChild(span);
   });
-  // "+ Add tag" input row
+  // "+ Add tag" input row. Appended to wrap itself (not the parent
+  // section) so it scrolls with the chip list. Remove any stale
+  // add-row from a previous openReaderModal() pass to avoid stacked
+  // duplicate inputs that would intercept the click handler.
+  var existingAddRow = document.getElementById('reader-tag-input-row');
+  if (existingAddRow && existingAddRow.parentNode) existingAddRow.parentNode.removeChild(existingAddRow);
   var addRow = document.createElement('div');
   addRow.className = 'reader-add-row';
   addRow.id = 'reader-tag-input-row';
   addRow.style.display = 'none';
   addRow.innerHTML = '<input type="text" id="reader-tag-input" placeholder="Tag mới..." maxlength="32">' +
     '<button type="button" id="reader-tag-save">Lưu</button>';
-  wrap.parentNode && wrap.parentNode.appendChild(addRow);
+  wrap.appendChild(addRow);
 }
 
 function readerRenderNotes(item) {
@@ -3173,8 +3178,9 @@ document.addEventListener('DOMContentLoaded', function() {
       // Save new tag
       if (e.target.closest('#reader-tag-save') && readerCurrentItem) {
         var tagInput = document.getElementById('reader-tag-input');
-        if (!tagInput) return;
+        if (!tagInput) { console.warn('[reader] no tag input found'); return; }
         var raw = String(tagInput.value || '').trim();
+        console.log('[reader] save tag clicked', { itemId: readerCurrentItem.id, raw: raw });
         if (!raw) {
           if (typeof showToast === 'function') showToast('Nhập tag trước đã.');
           return;
@@ -3192,6 +3198,7 @@ document.addEventListener('DOMContentLoaded', function() {
           if (typeof renderDashboard === 'function') renderDashboard();
           if (typeof showToast === 'function') showToast('Đã thêm tag.');
         }).catch(function(err) {
+          console.error('[reader] save tag failed', err);
           if (typeof showToast === 'function') showToast('Lỗi: ' + (err.message || err));
         });
         return;
@@ -3200,12 +3207,14 @@ document.addEventListener('DOMContentLoaded', function() {
       // Save note
       if (e.target.closest('#reader-note-save') && readerCurrentItem) {
         var ta = document.getElementById('reader-note-text');
-        if (!ta) return;
+        if (!ta) { console.warn('[reader] no note textarea found'); return; }
         var newNote = String(ta.value || '');
+        console.log('[reader] save note clicked', { itemId: readerCurrentItem.id, len: newNote.length });
         readerSaveNote(readerCurrentItem.id, newNote).then(function() {
           readerCurrentItem.note = newNote;
           if (typeof showToast === 'function') showToast('Đã lưu ghi chú.');
         }).catch(function(err) {
+          console.error('[reader] save note failed', err);
           if (typeof showToast === 'function') showToast('Lỗi: ' + (err.message || err));
         });
         return;
