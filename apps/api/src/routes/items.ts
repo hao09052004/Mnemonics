@@ -320,6 +320,7 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           title?: string;
           notes?: string;
           isFavorite?: boolean;
+          tags?: string[];
         };
 
         const item = await repository.findById(itemId);
@@ -360,22 +361,84 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           values.push(updates.isFavorite);
         }
 
-        if (updateFields.length === 0) {
+        // Tags update is handled separately (item_tags is its own relation,
+        // not a column on items). Skipping the field list here so we can
+        // do the upsert + delete-many in a transaction below.
+        const shouldUpdateTags = Array.isArray(updates.tags);
+
+        if (updateFields.length === 0 && !shouldUpdateTags) {
           res.status(400).json({ error: { code: 'NO_UPDATES', message: 'No fields to update' } });
           return;
         }
 
-        updateFields.push(`updated_at = NOW()`);
-        values.push(itemId);
+        if (updateFields.length > 0) {
+          updateFields.push(`updated_at = NOW()`);
+          values.push(itemId);
+          await pool.query(
+            `UPDATE items SET ${updateFields.join(', ')} WHERE id = $${values.length}`,
+            values
+          );
+        } else {
+          await pool.query(
+            `UPDATE items SET updated_at = NOW() WHERE id = $1`,
+            [itemId]
+          );
+        }
 
-        await pool.query(
-          `UPDATE items SET ${updateFields.join(', ')} WHERE id = $${values.length}`,
-          values
-        );
+        if (shouldUpdateTags) {
+          const tagNames = (updates.tags as string[])
+            .map(function(t) { return String(t || '').trim(); })
+            .filter(function(t) { return t.length > 0 && t.length <= 32; });
+          // Dedupe (case-insensitive) and cap to 16 tags per item so a
+          // runaway client can't push thousands of labels.
+          const seen: Record<string, boolean> = {};
+          const uniqueNames: string[] = [];
+          for (const name of tagNames) {
+            const key = name.toLowerCase();
+            if (seen[key]) continue;
+            seen[key] = true;
+            uniqueNames.push(name);
+            if (uniqueNames.length >= 16) break;
+          }
+
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
+            await client.query(`DELETE FROM item_tags WHERE item_id = $1`, [itemId]);
+            for (const name of uniqueNames) {
+              const tagRes = await client.query<{ id: string }>(
+                `INSERT INTO tags (user_id, name, normalized_name)
+                 VALUES ($1, $2, LOWER($2))
+                 ON CONFLICT (user_id, normalized_name)
+                 DO UPDATE SET name = EXCLUDED.name
+                 RETURNING id`,
+                [userId, name]
+              );
+              const tagId = tagRes.rows[0] && tagRes.rows[0].id;
+              if (!tagId) continue;
+              await client.query(
+                `INSERT INTO item_tags (item_id, tag_id)
+                 VALUES ($1, $2)
+                 ON CONFLICT (item_id, tag_id) DO NOTHING`,
+                [itemId, tagId]
+              );
+            }
+            await client.query('COMMIT');
+          } catch (tagErr) {
+            await client.query('ROLLBACK');
+            throw tagErr;
+          } finally {
+            client.release();
+          }
+        }
 
         res.json({
           success: true,
-          item: { id: itemId, isFavorite: updates.isFavorite ?? undefined }
+          item: {
+            id: itemId,
+            isFavorite: updates.isFavorite ?? undefined,
+            tags: shouldUpdateTags ? (updates.tags as string[]) : undefined
+          }
         });
       } catch (error) {
         next(error);
