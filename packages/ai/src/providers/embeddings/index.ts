@@ -10,6 +10,12 @@
  *  3. If the provider is "gemini" but no key is set, fall back to
  *     "noop" in production. Demo mode: still "noop" — there is no
  *     mock-gemini path on purpose.
+ *
+ * Fallback: when config.embeddings.embeddingsFallback is true and
+ * the primary is gemini/openai, wrap in FallingBackEmbeddingProvider
+ * with NoopEmbeddingProvider as the secondary. The secondary throws
+ * on call, which means the search route's caller will see an empty
+ * semantic results list (graceful lexical-only degradation).
  */
 
 import type { AiConfig } from "../../ai-config.js";
@@ -17,8 +23,18 @@ import type { EmbeddingProvider } from "./types.js";
 import { GeminiEmbeddingProvider } from "./gemini.js";
 import { OpenAIEmbeddingProvider } from "./openai.js";
 import { NoopEmbeddingProvider } from "./noop.js";
+import { FallingBackEmbeddingProvider } from "./fallback.js";
 
 export function buildEmbeddingProvider(config: AiConfig): EmbeddingProvider {
+  const primary = pickPrimary(config);
+  if (!config.embeddings.embeddingsFallback || primary.info().name === "noop") {
+    return primary;
+  }
+  const fallback = new NoopEmbeddingProvider(config.embeddings.geminiDimensions);
+  return new FallingBackEmbeddingProvider(primary, fallback);
+}
+
+function pickPrimary(config: AiConfig): EmbeddingProvider {
   switch (config.embeddings.provider) {
     case "gemini": {
       if (!config.embeddings.geminiApiKey) {
@@ -61,3 +77,4 @@ export type { EmbeddingProvider, EmbeddingProviderInfo, EmbeddingOptions } from 
 export { GeminiEmbeddingProvider } from "./gemini.js";
 export { OpenAIEmbeddingProvider } from "./openai.js";
 export { NoopEmbeddingProvider } from "./noop.js";
+export { FallingBackEmbeddingProvider } from "./fallback.js";

@@ -19,6 +19,22 @@ describe("loadAiConfig", () => {
     expect(c.ocr.localFallback).toBe(true);
     expect(c.vision.provider).toBe("local");
     expect(c.vision.clipModel).toBe("Xenova/clip-vit-base-patch32");
+    // New fallback knobs default to the conservative free-mode
+    // defaults: local Ollama text fallback is opt-in by env var
+    // but always wired in code; embedding fallback is a noop that
+    // refuses to embed rather than silently returning zeros.
+    expect(c.text.textFallback).toBe(true);
+    expect(c.text.ollamaBaseUrl).toBe("http://localhost:11434");
+    expect(c.text.ollamaTextModel).toBe("llama3.2:3b");
+    expect(c.embeddings.embeddingsFallback).toBe(true);
+  });
+
+  it("disables text fallback when AI_TEXT_FALLBACK=false", () => {
+    const env: NodeJS.ProcessEnv = {
+      AI_TEXT_FALLBACK: "false",
+    };
+    const c = loadAiConfig(env);
+    expect(c.text.textFallback).toBe(false);
   });
 
   it("refuses to construct an OpenAI provider when AI_FREE_ONLY=true", () => {

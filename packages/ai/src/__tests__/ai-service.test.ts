@@ -14,6 +14,9 @@ describe("createAiService", () => {
       AI_FREE_ONLY: "true",
       GEMINI_API_KEY: "g-key",
       OCR_SPACE_API_KEY: "ocr-key",
+      // Disable fallback so the test sees the bare primary providers
+      AI_TEXT_FALLBACK: "false",
+      AI_EMBEDDING_FALLBACK: "false",
     });
     const svc = await createAiService({ config });
     expect(svc.config.freeOnly).toBe(true);
@@ -21,6 +24,20 @@ describe("createAiService", () => {
     expect(svc.embeddings.info().name).toBe("gemini");
     expect(svc.primaryOcr.info().name).toBe("ocrspace");
     expect(svc.fallbackOcr.info().name).toBe("tesseract");
+  });
+
+  it("wraps text + embeddings in a FallingBack*Provider when fallback enabled", async () => {
+    const config = loadAiConfig({
+      AI_FREE_ONLY: "true",
+      GEMINI_API_KEY: "g-key",
+      OCR_SPACE_API_KEY: "ocr-key",
+      // Defaults already have textFallback=true and embeddingsFallback=true
+    });
+    const svc = await createAiService({ config });
+    expect(svc.text.info().name).toBe("gemini+ollama");
+    expect(svc.embeddings.info().name).toBe("gemini+noop");
+    // Health snapshot still surfaces the primary model in `model`
+    expect(svc.text.info().model).toBe("gemini-3.8-flash");
   });
 
   it("falls back to tesseract when OCR.Space key is missing", async () => {
@@ -51,7 +68,12 @@ describe("createAiService", () => {
   });
 
   it("health snapshot exposes config and provider names", async () => {
-    const config = loadAiConfig({ AI_FREE_ONLY: "true", GEMINI_API_KEY: "g-key" });
+    const config = loadAiConfig({
+      AI_FREE_ONLY: "true",
+      GEMINI_API_KEY: "g-key",
+      AI_TEXT_FALLBACK: "false",
+      AI_EMBEDDING_FALLBACK: "false",
+    });
     const svc = await createAiService({ config });
     const snap = await svc.health();
     expect(snap.config.freeOnly).toBe(true);

@@ -22,9 +22,19 @@ export interface AiConfig {
   demoMode: boolean;
 
   text: {
-    provider: "gemini" | "heuristic";
+    provider: "gemini" | "heuristic" | "ollama";
     geminiApiKey?: string;
     geminiModel: string;
+    /**
+     * Ollama local HTTP fallback (POST {ollamaBaseUrl}/api/chat).
+     * Used only when `textFallback` is enabled and the primary
+     * provider throws on a capture-time call.
+     */
+    ollamaBaseUrl?: string;
+    ollamaTextModel: string;
+    /** When true, fall back from the primary text provider to
+     *  ollama on ProviderError. Default true (free mode). */
+    textFallback: boolean;
   };
 
   embeddings: {
@@ -34,6 +44,14 @@ export interface AiConfig {
     geminiDimensions: number;
     openaiApiKey?: string;
     openaiModel: string;
+    /**
+     * Embedding-time fallback when the primary provider throws.
+     * The project has no Ollama 1536-d model on offer, so the
+     * fallback is `noop` (refuses to embed, search degrades to
+     * lexical-only). The flag exists so future 1536-d local
+     * models can be wired in without a config-shape change.
+     */
+    embeddingsFallback: boolean;
   };
 
   ocr: {
@@ -80,7 +98,8 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
 
   const textProvider = (readString(env, "AI_TEXT_PROVIDER", "gemini") ?? "gemini") as
     | "gemini"
-    | "heuristic";
+    | "heuristic"
+    | "ollama";
   const embeddingProvider = (readString(env, "AI_EMBEDDING_PROVIDER", "gemini") ?? "gemini") as
     | "gemini"
     | "openai"
@@ -120,6 +139,10 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       // must set maxOutputTokens high enough (>=1024) to leave
       // headroom for both thinking + the actual array of tags.
       geminiModel: readString(env, "GEMINI_MODEL", "gemini-3.8-flash") ?? "gemini-3.8-flash",
+      ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://localhost:11434"),
+      ollamaTextModel:
+        readString(env, "OLLAMA_TEXT_MODEL", "llama3.2:3b") ?? "llama3.2:3b",
+      textFallback: readBool(env, "AI_TEXT_FALLBACK", true),
     },
     embeddings: {
       provider: embeddingProvider,
@@ -131,6 +154,7 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       openaiModel:
         readString(env, "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") ??
         "text-embedding-3-small",
+      embeddingsFallback: readBool(env, "AI_EMBEDDING_FALLBACK", true),
     },
     ocr: {
       provider: ocrProvider,
