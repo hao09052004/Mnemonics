@@ -16,10 +16,22 @@ interface LoginFormProps {
   api: ApiClient;
   onLogin: (session: Session) => void;
   onForgotPassword?: () => void;
+  /**
+   * When true, the form skips its internal "switch to register/login"
+   * toggle. The auth shell (AuthLayout) already provides its own
+   * cross-link to /login or /signup, so showing the in-form toggle
+   * would be visual duplication.
+   */
+  hideModeSwitch?: boolean;
+  /**
+   * Forces the form to render in a specific mode. When provided, the
+   * mode toggle is disabled even if hideModeSwitch is not set.
+   */
+  initialMode?: Mode;
 }
 
-export function LoginForm({ api, onLogin, onForgotPassword }: LoginFormProps) {
-  const [mode, setMode] = useState<Mode>('login');
+export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, initialMode }: LoginFormProps) {
+  const [mode, setMode] = useState<Mode>(initialMode || 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -203,7 +215,9 @@ export function LoginForm({ api, onLogin, onForgotPassword }: LoginFormProps) {
             🔑 Quên mật khẩu?
           </button>
         )}
+      </form>
 
+      {!hideModeSwitch && (
         <button
           type="button"
           onClick={() => {
@@ -221,7 +235,7 @@ export function LoginForm({ api, onLogin, onForgotPassword }: LoginFormProps) {
         >
           {mode === 'login' ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}
         </button>
-      </form>
+      )}
     </div>
   );
 }

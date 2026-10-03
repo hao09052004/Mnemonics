@@ -1,12 +1,21 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ForgotPasswordForm } from '../components/ForgotPasswordForm';
+import { AuthLayout } from '../components/auth/AuthLayout';
 import { ApiClient } from '../lib/api-client';
 
 interface ResetPasswordPageProps {
   api: ApiClient;
 }
 
+/**
+ * Deep-link entry to the forgot-password flow.
+ *
+ * The /login page already exposes "Continue with email" → "Forgot
+ * password" inline. This page exists so that email links (e.g. the
+ * "Reset your password" footer link a future email template will
+ * include) can land users on a page that opens the forgot-password
+ * step directly, in the same calm auth shell.
+ */
 export function ResetPasswordPage({ api }: ResetPasswordPageProps) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -18,23 +27,11 @@ export function ResetPasswordPage({ api }: ResetPasswordPageProps) {
   }, []);
 
   return (
-    <div
-      style={{
-        minHeight: 'calc(100vh - var(--header-h))',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: 400 }}>
-        <ForgotPasswordForm
-          api={api}
-          onCancel={() => navigate('/login')}
-          onResetRequested={() => undefined}
-        />
-      </div>
-    </div>
+    <AuthLayout
+      api={api}
+      mode="login"
+      onAuthenticated={() => navigate('/app', { replace: true })}
+    />
   );
 }
 
