@@ -2382,7 +2382,14 @@ async function saveItem() {
     if (!accessToken) throw new Error('Sign in before saving a memory.');
     if (newItem.type === 'file') throw new Error('File captures are not supported by the capture API.');
     if (newItem.type === 'image' || newItem.type === 'screenshot') {
+      // Preserve the discriminator on the API payload. The popup
+      // sends `type: 'screenshot'` from the screenshot flow, and
+      // the dashboard's own right-click / drag-save paths send
+      // `type: 'image'` (web images). Without this hint the API
+      // defaults to 'screenshot', which is the wrong pipeline for
+      // a Facebook CDN image.
       await uploadImageCapture(newItem.imageUrl, {
+        type: newItem.type,
         title: newItem.title,
         note: newItem.note,
         sourceUrl: newItem.sourceUrl,

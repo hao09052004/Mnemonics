@@ -380,6 +380,12 @@ function pickUploadFilename(imageUrl, mime) {
 
 const form = new FormData();
 form.append('file', blob, pickUploadFilename(imageUrl, mimeType));
+// Right-click on an <img> is a remote image, not a screenshot.
+// The extension's screenshot flow has its own upload path
+// (extension.js → savePendingScreenshot → uploadImageCapture) which
+// sends type='screenshot'; keep the explicit branch here so the
+// OCR pipeline treats web images and screenshots differently.
+form.append('type', 'image');
 form.append('title', (pageTitle || 'Ảnh đã lưu').slice(0, 500));
 form.append('note', noteText.slice(0, 4000));
 form.append('sourceUrl', pageUrl || '');
