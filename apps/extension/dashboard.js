@@ -1314,7 +1314,7 @@ function renderCards(data) {
     const isNew = item.date === 'Just now' || item.date === 'Today';
     const typeLabel = item.sourceType === 'reminder'
       ? (item.tags && item.tags.includes('meeting') ? 'MEETING MINUTES' : 'TODO LIST')
-      : {article:'ARTICLE', image:'INSPIRATION', note:'QUICK NOTE', quote:'QUOTE', code:'CODE', link:'LINK', file:'FILE', screenshot:'SCREENSHOT'}[item.type] || 'ITEM';
+      : {article:'ARTICLE', image:'IMAGE', note:'QUICK NOTE', quote:'QUOTE', code:'CODE', link:'LINK', file:'FILE', screenshot:'SCREENSHOT'}[item.type] || 'ITEM';
     const typeClass = item.type;
 
     let body = '';
@@ -2207,7 +2207,7 @@ let readerCurrentItem = null;
 
 const READER_TYPE_LABELS = {
   article: 'ARTICLE',
-  image: 'INSPIRATION',
+  image: 'IMAGE',
   note: 'QUICK NOTE',
   quote: 'QUOTE',
   code: 'CODE',
