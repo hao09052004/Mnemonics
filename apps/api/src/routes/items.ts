@@ -323,6 +323,16 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           tags?: string[];
         };
 
+        // Temporary diagnostic: confirm the route actually received
+        // `tags` in the body so the "No fields to update" mystery is
+        // easier to triage from the dev-server log.
+        console.log('[PATCH /items/:id]', {
+          itemId,
+          keys: Object.keys(updates || {}),
+          tags: Array.isArray(updates && updates.tags) ? updates.tags : null,
+          notesType: updates && updates.notes !== undefined ? typeof updates.notes : 'undef'
+        });
+
         const item = await repository.findById(itemId);
         if (!item) {
           res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
