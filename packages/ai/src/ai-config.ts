@@ -113,6 +113,12 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
     text: {
       provider: textProvider,
       geminiApiKey: readString(env, "GEMINI_API_KEY"),
+      // Google has been deprecating the older Flash models for new
+      // users ("model is no longer available to new users, please use
+      // gemini-3.8-flash"). 3.x is a thinking model that spends
+      // tokens on internal reasoning before emitting JSON, so callers
+      // must set maxOutputTokens high enough (>=1024) to leave
+      // headroom for both thinking + the actual array of tags.
       geminiModel: readString(env, "GEMINI_MODEL", "gemini-3.8-flash") ?? "gemini-3.8-flash",
     },
     embeddings: {

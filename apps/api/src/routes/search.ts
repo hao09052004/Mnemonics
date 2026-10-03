@@ -9,13 +9,14 @@ import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
+import type { EmbeddingProvider } from '@mnemonics/ai';
 
 export interface SearchRouterDeps {
   pool: Pool;
   supabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
-  openAiKey?: string;
+  embeddings?: EmbeddingProvider;
 }
 
 const searchRequestSchema = z.object({
@@ -60,7 +61,7 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
     supabase,
     expectedToken = 'mnemonics-dev-token',
     developmentUserId = '00000000-0000-4000-8000-000000000001',
-    openAiKey
+    embeddings
   } = deps;
   const router = express.Router() as Application;
 
@@ -95,7 +96,7 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
       const lexResults = await runLexicalSearch(pool, userId, q, filters);
 
       // Run semantic search (vector)
-      const semResults = await runSemanticSearch(pool, userId, q, openAiKey, filters);
+      const semResults = await runSemanticSearch(pool, userId, q, embeddings, filters);
 
       // Combine with RRF
       const combined = reciprocalRankFusion(lexResults, semResults, 0.4, 0.6);
@@ -246,7 +247,7 @@ async function runSemanticSearch(
   pool: Pool,
   userId: string,
   query: string,
-  openAiKey?: string,
+  embeddings?: EmbeddingProvider,
   filters?: {
     tags?: string[];
     kind?: string[];
@@ -254,13 +255,13 @@ async function runSemanticSearch(
     captured_before?: string;
   }
 ): Promise<SemResult[]> {
-  if (!openAiKey) {
+  if (!embeddings) {
     return [];
   }
 
   try {
-    const queryEmbedding = await generateEmbedding(query, openAiKey);
-    if (!queryEmbedding) return [];
+    const queryEmbedding = await embeddings.embedOne(query);
+    if (!queryEmbedding || queryEmbedding.length === 0) return [];
 
     const embeddingStr = `[${queryEmbedding.join(',')}]`;
 
@@ -366,36 +367,6 @@ function reciprocalRankFusion(
       combinedScore: lex + sem
     }))
     .sort((a, b) => b.score - a.score);
-}
-
-/**
- * Generate embedding for search query using OpenAI
- */
-async function generateEmbedding(text: string, apiKey: string): Promise<number[] | null> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-3-small',
-        input: text.slice(0, 8000)
-      })
-    });
-
-    if (!response.ok) {
-      console.error('[Search] OpenAI embedding error:', response.status);
-      return null;
-    }
-
-    const data = await response.json() as { data?: Array<{ embedding: number[] }> };
-    return data.data?.[0]?.embedding || null;
-  } catch (error) {
-    console.error('[Search] Embedding generation error:', error);
-    return null;
-  }
 }
 
 /**

@@ -79,18 +79,55 @@ async function callGemini({
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 256 },
-        }),
-        signal: controller.signal,
-      });
+body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              // Gemini 3.x "thinking" models spend a large share of
+              // the budget on internal reasoning (thoughtsTokenCount)
+              // before emitting any visible output. A 256-token cap
+              // finishes with MAX_TOKENS after the JSON opener and
+              // returns unparseable text. 1024 leaves enough headroom
+              // for thinking + a real JSON array of tags / sentence.
+              maxOutputTokens: 1024
+            },
+          }),
+          signal: controller.signal,
+        });
       clearTimeout(timer);
       if (res.ok) {
         const data = (await res.json()) as {
-          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          candidates?: Array<{
+            content?: { parts?: Array<{ text?: string }> };
+            finishReason?: string;
+          }>;
+          promptFeedback?: { blockReason?: string };
         };
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        // Gemini 3.x thinking models sometimes return only an empty
+        // parts array (the visible "text" field is missing because all
+        // tokens went into reasoning). Surface MAX_TOKENS / blocked
+        // prompts to the caller so it can decide whether to retry,
+        // fall back, or fail open.
+        const candidate = data.candidates?.[0];
+        if (!candidate) {
+          throw new ProviderError({
+            message: `Gemini returned no candidates (blockReason=${
+              data.promptFeedback?.blockReason ?? "unknown"
+            })`,
+            code: "INVALID_RESPONSE",
+            provider: "gemini",
+            retryable: false,
+          });
+        }
+        const text = candidate.content?.parts?.[0]?.text ?? "";
+        if (!text && candidate.finishReason === "MAX_TOKENS") {
+          throw new ProviderError({
+            message: `Gemini hit MAX_TOKENS before producing visible output (maxOutputTokens too small?)`,
+            code: "INVALID_RESPONSE",
+            provider: "gemini",
+            retryable: true,
+          });
+        }
         return text;
       }
       const body = await res.text().catch(() => "");

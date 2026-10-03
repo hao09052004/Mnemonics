@@ -10,7 +10,7 @@ describe("loadAiConfig", () => {
     const c = loadAiConfig(env);
     expect(c.freeOnly).toBe(true);
     expect(c.text.provider).toBe("gemini");
-    expect(c.text.geminiModel).toBe("gemini-2.5-flash");
+    expect(c.text.geminiModel).toBe("gemini-3.8-flash");
     expect(c.embeddings.provider).toBe("gemini");
     expect(c.embeddings.geminiModel).toBe("gemini-embedding-001");
     expect(c.embeddings.geminiDimensions).toBe(1536);
