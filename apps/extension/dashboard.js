@@ -613,6 +613,36 @@ function logoutUser() {
   });
 }
 
+// M2: when both an access token and a refresh token have been rejected
+// by the API we treat the session as definitively dead — wipe the
+// cached session + cached items, and bounce the user back to the
+// landing page so they can sign in again. Without this, a stale
+// session would silently keep the dashboard empty (every items call
+// 401s, every refresh 400s).
+function killStaleSession(reason) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.remove(['mnemonics_session', 'mnemonics_current_user']);
+    } else {
+      localStorage.removeItem('mnemonics_session');
+      localStorage.removeItem('mnemonics_current_user');
+    }
+  } catch (e) { /* ignore */ }
+  currentUser = null;
+  baseMemoryItems = [];
+  items = [];
+  serverSearchResults = null;
+  if (typeof showToast === 'function') {
+    showToast(reason || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  }
+  if (typeof showPage === 'function') {
+    showPage('landing');
+  } else {
+    // Fallback: hard reload.
+    try { window.location.reload(); } catch (e) { /* ignore */ }
+  }
+}
+
 // Demo login helper used by the optional "auth-demo-login" button.
 // In production we don't ship demo credentials ? this is a no-op fallback so
 // the listener at `DOMContentLoaded` doesn't throw `ReferenceError`.
@@ -971,7 +1001,9 @@ async function fetchItemsFromApi(uid, accessToken, options) {
       // explicit loadFromExtension call (after ITEM_SAVED or user
       // action) can still decide to clear the session.
       if (!silent) saveSession(null);
-      return null;
+      // Throw so the outer catch in loadFromExtension can recognise
+      // this as a definitive auth failure and call killStaleSession().
+      throw new Error('Unauthorized');
     }
     if (!response.ok) return null;
 
@@ -1041,8 +1073,10 @@ function loadFromExtension(cb, options) {
       // signed out. Otherwise keep whatever we loaded before so the
       // dashboard doesn't flash empty during transient API failures
       // (rate limits, Supabase JWT refresh in flight, etc.).
-      if (error && /sign in|invalid token|unauthor/i.test(error.message || '')) {
-        baseMemoryItems = [];
+      var msg = (error && error.message) || '';
+      if (/sign in|invalid token|unauthor/i.test(msg)) {
+        killStaleSession(msg);
+        return;
       }
       refreshDashboardItems();
       if (typeof showToast === 'function') showToast(error.message);
