@@ -13,9 +13,17 @@ var cropMode = null;
 var cropStart = null;
 var cropOffset = null;
 
+var MNEMONICS_WEB_URL = '__MNEMONICS_WEB_URL__';
+
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('open-dashboard').addEventListener('click', function() {
-    var url = chrome.runtime.getURL('mnemonics-dashboard.html');
+    // When a production web URL has been baked in at packaging time,
+    // open the live dashboard in a new tab. Otherwise fall back to
+    // the bundled offline dashboard so the popup still works in
+    // dev / unpacked-load mode.
+    var url = (typeof MNEMONICS_WEB_URL === 'string' && MNEMONICS_WEB_URL.length > 0)
+      ? MNEMONICS_WEB_URL.replace(/\/$/, '') + '/app'
+      : chrome.runtime.getURL('mnemonics-dashboard.html');
     chrome.tabs.create({ url: url });
   });
 

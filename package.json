@@ -23,6 +23,13 @@
     "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-pipeline.mts",
     "demo:stop": "docker compose -f docker-compose.demo.yml down",
     "demo:prepare": "pnpm demo:db && pnpm demo:setup",
-    "demo:reset": "docker compose -f docker-compose.demo.yml down -v && pnpm demo:db && pnpm demo:setup"
+    "demo:reset": "docker compose -f docker-compose.demo.yml down -v && pnpm demo:db && pnpm demo:setup",
+    "extension:package": "node scripts/package-extension.mjs",
+    "extension:package:chrome": "node scripts/package-extension.mjs chrome",
+    "extension:package:edge": "node scripts/package-extension.mjs edge",
+    "extension:package:test": "node --test scripts/extension-packager.test.mjs"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
   }
 }
