@@ -140,6 +140,135 @@
   .search-bar input { border: none; outline: none; font-size: 13px; color: var(--black); width: 100%; background: transparent; }
   .search-bar input::placeholder { color: var(--gray-mid); }
 
+  /* M2: search filter chips */
+  .search-filters {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: -8px 0 16px;
+    padding: 10px 14px;
+    background: #F9F8FF;
+    border: 1.5px solid #E5E0F8;
+    border-radius: 10px;
+  }
+  .search-filters-label {
+    font-size: 11px; font-weight: 700; color: var(--gray-text);
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .search-filter-chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+  .search-chip {
+    border: 1.5px solid var(--gray-border);
+    background: var(--white);
+    color: var(--gray-text);
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    font-family: inherit;
+  }
+  .search-chip:hover { border-color: var(--purple); color: var(--purple); }
+  .search-chip.active {
+    background: var(--purple);
+    color: var(--white);
+    border-color: var(--purple);
+  }
+  .search-filters-clear {
+    border: none; background: transparent;
+    color: var(--gray-mid); font-size: 12px;
+    cursor: pointer; padding: 4px 6px;
+    font-family: inherit;
+  }
+  .search-filters-clear:hover { color: var(--black); }
+
+  /* M2: recent searches dropdown */
+  .search-recent {
+    position: relative;
+    margin: -8px 0 12px;
+  }
+  .search-recent-label {
+    font-size: 11px; font-weight: 700; color: var(--gray-text);
+    letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 0 4px 6px;
+  }
+  .search-recent-list {
+    list-style: none; margin: 0; padding: 4px 0;
+    background: var(--white);
+    border: 1.5px solid var(--gray-border);
+    border-radius: 10px;
+    max-height: 240px; overflow-y: auto;
+  }
+  .search-recent-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--black);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid #F1F0F6;
+  }
+  .search-recent-item:last-child { border-bottom: none; }
+  .search-recent-item:hover { background: var(--gray-bg); }
+  .search-recent-item .search-recent-icon {
+    color: var(--gray-mid); width: 14px; height: 14px; flex-shrink: 0;
+  }
+  .search-recent-item .search-recent-text { flex: 1; }
+  .search-recent-item .search-recent-time {
+    color: var(--gray-mid); font-size: 11px;
+  }
+  .search-recent-empty {
+    padding: 16px; text-align: center;
+    color: var(--gray-mid); font-size: 12px;
+  }
+
+  /* M2: search loading skeleton */
+  .search-skeleton { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+  .search-skeleton-row {
+    height: 92px;
+    background: linear-gradient(90deg, #F1F0F6 0%, #E8E6F0 50%, #F1F0F6 100%);
+    background-size: 200% 100%;
+    border-radius: 10px;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* M2: query highlight in cards */
+  .search-hit {
+    background: rgba(91, 63, 228, 0.18);
+    color: var(--purple);
+    font-weight: 600;
+    border-radius: 3px;
+    padding: 0 2px;
+  }
+  .search-hit-score {
+    display: inline-block;
+    font-size: 10px; font-weight: 700;
+    background: var(--purple);
+    color: var(--white);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .search-results-nav-hint {
+    font-size: 11px; color: var(--gray-mid);
+    margin-left: auto;
+  }
+  .search-results-nav-hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--white);
+    border: 1px solid var(--gray-border);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 10px;
+    box-shadow: 0 1px 0 var(--gray-border);
+  }
+  .search-result-focused {
+    outline: 2px solid var(--purple) !important;
+    outline-offset: 2px;
+  }
+
   /* AI Search result */
   #ai-result {
     background: var(--purple-light); border: 1.5px solid var(--purple);
@@ -1358,6 +1487,31 @@
           AI SEMANTIC SEARCH
         </div>
         <div id="ai-result-text" class="ai-text"></div>
+      </div>
+
+      <!-- Search filter chips (M2) -->
+      <div class="search-filters" id="search-filters" hidden>
+        <span class="search-filters-label">Lọc theo:</span>
+        <div class="search-filter-chips" id="search-filter-kind">
+          <button type="button" class="search-chip" data-filter-kind="link">🔗 Link</button>
+          <button type="button" class="search-chip" data-filter-kind="text">📝 Text</button>
+          <button type="button" class="search-chip" data-filter-kind="image">🖼️ Image</button>
+          <button type="button" class="search-chip" data-filter-kind="screenshot">📸 Screenshot</button>
+        </div>
+        <button type="button" class="search-filters-clear" id="search-filters-clear">✕ Xoá lọc</button>
+      </div>
+
+      <!-- Recent searches dropdown (M2) -->
+      <div class="search-recent" id="search-recent" hidden>
+        <div class="search-recent-label">Tìm gần đây</div>
+        <ul class="search-recent-list" id="search-recent-list"></ul>
+      </div>
+
+      <!-- Search loading skeleton (M2) -->
+      <div class="search-skeleton" id="search-skeleton" hidden>
+        <div class="search-skeleton-row"></div>
+        <div class="search-skeleton-row"></div>
+        <div class="search-skeleton-row"></div>
       </div>
 
       <!-- Sort & filter controls -->

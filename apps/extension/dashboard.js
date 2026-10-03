@@ -93,6 +93,12 @@ let currentUser = null;
 let serverSearchResults = null;
 let searchRequestEpoch = 0;
 
+// M2: search state (filters, recent, focus index for keyboard nav)
+let searchFilters = { kinds: new Set(), tags: new Set() };
+let recentSearches = [];
+let searchFocusedIndex = -1;
+let searchInFlight = false;
+
 function getStorageValue(key, fallback, cb) {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
     chrome.storage.local.get(key, function(r) { cb(r[key] === undefined ? fallback : r[key]); });
@@ -1276,6 +1282,25 @@ function hideRelatedMemories(button) {
 function renderCards(data) {
   const container = document.getElementById('cards-container');
   document.getElementById('item-count').textContent = `${data.length} memories saved this month.`;
+  // M2: when the user is mid-search, each card knows the query that
+  // produced it. Expose a single helper so every code path below
+  // (image / link / text / quote / note) decorates the title and
+  // excerpt with the same highlight, and adds a score badge when
+  // the result came from the server's hybrid ranker.
+  const renderTitle = function (item, fallback) {
+    var t = item.title || fallback || 'Saved memory';
+    var html = escapeHtml(t);
+    if (item.rawQuery) html = highlightMatch(t, item.rawQuery);
+    if (typeof item.searchScore === 'number' && item.serverSynced) {
+      html += '<span class="search-hit-score">' + (item.searchScore * 100).toFixed(0) + '%</span>';
+    }
+    return html;
+  };
+  const renderExcerpt = function (item, fallback) {
+    var text = (item.excerpt || item.note || fallback || '');
+    if (text.length > 220) text = text.slice(0, 220) + '…';
+    return item.rawQuery ? highlightMatch(text, item.rawQuery) : escapeHtml(text);
+  };
 
   // Build the "Sync to database" pill used by image/link/quote cards
   // that failed to upload the first time. Pass the matching payload
@@ -1330,7 +1355,7 @@ function renderCards(data) {
       // instead of just an orphan image.
       const descText = item.note || item.excerpt || '';
       const descBlock = descText
-        ? `<p class="card-excerpt">${escapeHtml(descText.length > 220 ? descText.slice(0, 220) + '…' : descText)}</p>`
+        ? `<p class="card-excerpt">${renderExcerpt(item)}</p>`
         : '';
       const tagsBlock = Array.isArray(item.tags) && item.tags.length
         ? `<div class="card-tags">${item.tags.slice(0, 6).map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>`
@@ -1355,7 +1380,7 @@ function renderCards(data) {
       const imageTitle = escapeHtml(item.title || (item.type === 'screenshot' ? 'Screenshot' : 'Saved image'));
       const descText = item.note || item.excerpt || '';
       const descBlock = descText
-        ? `<p class="card-excerpt">${escapeHtml(descText.length > 220 ? descText.slice(0, 220) + '…' : descText)}</p>`
+        ? `<p class="card-excerpt">${renderExcerpt(item)}</p>`
         : '';
       const tagsBlock = Array.isArray(item.tags) && item.tags.length
         ? `<div class="card-tags">${item.tags.slice(0, 6).map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>`
@@ -1372,8 +1397,8 @@ function renderCards(data) {
       const linkUrl = escapeHtml(normalizeExternalUrl(item.sourceUrl || item.url || item.note || ''));
       const displayUrl = escapeHtml((item.url || item.note || '').replace(/^https?:\/\//, '').slice(0, 60));
       body = `<div class="card-body">
-        <div class="card-title">${escapeHtml(item.title || 'Saved link')}</div>
-        ${item.excerpt ? `<p class="card-excerpt">${escapeHtml(item.excerpt)}</p>` : ''}
+        <div class="card-title">${renderTitle(item, 'Saved link')}</div>
+        ${item.excerpt ? `<p class="card-excerpt">${renderExcerpt(item)}</p>` : ''}
         ${linkUrl ? `<a href="${linkUrl}" target="_blank" rel="noopener" data-open-link="${linkUrl}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--purple);text-decoration:none;margin-top:4px">? ${displayUrl || 'Open link'} ?</a>` : ''}
         ${item.tags ? `<div class="card-tags">${item.tags.map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
         ${pendingBadgeHtml(item)}
@@ -1390,7 +1415,7 @@ function renderCards(data) {
             ${fileSize}
           </div>
         </div>
-        ${item.excerpt ? `<p class="card-excerpt" style="margin-top:10px">${escapeHtml(item.excerpt)}</p>` : ''}
+        ${item.excerpt ? `<p class="card-excerpt" style="margin-top:10px">${renderExcerpt(item)}</p>` : ''}
         ${dl}
         ${item.tags ? `<div class="card-tags">${item.tags.map(t=>`<span class="card-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       </div>`;
@@ -1425,8 +1450,8 @@ function renderCards(data) {
     } else {
       body = `<div class="card-body">
         ${item.type === 'code' ? `<div class="code-date">${item.date}</div>` : ''}
-        <div class="card-title">${item.title}</div>
-        ${item.excerpt ? `<p class="card-excerpt">${item.excerpt}</p>` : ''}
+        <div class="card-title">${renderTitle(item)}</div>
+        ${item.excerpt ? `<p class="card-excerpt">${renderExcerpt(item)}</p>` : ''}
         ${item.tags ? `<div class="card-tags">${item.tags.map(t=>`<span class="card-tag">${t}</span>`).join('')}</div>` : ''}
       </div>`;
     }
@@ -1990,28 +2015,49 @@ function handleSearch(val) {
   clearTimeout(searchTimeout);
   const q = val.toLowerCase().trim();
   serverSearchResults = null;
+  focusSearchResult('reset');
   if (!q) {
     searchRequestEpoch += 1;
     renderDashboard();
     hideAIResult();
+    showSearchSkeleton(false);
+    renderRecentSearches();
     return;
   }
 
-  // Keep the local result visible while the server search is in flight.
+  hideRecentSearches();
   renderDashboard();
+  showSearchSkeleton(true);
 
   searchTimeout = setTimeout(async function() {
-    if (!currentUser || !currentUser.id) return;
+    if (!currentUser || !currentUser.id) {
+      showSearchSkeleton(false);
+      return;
+    }
     var requestEpoch = ++searchRequestEpoch;
     try {
       var token = await getAccessToken();
       if (!token) {
         token = await refreshAccessToken();
       }
-      if (!token) return;
+      if (!token) {
+        showSearchSkeleton(false);
+        return;
+      }
 
-      var response = await searchItemsFromApi(q, token);
-      if (requestEpoch !== searchRequestEpoch) return;
+      var filterPayload = {};
+      if (searchFilters.kinds.size > 0) {
+        filterPayload.kind = Array.from(searchFilters.kinds);
+      }
+      if (searchFilters.tags.size > 0) {
+        filterPayload.tags = Array.from(searchFilters.tags);
+      }
+
+      var response = await searchItemsFromApi(q, token, filterPayload);
+      if (requestEpoch !== searchRequestEpoch) {
+        showSearchSkeleton(false);
+        return;
+      }
 
       var hits = response && Array.isArray(response.hits) ? response.hits : [];
       serverSearchResults = hits.map(function(hit) {
@@ -2025,19 +2071,26 @@ function handleSearch(val) {
           savedAt: hit.captured_at || new Date().toISOString(),
           capturedAt: hit.captured_at || null,
           serverSynced: true,
-          searchScore: hit.score
+          searchScore: hit.score,
+          rawQuery: q
         };
       });
+      showSearchSkeleton(false);
+      recordRecentSearch(q);
       renderDashboard();
       showAIResult(
         serverSearchResults.length
-          ? 'Server search found <b>' + serverSearchResults.length + '</b> result(s) for "<b>' + escapeHtml(q) + '</b>".'
-          : 'No server results for "<b>' + escapeHtml(q) + '</b>".'
+          ? 'Tìm thấy <b>' + serverSearchResults.length + '</b> kết quả cho "<b>' + escapeHtml(q) + '</b>".'
+          : 'Không có kết quả cho "<b>' + escapeHtml(q) + '</b>". Thử từ khoá khác!'
       );
+      updateSearchNavHint();
     } catch (error) {
-      if (requestEpoch !== searchRequestEpoch) return;
-      // Keep local search usable if the API is temporarily unavailable.
+      if (requestEpoch !== searchRequestEpoch) {
+        showSearchSkeleton(false);
+        return;
+      }
       serverSearchResults = null;
+      showSearchSkeleton(false);
       renderDashboard();
       showAIResult('Server search unavailable — showing local matches.');
     }
@@ -2067,6 +2120,149 @@ function showAIResult(html) {
 }
 function hideAIResult() {
   document.getElementById('ai-result').style.display = 'none';
+}
+
+// ===== M2: SEARCH UX HELPERS =====
+
+const RECENT_SEARCHES_KEY = 'mnemonics_recent_searches';
+const RECENT_SEARCHES_MAX = 5;
+
+function loadRecentSearches() {
+  try {
+    var raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (!raw) return [];
+    var parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveRecentSearches() {
+  try {
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recentSearches));
+  } catch (e) { /* quota exceeded — ignore */ }
+}
+
+function recordRecentSearch(query) {
+  var q = String(query || '').trim();
+  if (!q) return;
+  recentSearches = recentSearches.filter(function (entry) {
+    return entry && entry.text && entry.text.toLowerCase() !== q.toLowerCase();
+  });
+  recentSearches.unshift({ text: q, at: Date.now() });
+  if (recentSearches.length > RECENT_SEARCHES_MAX) {
+    recentSearches = recentSearches.slice(0, RECENT_SEARCHES_MAX);
+  }
+  saveRecentSearches();
+}
+
+function renderRecentSearches() {
+  var container = document.getElementById('search-recent');
+  var list = document.getElementById('search-recent-list');
+  if (!container || !list) return;
+  if (recentSearches.length === 0) {
+    list.innerHTML = '<li class="search-recent-empty">Chưa có tìm kiếm gần đây.</li>';
+    container.hidden = false;
+    return;
+  }
+  list.innerHTML = recentSearches.map(function (entry, idx) {
+    return (
+      '<li class="search-recent-item" data-recent-idx="' + idx + '">' +
+      '<svg class="search-recent-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M12 12l3 3"/></svg>' +
+      '<span class="search-recent-text">' + escapeHtml(entry.text) + '</span>' +
+      '<span class="search-recent-time">' + formatRelativeTime(entry.at) + '</span>' +
+      '</li>'
+    );
+  }).join('');
+  container.hidden = false;
+}
+
+function hideRecentSearches() {
+  var container = document.getElementById('search-recent');
+  if (container) container.hidden = true;
+}
+
+function formatRelativeTime(ts) {
+  if (!ts) return '';
+  var diff = Date.now() - ts;
+  if (diff < 60_000) return 'vừa xong';
+  if (diff < 3_600_000) return Math.floor(diff / 60_000) + ' phút';
+  if (diff < 86_400_000) return Math.floor(diff / 3_600_000) + ' giờ';
+  return Math.floor(diff / 86_400_000) + ' ngày';
+}
+
+function applySearchFilters() {
+  var chips = document.querySelectorAll('#search-filter-kind .search-chip');
+  chips.forEach(function (chip) {
+    var k = chip.getAttribute('data-filter-kind');
+    if (searchFilters.kinds.has(k)) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+  var container = document.getElementById('search-filters');
+  if (container) container.hidden = searchFilters.kinds.size === 0 && searchFilters.tags.size === 0;
+}
+
+function escapeRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightMatch(text, query) {
+  if (!text || !query) return text || '';
+  var safe = escapeHtml(String(text));
+  if (!query) return safe;
+  var re;
+  try {
+    re = new RegExp('(' + escapeRegex(query) + ')', 'gi');
+  } catch (e) {
+    return safe;
+  }
+  return safe.replace(re, '<mark class="search-hit">$1</mark>');
+}
+
+function showSearchSkeleton(show) {
+  var sk = document.getElementById('search-skeleton');
+  if (!sk) return;
+  sk.hidden = !show;
+  searchInFlight = !!show;
+}
+
+function focusSearchResult(direction) {
+  if (!serverSearchResults || serverSearchResults.length === 0) return;
+  var cards = document.querySelectorAll('.memory-card');
+  if (cards.length === 0) return;
+  cards.forEach(function (c) { c.classList.remove('search-result-focused'); });
+  if (direction === 'reset') {
+    searchFocusedIndex = -1;
+    return;
+  }
+  if (searchFocusedIndex < 0) {
+    searchFocusedIndex = direction > 0 ? 0 : cards.length - 1;
+  } else {
+    searchFocusedIndex = (searchFocusedIndex + direction + cards.length) % cards.length;
+  }
+  var target = cards[searchFocusedIndex];
+  if (target) {
+    target.classList.add('search-result-focused');
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function openFocusedSearchResult() {
+  if (searchFocusedIndex < 0) return false;
+  var cards = document.querySelectorAll('.memory-card');
+  var target = cards[searchFocusedIndex];
+  if (!target) return false;
+  var link = target.querySelector('a, [data-open-item], [data-card-open]');
+  if (link) {
+    link.click();
+    return true;
+  }
+  target.click();
+  return true;
 }
 
 // ===== IMAGE PREVIEW =====
@@ -2916,6 +3112,10 @@ function clearAllData() {
 // ===== BIND ALL EVENT LISTENERS (no inline onclick) =====
 document.addEventListener('DOMContentLoaded', function() {
   try {
+  // M2: hydrate recent searches from localStorage so they show on
+  // first focus.
+  try { recentSearches = loadRecentSearches(); } catch (e) { /* ignore */ }
+
   // Wire the delegated image-error recovery BEFORE anything else so we
   // catch broken Supabase signed URLs on first paint, not after a
   // subsequent render.
@@ -3396,7 +3596,97 @@ document.addEventListener('DOMContentLoaded', function() {
   if (searchInput) {
     searchInput.addEventListener('input', function() { handleSearch(this.value); });
     searchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doAISearch(); });
+    // M2: focus → show recent searches; blur → hide.
+    searchInput.addEventListener('focus', function() {
+      if (!this.value.trim()) {
+        recentSearches = loadRecentSearches();
+        renderRecentSearches();
+      }
+    });
+    searchInput.addEventListener('blur', function() {
+      // Delay so a click on a recent-search item still registers
+      // before we tear down the list.
+      setTimeout(hideRecentSearches, 180);
+    });
   }
+
+  // M2: filter chips (kind). Clicking toggles a chip and re-runs
+  // the active search. If the input is empty, just toggle the chip
+  // visually so the user can pre-arm a filter before typing.
+  var filterContainer = document.getElementById('search-filter-kind');
+  if (filterContainer) {
+    filterContainer.addEventListener('click', function(e) {
+      var chip = e.target.closest('.search-chip');
+      if (!chip) return;
+      var kind = chip.getAttribute('data-filter-kind');
+      if (!kind) return;
+      if (searchFilters.kinds.has(kind)) {
+        searchFilters.kinds.delete(kind);
+      } else {
+        searchFilters.kinds.add(kind);
+      }
+      applySearchFilters();
+      var input = document.getElementById('search-input');
+      if (input && input.value.trim()) handleSearch(input.value);
+    });
+  }
+
+  var filterClear = document.getElementById('search-filters-clear');
+  if (filterClear) {
+    filterClear.addEventListener('click', function() {
+      searchFilters.kinds.clear();
+      searchFilters.tags.clear();
+      applySearchFilters();
+      var input = document.getElementById('search-input');
+      if (input && input.value.trim()) handleSearch(input.value);
+    });
+  }
+
+  // M2: clicking a recent-search item repopulates the input and
+  // re-runs the search.
+  var recentList = document.getElementById('search-recent-list');
+  if (recentList) {
+    recentList.addEventListener('mousedown', function(e) {
+      // mousedown so we beat the input's blur handler.
+      var item = e.target.closest('.search-recent-item');
+      if (!item) return;
+      var idx = parseInt(item.getAttribute('data-recent-idx') || '-1', 10);
+      var entry = recentSearches[idx];
+      if (!entry) return;
+      var input = document.getElementById('search-input');
+      if (input) {
+        input.value = entry.text;
+        input.focus();
+        handleSearch(entry.text);
+      }
+    });
+  }
+
+  // M2: global keyboard nav for search results. Active only when
+  // the search input is focused and a server-search is showing.
+  document.addEventListener('keydown', function(e) {
+    var input = document.getElementById('search-input');
+    if (!input || document.activeElement !== input) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusSearchResult(+1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusSearchResult(-1);
+    } else if (e.key === 'Enter') {
+      if (searchFocusedIndex >= 0) {
+        e.preventDefault();
+        openFocusedSearchResult();
+      }
+    } else if (e.key === 'Escape') {
+      input.value = '';
+      hideAIResult();
+      hideRecentSearches();
+      serverSearchResults = null;
+      focusSearchResult('reset');
+      renderDashboard();
+    }
+  });
 
   var btnFab = document.getElementById('btn-fab');
   if (btnFab) btnFab.addEventListener('click', openAddModal);

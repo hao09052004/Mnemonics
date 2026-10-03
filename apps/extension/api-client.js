@@ -240,8 +240,16 @@ async function sendCaptureToApi(item, accessToken) {
 }
 
 
-async function searchItemsFromApi(query, accessToken) {
+async function searchItemsFromApi(query, accessToken, filters) {
   if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi tìm kiếm.');
+
+  var payload = { q: query, limit: 50, offset: 0 };
+  if (filters && typeof filters === 'object') {
+    if (Array.isArray(filters.kind) && filters.kind.length) payload.filters = Object.assign({}, payload.filters, { kind: filters.kind });
+    if (Array.isArray(filters.tags) && filters.tags.length) payload.filters = Object.assign({}, payload.filters, { tags: filters.tags });
+    if (filters.captured_after) payload.filters = Object.assign({}, payload.filters, { captured_after: filters.captured_after });
+    if (filters.captured_before) payload.filters = Object.assign({}, payload.filters, { captured_before: filters.captured_before });
+  }
 
   async function request(token) {
     return fetch(MNEMONICS_API_URL + '/api/v1/search', {
@@ -250,7 +258,7 @@ async function searchItemsFromApi(query, accessToken) {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + token
       },
-      body: JSON.stringify({ q: query, limit: 50, offset: 0 })
+      body: JSON.stringify(payload)
     });
   }
 
