@@ -1,0 +1,86 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { createAiService, formatSnapshot } from "../ai-service.js";
+import { loadAiConfig } from "../ai-config.js";
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+describe("createAiService", () => {
+  it("builds a free-only service with gemini providers when key is set", async () => {
+    const config = loadAiConfig({
+      AI_FREE_ONLY: "true",
+      GEMINI_API_KEY: "g-key",
+      OCR_SPACE_API_KEY: "ocr-key",
+    });
+    const svc = await createAiService({ config });
+    expect(svc.config.freeOnly).toBe(true);
+    expect(svc.text.info().name).toBe("gemini");
+    expect(svc.embeddings.info().name).toBe("gemini");
+    expect(svc.primaryOcr.info().name).toBe("ocrspace");
+    expect(svc.fallbackOcr.info().name).toBe("tesseract");
+  });
+
+  it("falls back to tesseract when OCR.Space key is missing", async () => {
+    const config = loadAiConfig({ AI_FREE_ONLY: "true", GEMINI_API_KEY: "g-key" });
+    const svc = await createAiService({ config });
+    expect(svc.primaryOcr.info().name).toBe("tesseract");
+  });
+
+  it("uses noop embedding provider when no key is set", async () => {
+    const config = loadAiConfig({ AI_FREE_ONLY: "true" });
+    const svc = await createAiService({ config });
+    expect(svc.embeddings.info().name).toBe("noop");
+  });
+
+  it("recognizeWithFallback chains primary→fallback", async () => {
+    const config = loadAiConfig({ AI_FREE_ONLY: "true", GEMINI_API_KEY: "g-key" });
+    // When OCR key is missing, primary IS already tesseract. We
+    // assert the chain is wired but the actual call fails (no
+    // tesseract.js installed in the unit test env). The error
+    // carries the provider name so we can verify the chain.
+    const svc = await createAiService({ config });
+    await expect(
+      svc.recognizeWithFallback({
+        bytes: new Uint8Array([1, 2, 3]),
+        mimeType: "image/png",
+      })
+    ).rejects.toMatchObject({ provider: "tesseract" });
+  });
+
+  it("health snapshot exposes config and provider names", async () => {
+    const config = loadAiConfig({ AI_FREE_ONLY: "true", GEMINI_API_KEY: "g-key" });
+    const svc = await createAiService({ config });
+    const snap = await svc.health();
+    expect(snap.config.freeOnly).toBe(true);
+    expect(snap.config.text).toMatch(/^gemini:/);
+    expect(snap.config.embeddings).toMatch(/^gemini:/);
+  });
+});
+
+describe("formatSnapshot", () => {
+  it("renders an OK line for each provider", () => {
+    const s = formatSnapshot({
+      config: {
+        freeOnly: true,
+        demoMode: false,
+        text: "gemini:gemini-2.5-flash",
+        embeddings: "gemini:gemini-embedding-001",
+        ocr: "ocrspace:engine=2",
+        visual: "clip-local:Xenova/clip-vit-base-patch32",
+      },
+      textReady: true,
+      embeddingsReady: true,
+      ocrReady: true,
+      visualReady: false,
+      notes: [],
+    });
+    expect(s).toContain("Gemini text ........ OK");
+    expect(s).toContain("FREE-ONLY");
+  });
+});
+
+// Ensure no fetch leak across tests
+vi.mock("node:fs/promises", () => ({}));

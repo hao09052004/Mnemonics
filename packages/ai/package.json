@@ -1,0 +1,25 @@
+{
+  "name": "@mnemonics/ai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./providers/text": "./dist/providers/text/index.js",
+    "./providers/embeddings": "./dist/providers/embeddings/index.js",
+    "./providers/ocr": "./dist/providers/ocr/index.js",
+    "./providers/vision": "./dist/providers/vision/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
