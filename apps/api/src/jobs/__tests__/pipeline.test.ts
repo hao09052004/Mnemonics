@@ -142,6 +142,7 @@ describe('capture processing pipeline', () => {
         statuses.push(status);
       },
       updateTags: async () => undefined,
+      getTagsForItem: async () => [],
       saveEmbedding: async () => {
         embeddingsSaved += 1;
       }

@@ -189,6 +189,11 @@ function createInMemoryRepository() {
       if (!items.has(id)) throw new Error('Item not found');
     },
 
+    async getTagsForItem(id) {
+      if (!items.has(id)) throw new Error('Item not found');
+      return [];
+    },
+
     async getOcrQuotaForDate() {
       return null;
     },
