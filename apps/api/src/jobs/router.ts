@@ -57,8 +57,14 @@ export function createJobRouter(deps: JobRouterDeps): {
     ai,
     resolveAssetKey: makeOcrStorageKeyResolver(pool),
   });
-  const tagHandler = new TagHandler(queue, repository, openAiKey);
-  const embedHandler = new EmbedHandler(queue, repository, supabase, openAiKey, pool);
+  const tagHandler = new TagHandler({ queue, repository, ai });
+  const embedHandler = new EmbedHandler({
+    queue,
+    repository,
+    ai,
+    supabase,
+    pool,
+  });
 
   // Register job handlers using EventEmitter
   queue.registerHandler('ocr', (job) => ocrHandler.handle(job));

@@ -3,6 +3,36 @@ import { JobQueue } from '../queue.js';
 import { TagHandler } from '../handlers/tag.js';
 import { EmbedHandler } from '../handlers/embed.js';
 
+function createNoopAi() {
+  return {
+    text: { info: () => ({ name: 'noop', model: 'noop' }), generateTags: async () => [], summarize: async () => '' },
+    embeddings: { info: () => ({ name: 'noop', model: 'noop', dimensions: 0 }), embedOne: async () => [], embedMany: async () => [[]] },
+    primaryOcr: { info: () => ({ name: 'noop', model: 'noop' }) },
+    fallbackOcr: { info: () => ({ name: 'noop', model: 'noop' }) },
+    visual: { info: () => ({ name: 'noop', model: 'noop' }) },
+    recognizeWithFallback: async () => ({ text: '', engine: 'noop', confidence: 0 }),
+    tagCache: { get: () => undefined, set: () => undefined },
+    summaryCache: { get: () => undefined, set: () => undefined },
+    embeddingCache: { get: () => undefined, set: () => undefined },
+    ocrCache: { get: () => undefined, set: () => undefined },
+    health: async () => ({
+      config: { freeOnly: true, demoMode: true, text: 'noop', embeddings: 'noop', ocr: 'noop', visual: 'noop' },
+      textReady: false, embeddingsReady: false, ocrReady: false, visualReady: false, notes: []
+    }),
+    config: {} as any
+  } as any;
+}
+
+function createMockAi(vec: number[]) {
+  const ai = createNoopAi();
+  ai.embeddings = {
+    info: () => ({ name: 'mock', model: 'mock-1536', dimensions: 3 }),
+    embedOne: async () => vec,
+    embedMany: async () => [vec]
+  };
+  return ai;
+}
+
 const USER_ID = '00000000-0000-4000-8000-000000000001';
 const ITEM_ID = '00000000-0000-4000-8000-000000000010';
 
@@ -117,8 +147,12 @@ describe('capture processing pipeline', () => {
       }
     } as any;
 
-    const tagHandler = new TagHandler(queue, repository);
-    const embedHandler = new EmbedHandler(queue, repository);
+    const tagHandler = new TagHandler({ queue, repository, ai: createNoopAi() });
+    const embedHandler = new EmbedHandler({
+      queue,
+      repository,
+      ai: createMockAi([0, 1, 0]),
+    });
 
     queue.registerHandler('tag', job => tagHandler.handle(job));
     queue.registerHandler('embed', job => embedHandler.handle(job));
