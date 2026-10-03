@@ -8,10 +8,10 @@ import { ExtensionCTA } from '../components/marketing/ExtensionCTA';
 
 export function BrowserExtensionPage() {
   useEffect(() => {
-    document.title = 'Mnemonics Browser Extension — Save Anything in One Click';
+    document.title = 'Mnemonics Browser Extension for Chrome & Edge';
     setMeta(
       'description',
-      'Save pages, text, images and screenshots from any tab. The Mnemonics browser extension keeps your second brain one click away.'
+      'Save pages, highlights, images and screenshots directly from Chrome or Microsoft Edge. The Mnemonics browser extension keeps your second brain one click away.'
     );
   }, []);
 
@@ -43,8 +43,24 @@ export function BrowserExtensionPage() {
             lives where you already read, write and think — your browser.
           </p>
 
-          <div style={{ marginTop: 28, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <InstallExtensionButton size="lg" />
+          {/*
+            Two install CTAs: Chrome is primary (visually heavier, listed
+            first), Edge is a secondary supported alternative. Both fall
+            back to a "release coming soon" modal when the corresponding
+            store URL env-var is unset — they never link to a broken URL.
+          */}
+          <div
+            style={{
+              marginTop: 28,
+              display: 'flex',
+              gap: 12,
+              flexWrap: 'wrap',
+              alignItems: 'center'
+            }}
+            data-testid="extension-cta-row"
+          >
+            <InstallExtensionButton browser="chrome" variant="primary" size="lg" />
+            <InstallExtensionButton browser="edge" variant="secondary" size="lg" />
             <Link to="/app" className="btn btn--ghost btn--lg">
               Open the web app →
             </Link>
@@ -52,7 +68,8 @@ export function BrowserExtensionPage() {
 
           <BrowserSelector />
           <p style={{ marginTop: 12, fontSize: 13, color: 'var(--muted)' }}>
-            Firefox and Safari are on the roadmap. The extension currently ships on Chromium-based browsers.
+            Firefox and Safari are on the roadmap. The extension currently ships on Chromium-based
+            browsers (Chrome, Edge, Brave, Opera).
           </p>
         </div>
       </section>

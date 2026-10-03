@@ -49,6 +49,6 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:4000 https://*.supabase.co; img-src 'self' data: blob: https: chrome-extension:;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' __MNEMONICS_API_URL__ https://*.supabase.co; img-src 'self' data: blob: https: chrome-extension:;"
   }
 }

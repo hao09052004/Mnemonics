@@ -40,15 +40,32 @@ export function ExtensionCTA() {
         </p>
 
         <div style={{ marginTop: 32, display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <InstallExtensionButton size="lg" />
+          <InstallExtensionButton browser="chrome" variant="primary" size="lg" />
+          <InstallExtensionButton
+            browser="edge"
+            variant="ghost"
+            size="lg"
+            className="mnemonics-final-cta-edge"
+          />
           <Link to="/app" className="btn btn--ghost btn--lg" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.25)' }}>
             Open web app
           </Link>
         </div>
         <div style={{ marginTop: 14, fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-          Chrome · Brave · Edge · Chromium-based browsers
+          Chrome · Edge · Brave · Chromium-based browsers
         </div>
       </div>
+      <style>{`
+        .mnemonics-final-cta-edge {
+          color: #fff !important;
+          border-color: rgba(255,255,255,0.25) !important;
+        }
+        .mnemonics-final-cta-edge:hover {
+          background: rgba(255,255,255,0.08) !important;
+          border-color: #fff !important;
+          color: #fff !important;
+        }
+      `}</style>
     </section>
   );
 }

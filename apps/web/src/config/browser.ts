@@ -8,14 +8,22 @@
  *
  * Truth table:
  *   Chrome   →  "Add to Chrome"  (Web Store works)
- *   Brave    →  "Add to Brave"   (Web Store works — Brave ships as a
- *                                 Chromium-based browser that accepts
- *                                 the same .crx)
- *   Edge     →  "Add to Edge"    (Web Store works)
+ *   Brave    →  "Add to Brave"   (uses the same Chrome Web Store listing
+ *                                 because Brave accepts Chromium .crx)
+ *   Edge     →  "Add to Edge"    (Microsoft Edge Add-ons works; the
+ *                                 button will fall back to the Chrome
+ *                                 Web Store listing only if no Edge
+ *                                 listing has been configured yet)
  *   Opera    →  "Add to Chrome"  (uses Chrome Web Store)
  *   Firefox  →  "Firefox version coming soon"
  *   Safari   →  "Safari version coming soon"
  *   unknown  →  "Add to Chrome"  (manual user choice still allowed)
+ *
+ * `storeUrlBrowser` is the *type* of store link the install button
+ * should open for this detected browser — not a guarantee that the
+ * corresponding env-var is set. The button consults
+ * `productConfig.edgeExtensionUrl` / `chromeExtensionUrl` separately
+ * before opening a URL.
  */
 export type BrowserKind =
   | 'chrome'
@@ -24,6 +32,9 @@ export type BrowserKind =
   | 'firefox'
   | 'safari'
   | 'other';
+
+/** Which configured store URL this browser should consult. */
+export type StoreUrlKind = 'chrome' | 'edge';
 
 const UNKNOWN: BrowserKind = 'other';
 
@@ -72,7 +83,9 @@ export function detectBrowser(): BrowserKind {
 export interface InstallLabel {
   primary: string;
   secondary: string;
-  /** When true, the Web Store button is enabled; when false, show modal. */
+  /** Which configured store URL the install button should open. */
+  storeUrlBrowser: StoreUrlKind;
+  /** When true, the corresponding store URL is configured and ready. */
   webStoreReady: boolean;
 }
 
@@ -82,24 +95,28 @@ export function installLabelFor(browser: BrowserKind): InstallLabel {
       return {
         primary: 'Add to Brave',
         secondary: 'Available through the Chrome Web Store',
+        storeUrlBrowser: 'chrome',
         webStoreReady: true
       };
     case 'edge':
       return {
         primary: 'Add to Edge',
-        secondary: 'Compatible through the Chrome Web Store',
+        secondary: 'Microsoft Edge Add-ons (or Chrome Web Store)',
+        storeUrlBrowser: 'edge',
         webStoreReady: true
       };
     case 'firefox':
       return {
         primary: 'Add to Firefox',
         secondary: 'Firefox version coming soon',
+        storeUrlBrowser: 'chrome',
         webStoreReady: false
       };
     case 'safari':
       return {
         primary: 'Add to Safari',
         secondary: 'Safari version coming soon',
+        storeUrlBrowser: 'chrome',
         webStoreReady: false
       };
     case 'chrome':
@@ -108,6 +125,7 @@ export function installLabelFor(browser: BrowserKind): InstallLabel {
       return {
         primary: 'Add to Chrome',
         secondary: 'Works with Chrome, Brave and Chromium-based browsers',
+        storeUrlBrowser: 'chrome',
         webStoreReady: true
       };
   }

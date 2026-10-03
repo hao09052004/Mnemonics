@@ -70,13 +70,14 @@ export function Hero() {
           </p>
 
           <div style={{ marginTop: 32, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <InstallExtensionButton size="lg" />
+            <InstallExtensionButton browser="chrome" variant="primary" size="lg" />
+            <InstallExtensionButton browser="edge" variant="secondary" size="lg" />
             <Link to="/app" className="btn btn--ghost btn--lg">
               Open the web app →
             </Link>
           </div>
           <div style={{ marginTop: 14, fontSize: 13, color: 'var(--muted)' }}>
-            Chrome · Brave · Edge · Chromium-based browsers
+            Chrome · Edge · Brave · Chromium-based browsers
           </div>
         </div>
 

@@ -136,6 +136,15 @@ svg {
 .btn--brand:hover {
   background: var(--brand-hover);
 }
+.btn--outline {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.btn--outline:hover {
+  background: var(--bg-elevated);
+  border-color: var(--ink);
+}
 .btn--ghost {
   background: transparent;
   color: var(--ink);

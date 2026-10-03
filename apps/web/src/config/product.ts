@@ -12,14 +12,21 @@
  *                                 "Add to Chrome" CTA. Empty string in
  *                                 dev/preview = the button renders the
  *                                 "coming soon" modal instead of a link.
+ *   VITE_EDGE_EXTENSION_URL     — Microsoft Edge Add-ons listing for
+ *                                 the "Add to Edge" CTA. Same empty
+ *                                 semantics as the Chrome URL.
  *   VITE_WEB_URL                — Public web URL the extension uses to
  *                                 link back to the dashboard. Falls back
  *                                 to `window.location.origin` at runtime.
+ *
+ * Chrome remains the primary marketing browser — Edge is a fully
+ * supported alternative but its env-var is read on the same terms.
  */
 
 export interface ProductConfig {
   apiBaseUrl: string;
   chromeExtensionUrl: string;
+  edgeExtensionUrl: string;
   webUrl: string;
 }
 
@@ -40,6 +47,7 @@ export const productConfig: ProductConfig = {
     import.meta.env.VITE_API_URL || fallbackApiBaseUrl
   ).replace(/\/$/, ''),
   chromeExtensionUrl: import.meta.env.VITE_CHROME_EXTENSION_URL || '',
+  edgeExtensionUrl: import.meta.env.VITE_EDGE_EXTENSION_URL || '',
   webUrl: (
     import.meta.env.VITE_WEB_URL ||
     (typeof window !== 'undefined' ? window.location.origin : '')
@@ -48,4 +56,17 @@ export const productConfig: ProductConfig = {
 
 export function hasChromeExtensionUrl(): boolean {
   return productConfig.chromeExtensionUrl.length > 0;
+}
+
+export function hasEdgeExtensionUrl(): boolean {
+  return productConfig.edgeExtensionUrl.length > 0;
+}
+
+/** URL to the listing the install button should open, or '' if unset. */
+export function extensionStoreUrl(browser: 'chrome' | 'edge'): string {
+  return browser === 'edge' ? productConfig.edgeExtensionUrl : productConfig.chromeExtensionUrl;
+}
+
+export function hasExtensionUrl(browser: 'chrome' | 'edge'): boolean {
+  return extensionStoreUrl(browser).length > 0;
 }
