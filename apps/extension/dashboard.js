@@ -1037,7 +1037,13 @@ function loadFromExtension(cb, options) {
     // user out or spam toasts on every transient error. The dashboard
     // keeps whatever items it already had on screen.
     if (!silent) {
-      baseMemoryItems = [];
+      // M2: only nuke the local list when the user is genuinely
+      // signed out. Otherwise keep whatever we loaded before so the
+      // dashboard doesn't flash empty during transient API failures
+      // (rate limits, Supabase JWT refresh in flight, etc.).
+      if (error && /sign in|invalid token|unauthor/i.test(error.message || '')) {
+        baseMemoryItems = [];
+      }
       refreshDashboardItems();
       if (typeof showToast === 'function') showToast(error.message);
     }
