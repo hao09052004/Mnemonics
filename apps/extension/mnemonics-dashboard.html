@@ -166,6 +166,8 @@
   .memory-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #ccc; }
   .card-header { padding: 14px 14px 10px; display: flex; align-items: flex-start; justify-content: space-between; }
   .card-type { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: var(--purple); color: white; }
+  .card-type[data-reader-open] { cursor: pointer; transition: filter 0.15s, transform 0.15s; }
+  .card-type[data-reader-open]:hover { filter: brightness(1.15); transform: translateY(-1px); }
   .card-type.article { background: var(--purple); }
   .card-type.image { background: #1a1a1a; }
   .card-type.quote { background: #1a1a1a; }
@@ -833,6 +835,256 @@
   /* T7 — small details: number alignment for stats. */
   .dash-count,
   .meta-value { font-variant-numeric: tabular-nums; }
+
+  /* ============ READER MODAL (mymind-style) ============ */
+  .reader-modal {
+    position: fixed; inset: 0; z-index: 9500;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 32px 24px;
+  }
+  .reader-modal.open { display: flex; }
+  .reader-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(15, 16, 21, 0.78);
+    backdrop-filter: blur(6px);
+  }
+  .reader-shell {
+    position: relative;
+    width: min(1040px, 96vw);
+    max-height: 92vh;
+    background: #1a1c22;
+    color: #f4f5f7;
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+    border: 1px solid #2a2d36;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .reader-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 28px; border-bottom: 1px solid #2a2d36;
+    flex-shrink: 0;
+  }
+  .reader-type-wrap { display: flex; align-items: center; gap: 12px; }
+  .reader-type-chip {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: #2a2d36;
+    color: #b8bcc7;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+  }
+  .reader-type-chip.inspiration { background: #5b3fe4; color: #fff; }
+  .reader-type-chip.note { background: #4f8a4f; color: #fff; }
+  .reader-type-chip.quote { background: #d4a44a; color: #1a1c22; }
+  .reader-type-chip.link { background: #3a7dd8; color: #fff; }
+  .reader-type-chip.code { background: #2d3140; color: #a8b1ff; }
+  .reader-type-chip.file { background: #6b6b78; color: #fff; }
+  .reader-type-chip.screenshot { background: #c44a4a; color: #fff; }
+  .reader-type-chip.article { background: #2d8a76; color: #fff; }
+  .reader-date { font-size: 12px; color: #8c92a3; }
+  .reader-close {
+    background: transparent; border: 0; color: #b8bac4;
+    font-size: 28px; line-height: 1; cursor: pointer;
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .reader-close:hover { background: #2a2d36; color: #fff; }
+
+  .reader-main {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+    flex: 1; min-height: 0;
+    overflow: hidden;
+  }
+  @media (max-width: 820px) {
+    .reader-main { grid-template-columns: 1fr; }
+    .reader-aside { border-left: none !important; border-top: 1px solid #2a2d36; }
+  }
+
+  .reader-article {
+    padding: 36px 36px 28px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .reader-title {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.18;
+    margin: 0 0 12px 0;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .reader-source {
+    font-size: 13px;
+    color: #8c92a3;
+    margin-bottom: 24px;
+  }
+  .reader-source a { color: #7d92ff; text-decoration: none; }
+  .reader-source a:hover { text-decoration: underline; }
+  .reader-body { font-size: 16px; line-height: 1.65; color: #e8e9ed; }
+  .reader-body img {
+    max-width: 100%; max-height: 60vh;
+    object-fit: contain;
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto 16px;
+    background: #fff;
+  }
+  .reader-body p { margin: 0 0 14px 0; white-space: pre-wrap; }
+  .reader-body .reader-quote {
+    font-size: 18px; font-style: italic;
+    padding: 16px 22px;
+    border-left: 3px solid #5b3fe4;
+    background: rgba(91, 63, 228, 0.07);
+    border-radius: 0 8px 8px 0;
+    margin: 0 0 14px 0;
+  }
+  .reader-body pre {
+    background: #0d0e12;
+    border: 1px solid #2a2d36;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .reader-aside {
+    border-left: 1px solid #2a2d36;
+    padding: 22px 22px 22px;
+    overflow-y: auto;
+    background: #15171c;
+  }
+  .reader-section { margin-bottom: 26px; }
+  .reader-section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .reader-section h3 {
+    margin: 0; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: #8c92a3;
+  }
+  .reader-add {
+    background: transparent; border: 0;
+    color: #7d92ff; font-size: 12px; font-weight: 600;
+    cursor: pointer; padding: 0;
+  }
+  .reader-add:hover { text-decoration: underline; }
+
+  .reader-tags {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .reader-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    background: #2a2d36;
+    color: #d8dae0;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .reader-tag .reader-tag-x {
+    background: transparent; border: 0; color: #8c92a3;
+    cursor: pointer; padding: 0; font-size: 14px; line-height: 1;
+    display: inline-flex; align-items: center;
+  }
+  .reader-tag .reader-tag-x:hover { color: #f87171; }
+
+  .reader-add-row {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+  .reader-add-row input {
+    flex: 1;
+    background: #0d0e12;
+    border: 1px solid #2a2d36;
+    color: #f4f5f7;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    outline: none;
+  }
+  .reader-add-row input:focus { border-color: #5b3fe4; }
+  .reader-add-row button {
+    background: #5b3fe4; color: #fff; border: 0;
+    padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .reader-add-row button:hover { background: #4A32C0; }
+
+  .reader-notes { font-size: 13px; color: #d8dae0; line-height: 1.55; }
+  .reader-note {
+    background: #1f2128;
+    border: 1px solid #2a2d36;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+  }
+  .reader-note textarea {
+    width: 100%;
+    background: #0d0e12;
+    border: 1px solid #2a2d36;
+    color: #f4f5f7;
+    border-radius: 6px;
+    padding: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 64px;
+    box-sizing: border-box;
+  }
+  .reader-note-actions {
+    display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end;
+  }
+  .reader-note-actions button {
+    background: transparent;
+    border: 1px solid #2a2d36;
+    color: #b8bac4;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .reader-note-actions button.primary { background: #5b3fe4; border-color: #5b3fe4; color: #fff; }
+  .reader-note-actions button:hover { background: #2a2d36; }
+  .reader-note-actions button.primary:hover { background: #4A32C0; }
+
+  .reader-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    border-top: 1px solid #2a2d36;
+    flex-shrink: 0;
+    background: #15171c;
+  }
+  .reader-actions { display: flex; gap: 8px; }
+  .reader-action {
+    background: #2a2d36; border: 0; color: #d8dae0;
+    padding: 8px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: background 0.15s;
+  }
+  .reader-action:hover { background: #34373f; color: #fff; }
+  .reader-action.is-favorite {
+    background: #d44a4a; color: #fff;
+  }
+  .reader-delete {
+    background: transparent;
+    border: 1px solid #3a2d2d;
+    color: #f87171;
+    padding: 8px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .reader-delete:hover { background: #3a1f1f; }
 </style>
 </head>
 <body>
@@ -1592,6 +1844,51 @@
         <button class="image-viewer-btn primary" id="image-viewer-open-image">Mở ảnh gốc</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- READER MODAL (mymind-style) -->
+<div class="reader-modal" id="reader-modal" aria-hidden="true">
+  <div class="reader-backdrop" data-reader-close></div>
+  <div class="reader-shell" role="dialog" aria-modal="true" aria-labelledby="reader-title">
+    <header class="reader-header">
+      <div class="reader-type-wrap">
+        <span class="reader-type-chip" id="reader-type-chip">ITEM</span>
+        <span class="reader-date" id="reader-date"></span>
+      </div>
+      <button class="reader-close" data-reader-close aria-label="Đóng">&times;</button>
+    </header>
+    <main class="reader-main">
+      <article class="reader-article">
+        <h1 class="reader-title" id="reader-title">Untitled</h1>
+        <div class="reader-source" id="reader-source"></div>
+        <div class="reader-body" id="reader-body"></div>
+      </article>
+      <aside class="reader-aside">
+        <section class="reader-section">
+          <div class="reader-section-head">
+            <h3>Mind tags</h3>
+            <button class="reader-add" id="reader-add-tag" type="button">+ Add tag</button>
+          </div>
+          <div class="reader-tags" id="reader-tags"></div>
+        </section>
+        <section class="reader-section">
+          <div class="reader-section-head">
+            <h3>Mind notes</h3>
+            <button class="reader-add" id="reader-add-note" type="button">+ Note</button>
+          </div>
+          <div class="reader-notes" id="reader-notes"></div>
+        </section>
+      </aside>
+    </main>
+    <footer class="reader-footer">
+      <div class="reader-actions">
+        <button class="reader-action" id="reader-fav" type="button" title="Favorite">♡</button>
+        <button class="reader-action" id="reader-copy" type="button" title="Copy">⧉ Copy</button>
+        <button class="reader-action" id="reader-source-link" type="button" title="Mở trang nguồn">↗ Source</button>
+      </div>
+      <button class="reader-delete" id="reader-delete" type="button">Xóa</button>
+    </footer>
   </div>
 </div>
 

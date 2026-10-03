@@ -162,6 +162,60 @@ async function setFavoriteOnServer(itemId, isFavorite, accessToken) {
   throw new Error(message);
 }
 
+// Generic PATCH against /items/:id. Supports a subset of fields that
+// the reader modal writes (title, notes, isFavorite, tags). The server
+// rejects anything it doesn't recognise with NO_UPDATES, so this stays
+// narrowly scoped.
+async function patchItemOnServer(itemId, patch, accessToken) {
+  let token = accessToken;
+  let response;
+  const payload = {};
+  if (patch && typeof patch.title === 'string') payload.title = patch.title;
+  if (patch && typeof patch.notes === 'string') payload.notes = patch.notes;
+  if (patch && typeof patch.isFavorite === 'boolean') payload.isFavorite = patch.isFavorite;
+  if (patch && Array.isArray(patch.tags)) payload.tags = patch.tags;
+  if (Object.keys(payload).length === 0) {
+    throw new Error('Patch trống: cần truyền ít nhất title/notes/isFavorite/tags.');
+  }
+  try {
+    response = await fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (networkErr) {
+    throw new Error('Không kết nối được API: ' + (networkErr && networkErr.message ? networkErr.message : 'network error'));
+  }
+  if (response.status === 401) {
+    const refreshed = await forceRefreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await fetch(MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId), {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+    }
+  }
+  if (response.ok) {
+    let body = {};
+    try { body = await response.json(); } catch (_) { body = {}; }
+    return body.item || { id: itemId, ...payload };
+  }
+  let body = {};
+  try { body = await response.json(); } catch (_) { body = {}; }
+  const message = body && body.error && body.error.message
+    ? body.error.message
+    : 'API từ chối yêu cầu (HTTP ' + response.status + ').';
+  throw new Error(message);
+}
+
 
 // Force a refresh after the server rejects an otherwise-unexpired access token.
 // This is the recovery path for revoked/rotated JWTs; getValidAccessToken()
@@ -771,6 +825,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .catch(function(error) {
         sendResponse({ ok: false, error: error && error.message ? error.message : 'Favorite failed' });
+      });
+    return true;
+  }
+
+  // PATCH_ITEM: write back title/notes/isFavorite/tags from the reader
+  // modal. Mirrors the auth + retry behaviour of TOGGLE_FAVORITE_ITEM.
+  if (msg && msg.type === 'PATCH_ITEM') {
+    const itemId = msg.itemId;
+    const patch = msg.patch;
+    if (!itemId || !patch || typeof patch !== 'object') {
+      sendResponse({ ok: false, error: 'itemId and patch object are required' });
+      return true;
+    }
+    getValidAccessToken()
+      .then(function(accessToken) {
+        return patchItemOnServer(itemId, patch, accessToken);
+      })
+      .then(function(item) {
+        sendResponse({ ok: true, item: item });
+      })
+      .catch(function(error) {
+        sendResponse({ ok: false, error: error && error.message ? error.message : 'Patch failed' });
       });
     return true;
   }

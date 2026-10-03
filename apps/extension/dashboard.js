@@ -1439,7 +1439,7 @@ function renderCards(data) {
 
     return `<div class="memory-card ${item.isFavorite ? 'is-favorite-card' : ''}" data-memory-id="${escapeHtml(String(item.id || ''))}">
       ${item.type !== 'note' ? `<div class="card-header">
-        <span class="card-type ${typeClass}">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
+        <span class="card-type ${typeClass}" data-reader-open="${escapeHtml(String(item.id || ''))}" title="Mở reader view">${item.type==='code'?`<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="width:11px;height:11px"><path d="M4 4l-3 3 3 3M10 4l3 3-3 3M8 2l-2 10"/></svg> `:''}${typeLabel}</span>
         <div style="display:flex;gap:6px;align-items:center">${isNew ? '<span style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:0.5px">NEW</span>' : ''}
           ${heartBtn}
           <div class="card-menu-wrap">
@@ -2202,6 +2202,298 @@ function openOriginalImage(imageUrl, title) {
   window.open(imageUrl, '_blank', 'noopener');
 }
 
+// ===== READER MODAL (mymind-style) =====
+let readerCurrentItem = null;
+
+const READER_TYPE_LABELS = {
+  article: 'ARTICLE',
+  image: 'INSPIRATION',
+  note: 'QUICK NOTE',
+  quote: 'QUOTE',
+  code: 'CODE',
+  link: 'LINK',
+  file: 'FILE',
+  screenshot: 'SCREENSHOT'
+};
+
+function getReaderItem(id) {
+  if (!id) return null;
+  if (typeof items !== 'undefined' && Array.isArray(items)) {
+    const found = items.find(function(i) { return String(i.id) === String(id); });
+    if (found) return found;
+  }
+  if (typeof baseMemoryItems !== 'undefined' && Array.isArray(baseMemoryItems)) {
+    return baseMemoryItems.find(function(i) { return String(i.id) === String(id); }) || null;
+  }
+  return null;
+}
+
+function readerFmtDate(item) {
+  var iso = (item && (item.capturedAt || item.savedAt)) || '';
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('vi-VN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return ''; }
+}
+
+function readerBodyHtml(item) {
+  var type = item.type || 'note';
+  if (type === 'image' || type === 'screenshot') {
+    var src = (typeof imageSrcForRender === 'function') ? imageSrcForRender(item.imageUrl || '') : (item.imageUrl || '');
+    var imgTitle = String(item.title || (type === 'screenshot' ? 'Screenshot' : 'Saved image')).replace(/[<>&"']/g, '');
+    if (src) {
+      return '<img src="' + src + '" alt="' + imgTitle + '" data-image-fallback="' + String(item.id || '').replace(/[<>&"']/g, '') + '">';
+    }
+    return '<p style="color:#8c92a3;font-style:italic;">(Ảnh chưa được tải lên hoặc URL đã hết hạn.)</p>';
+  }
+  if (type === 'quote') {
+    var quoteText = String(item.quote || item.note || item.excerpt || '').trim();
+    return '<div class="reader-quote">' + (typeof escapeHtml === 'function' ? escapeHtml(quoteText) : quoteText) + '</div>';
+  }
+  if (type === 'code') {
+    var codeText = String(item.note || item.excerpt || item.quote || '').trim();
+    return '<pre>' + (typeof escapeHtml === 'function' ? escapeHtml(codeText) : codeText) + '</pre>';
+  }
+  // default: text/note/article/link
+  var body = String(item.note || item.excerpt || '').trim();
+  if (!body && (item.title || '').trim()) body = String(item.title).trim();
+  var paragraphs = body.split(/\n\s*\n/).filter(function(p) { return p.trim().length > 0; });
+  if (paragraphs.length === 0) {
+    return '<p style="color:#8c92a3;font-style:italic;">(Chưa có nội dung.)</p>';
+  }
+  return paragraphs.map(function(p) {
+    return '<p>' + (typeof escapeHtml === 'function' ? escapeHtml(p) : p) + '</p>';
+  }).join('');
+}
+
+function readerRenderTags(item) {
+  var wrap = document.getElementById('reader-tags');
+  if (!wrap) return;
+  var tags = Array.isArray(item.tags) ? item.tags.slice() : [];
+  wrap.innerHTML = '';
+  tags.forEach(function(tag) {
+    var span = document.createElement('span');
+    span.className = 'reader-tag';
+    span.innerHTML = '<span>' + (typeof escapeHtml === 'function' ? escapeHtml(tag) : tag) + '</span>' +
+      '<button type="button" class="reader-tag-x" data-rmtag="' + (typeof escapeHtml === 'function' ? escapeHtml(tag) : tag) + '" aria-label="Xóa tag">&times;</button>';
+    wrap.appendChild(span);
+  });
+  // "+ Add tag" input row
+  var addRow = document.createElement('div');
+  addRow.className = 'reader-add-row';
+  addRow.id = 'reader-tag-input-row';
+  addRow.style.display = 'none';
+  addRow.innerHTML = '<input type="text" id="reader-tag-input" placeholder="Tag mới..." maxlength="32">' +
+    '<button type="button" id="reader-tag-save">Lưu</button>';
+  wrap.parentNode && wrap.parentNode.appendChild(addRow);
+}
+
+function readerRenderNotes(item) {
+  var wrap = document.getElementById('reader-notes');
+  if (!wrap) return;
+  // For now we use a single textarea seeded with item.note (user-editable
+  // notes). Saving writes back via PATCH /items/:id { notes }.
+  wrap.innerHTML = '';
+  var noteText = String(item.note || '').trim();
+  var box = document.createElement('div');
+  box.className = 'reader-note';
+  box.innerHTML = '<textarea id="reader-note-text" placeholder="Thêm ghi chú của bạn...">' +
+    (typeof escapeHtml === 'function' ? escapeHtml(noteText) : noteText) + '</textarea>' +
+    '<div class="reader-note-actions">' +
+      '<button type="button" id="reader-note-save">Lưu ghi chú</button>' +
+    '</div>';
+  wrap.appendChild(box);
+}
+
+function openReaderModal(itemId) {
+  var item = getReaderItem(itemId);
+  if (!item) {
+    if (typeof showToast === 'function') showToast('Không tìm thấy item.');
+    return;
+  }
+  readerCurrentItem = item;
+
+  var modal = document.getElementById('reader-modal');
+  if (!modal) return;
+
+  var typeKey = item.type || 'note';
+  var typeLabel = READER_TYPE_LABELS[typeKey] || 'ITEM';
+  var chip = document.getElementById('reader-type-chip');
+  if (chip) {
+    chip.textContent = typeLabel;
+    chip.className = 'reader-type-chip ' + typeKey;
+  }
+
+  var titleEl = document.getElementById('reader-title');
+  if (titleEl) {
+    var titleText = String(item.title || '').trim();
+    if (!titleText) {
+      if (typeKey === 'quote') titleText = 'Trích dẫn';
+      else if (typeKey === 'image' || typeKey === 'screenshot') titleText = 'Ảnh đã lưu';
+      else if (typeKey === 'note') titleText = 'Ghi chú';
+      else if (typeKey === 'link') titleText = 'Liên kết';
+      else if (typeKey === 'code') titleText = 'Đoạn mã';
+      else if (typeKey === 'file') titleText = 'Tệp';
+      else titleText = 'Untitled';
+    }
+    titleEl.textContent = titleText;
+  }
+
+  var dateEl = document.getElementById('reader-date');
+  if (dateEl) dateEl.textContent = readerFmtDate(item);
+
+  var sourceEl = document.getElementById('reader-source');
+  if (sourceEl) {
+    var srcUrl = (typeof normalizeExternalUrl === 'function')
+      ? normalizeExternalUrl(item.sourceUrl || item.url || item.pageUrl || '')
+      : (item.sourceUrl || item.url || item.pageUrl || '');
+    if (srcUrl) {
+      sourceEl.innerHTML = 'Từ: <a href="' + srcUrl + '" target="_blank" rel="noopener noreferrer">' +
+        ((typeof escapeHtml === 'function') ? escapeHtml(srcUrl) : srcUrl) + '</a>';
+      sourceEl.style.display = '';
+    } else {
+      sourceEl.textContent = '';
+      sourceEl.style.display = 'none';
+    }
+  }
+
+  var bodyEl = document.getElementById('reader-body');
+  if (bodyEl) bodyEl.innerHTML = readerBodyHtml(item);
+
+  readerRenderTags(item);
+  readerRenderNotes(item);
+
+  // Action buttons
+  var favBtn = document.getElementById('reader-fav');
+  if (favBtn) {
+    favBtn.classList.toggle('is-favorite', !!item.isFavorite);
+    favBtn.textContent = item.isFavorite ? '♥' : '♡';
+    favBtn.title = item.isFavorite ? 'Bỏ yêu thích' : 'Yêu thích';
+  }
+  var sourceLinkBtn = document.getElementById('reader-source-link');
+  if (sourceLinkBtn) {
+    var btnSrc = (typeof normalizeExternalUrl === 'function')
+      ? normalizeExternalUrl(item.sourceUrl || item.url || item.pageUrl || '')
+      : (item.sourceUrl || item.url || item.pageUrl || '');
+    if (btnSrc) {
+      sourceLinkBtn.style.display = '';
+      sourceLinkBtn.dataset.url = btnSrc;
+    } else {
+      sourceLinkBtn.style.display = 'none';
+    }
+  }
+
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeReaderModal() {
+  var modal = document.getElementById('reader-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  readerCurrentItem = null;
+}
+
+function readerUpdateTagsLocally(itemId, nextTags) {
+  // Mutate both the composed items array and the baseMemoryItems store
+  // so the next renderDashboard() pass sees the new tag set without a
+  // server round-trip.
+  if (typeof items !== 'undefined' && Array.isArray(items)) {
+    for (var i = 0; i < items.length; i++) {
+      if (String(items[i].id) === String(itemId)) {
+        items[i].tags = nextTags.slice();
+        break;
+      }
+    }
+  }
+  if (typeof baseMemoryItems !== 'undefined' && Array.isArray(baseMemoryItems)) {
+    for (var j = 0; j < baseMemoryItems.length; j++) {
+      if (String(baseMemoryItems[j].id) === String(itemId)) {
+        baseMemoryItems[j].tags = nextTags.slice();
+        break;
+      }
+    }
+  }
+}
+
+function readerSaveTags(itemId, tags) {
+  return new Promise(function(resolve, reject) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      // Test environment: just mutate local state.
+      readerUpdateTagsLocally(itemId, tags);
+      resolve({ ok: true, local: true });
+      return;
+    }
+    chrome.runtime.sendMessage(
+      { type: 'PATCH_ITEM', itemId: itemId, patch: { tags: tags } },
+      function(response) {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || 'Patch failed.'));
+          return;
+        }
+        if (response && response.ok) {
+          readerUpdateTagsLocally(itemId, tags);
+          resolve(response);
+        } else {
+          reject(new Error((response && response.error) || 'Tag save failed.'));
+        }
+      }
+    );
+  });
+}
+
+function readerSaveNote(itemId, note) {
+  return new Promise(function(resolve, reject) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      readerUpdateTagsLocally(itemId, []); // no-op for notes local path
+      resolve({ ok: true, local: true });
+      return;
+    }
+    chrome.runtime.sendMessage(
+      { type: 'PATCH_ITEM', itemId: itemId, patch: { notes: note } },
+      function(response) {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message || 'Patch failed.'));
+          return;
+        }
+        if (response && response.ok) {
+          resolve(response);
+        } else {
+          reject(new Error((response && response.error) || 'Note save failed.'));
+        }
+      }
+    );
+  });
+}
+
+function readerCopy() {
+  if (!readerCurrentItem) return;
+  var item = readerCurrentItem;
+  var parts = [];
+  if (item.title) parts.push(item.title);
+  if (item.quote) parts.push('"' + item.quote + '"');
+  if (item.note) parts.push(item.note);
+  if (item.sourceUrl || item.url) parts.push(item.sourceUrl || item.url);
+  if (Array.isArray(item.tags) && item.tags.length) parts.push('#' + item.tags.join(' #'));
+  var text = parts.filter(function(s) { return s && String(s).trim(); }).join('\n\n');
+  if (!text) {
+    if (typeof showToast === 'function') showToast('Không có nội dung để copy.');
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (typeof showToast === 'function') showToast('Đã copy vào clipboard.');
+    }, function() {
+      if (typeof showToast === 'function') showToast('Không copy được.');
+    });
+  }
+}
+
 // ===== ADD ITEM =====
 let modalFileData = null;    // base64 of a file/image to paste or attach
 let modalFileName = '';
@@ -2806,6 +3098,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // ---- Book rail interactions ----
   var cardsContainer = document.getElementById('cards-container');
   if (cardsContainer) cardsContainer.addEventListener('click', function(e) {
+    var readerChip = e.target.closest('[data-reader-open]');
+    if (readerChip) {
+      e.preventDefault();
+      e.stopPropagation();
+      openReaderModal(readerChip.getAttribute('data-reader-open'));
+      return;
+    }
+
     var relatedBtn = e.target.closest('[data-related-id]');
     if (relatedBtn) {
       loadRelatedMemories(relatedBtn);
@@ -2831,6 +3131,176 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
   });
+
+  // ---- Reader modal interactions (delegated) ----
+  var readerModal = document.getElementById('reader-modal');
+  if (readerModal) {
+    readerModal.addEventListener('click', function(e) {
+      // Close on backdrop or ×
+      if (e.target.closest('[data-reader-close]')) {
+        closeReaderModal();
+        return;
+      }
+
+      // Remove a tag chip
+      var rmTag = e.target.closest('[data-rmtag]');
+      if (rmTag && readerCurrentItem) {
+        var removeName = rmTag.getAttribute('data-rmtag');
+        var nextTags = (Array.isArray(readerCurrentItem.tags) ? readerCurrentItem.tags : [])
+          .filter(function(t) { return String(t) !== String(removeName); });
+        readerSaveTags(readerCurrentItem.id, nextTags).then(function() {
+          readerCurrentItem.tags = nextTags;
+          readerRenderTags(readerCurrentItem);
+          if (typeof renderDashboard === 'function') renderDashboard();
+        }).catch(function(err) {
+          if (typeof showToast === 'function') showToast('Không xóa được tag: ' + (err.message || err));
+        });
+        return;
+      }
+
+      // Show "+ Add tag" input row
+      var addTagBtn = e.target.closest('#reader-add-tag');
+      if (addTagBtn) {
+        var row = document.getElementById('reader-tag-input-row');
+        if (row) {
+          row.style.display = 'flex';
+          var input = document.getElementById('reader-tag-input');
+          if (input) input.focus();
+        }
+        return;
+      }
+
+      // Save new tag
+      if (e.target.closest('#reader-tag-save') && readerCurrentItem) {
+        var tagInput = document.getElementById('reader-tag-input');
+        if (!tagInput) return;
+        var raw = String(tagInput.value || '').trim();
+        if (!raw) {
+          if (typeof showToast === 'function') showToast('Nhập tag trước đã.');
+          return;
+        }
+        var existing = Array.isArray(readerCurrentItem.tags) ? readerCurrentItem.tags.slice() : [];
+        if (existing.some(function(t) { return String(t).toLowerCase() === raw.toLowerCase(); })) {
+          if (typeof showToast === 'function') showToast('Tag "' + raw + '" đã tồn tại.');
+          return;
+        }
+        existing.push(raw);
+        readerSaveTags(readerCurrentItem.id, existing).then(function() {
+          readerCurrentItem.tags = existing;
+          tagInput.value = '';
+          readerRenderTags(readerCurrentItem);
+          if (typeof renderDashboard === 'function') renderDashboard();
+          if (typeof showToast === 'function') showToast('Đã thêm tag.');
+        }).catch(function(err) {
+          if (typeof showToast === 'function') showToast('Lỗi: ' + (err.message || err));
+        });
+        return;
+      }
+
+      // Save note
+      if (e.target.closest('#reader-note-save') && readerCurrentItem) {
+        var ta = document.getElementById('reader-note-text');
+        if (!ta) return;
+        var newNote = String(ta.value || '');
+        readerSaveNote(readerCurrentItem.id, newNote).then(function() {
+          readerCurrentItem.note = newNote;
+          if (typeof showToast === 'function') showToast('Đã lưu ghi chú.');
+        }).catch(function(err) {
+          if (typeof showToast === 'function') showToast('Lỗi: ' + (err.message || err));
+        });
+        return;
+      }
+
+      // Favorite toggle
+      if (e.target.closest('#reader-fav') && readerCurrentItem) {
+        if (typeof toggleFavorite === 'function') {
+          toggleFavorite(readerCurrentItem.id);
+          // After toggleFavorite mutates isFavorite locally, refresh the
+          // heart button next tick.
+          setTimeout(function() {
+            var fresh = getReaderItem(readerCurrentItem.id);
+            if (!fresh) return;
+            var favBtn = document.getElementById('reader-fav');
+            if (favBtn) {
+              favBtn.classList.toggle('is-favorite', !!fresh.isFavorite);
+              favBtn.textContent = fresh.isFavorite ? '\u2665' : '\u2661';
+              favBtn.title = fresh.isFavorite ? 'Bỏ yêu thích' : 'Yêu thích';
+            }
+            readerCurrentItem.isFavorite = fresh.isFavorite;
+          }, 0);
+        }
+        return;
+      }
+
+      // Copy
+      if (e.target.closest('#reader-copy')) {
+        readerCopy();
+        return;
+      }
+
+      // Open source link
+      var sourceLink = e.target.closest('#reader-source-link');
+      if (sourceLink) {
+        var u = sourceLink.dataset.url;
+        if (u) {
+          if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+            chrome.tabs.create({ url: u });
+          } else {
+            window.open(u, '_blank', 'noopener');
+          }
+        }
+        return;
+      }
+
+      // Delete
+      if (e.target.closest('#reader-delete') && readerCurrentItem) {
+        var delId = readerCurrentItem.id;
+        if (!confirm('Xóa item này vĩnh viễn?')) return;
+        if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+          if (typeof showToast === 'function') showToast('Không xóa được ngoài extension context.');
+          return;
+        }
+        chrome.runtime.sendMessage({ type: 'DELETE_ITEM', itemId: delId }, function(response) {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            if (typeof showToast === 'function') showToast('Lỗi: ' + chrome.runtime.lastError.message);
+            return;
+          }
+          if (response && response.ok) {
+            if (typeof showToast === 'function') showToast('Đã xóa.');
+            closeReaderModal();
+            // Mutate local arrays so the next render reflects the deletion
+            if (typeof items !== 'undefined' && Array.isArray(items)) {
+              items = items.filter(function(i) { return String(i.id) !== String(delId); });
+            }
+            if (typeof baseMemoryItems !== 'undefined' && Array.isArray(baseMemoryItems)) {
+              baseMemoryItems = baseMemoryItems.filter(function(i) { return String(i.id) !== String(delId); });
+            }
+            if (typeof renderDashboard === 'function') renderDashboard();
+          } else {
+            if (typeof showToast === 'function') showToast('Không xóa được: ' + ((response && response.error) || 'unknown'));
+          }
+        });
+        return;
+      }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && readerModal.classList.contains('open')) {
+        closeReaderModal();
+      }
+    });
+
+    // Tag input: Enter to save
+    document.addEventListener('keydown', function(e) {
+      if (!readerModal.classList.contains('open')) return;
+      var input = document.getElementById('reader-tag-input');
+      if (e.key === 'Enter' && document.activeElement === input) {
+        e.preventDefault();
+        document.getElementById('reader-tag-save') && document.getElementById('reader-tag-save').click();
+      }
+    });
+  }
 
   // ---- Book rail interactions ----
   var bookRail = document.getElementById('book-rail');
