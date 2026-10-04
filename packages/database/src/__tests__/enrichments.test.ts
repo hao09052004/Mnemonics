@@ -11,9 +11,12 @@ let enrichments: ReturnType<typeof createEnrichmentRepository>;
 beforeEach(async () => {
   pool = createPool(DATABASE_URL);
   enrichments = createEnrichmentRepository(pool);
+  // Only the two columns the repo provisions. demo-setup.mts and the
+  // CI bootstrap both create auth.users as (id, raw_user_meta_data),
+  // so the full Supabase shape would fail here.
   const userRes = await pool.query<{ id: string }>(
-    `INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, created_at, updated_at)
-     VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', $1, '', NOW(), 'authenticated', 'authenticated', NOW(), NOW())
+    `INSERT INTO auth.users (id, raw_user_meta_data)
+     VALUES (gen_random_uuid(), jsonb_build_object('email', $1::text))
      RETURNING id`,
     [`enr-test-${Date.now()}@example.com`]
   );

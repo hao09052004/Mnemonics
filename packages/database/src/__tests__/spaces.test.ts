@@ -28,12 +28,20 @@ let userId: string;
 let otherUserId: string;
 let itemIds: string[];
 
+/**
+ * Create a throwaway auth user.
+ *
+ * Only the two columns the repo actually provisions are written.
+ * `demo-setup.mts` and the CI bootstrap both create `auth.users`
+ * with `(id, raw_user_meta_data)` alone — inserting the full
+ * Supabase shape (instance_id, role, aud, ...) works against a real
+ * hosted project and fails against either of those, so the test
+ * suite carries an email in metadata instead.
+ */
 async function createUser(email: string): Promise<string> {
   const res = await pool.query<{ id: string }>(
-    `INSERT INTO auth.users
-       (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, created_at, updated_at)
-     VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', $1, '', NOW(),
-             'authenticated', 'authenticated', NOW(), NOW())
+    `INSERT INTO auth.users (id, raw_user_meta_data)
+     VALUES (gen_random_uuid(), jsonb_build_object('email', $1::text))
      RETURNING id`,
     [email]
   );
