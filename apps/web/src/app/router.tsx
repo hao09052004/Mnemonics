@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Header } from '../components/marketing/Header';
 import { Footer } from '../components/marketing/Footer';
@@ -12,7 +13,8 @@ import { SpaceDetailPage } from '../pages/SpaceDetailPage';
 import { RediscoverPage } from '../pages/RediscoverPage';
 import { RemindersStubPage } from '../pages/RemindersStubPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
-import type { ApiClient } from '../lib/api-client';
+import { ApiClient } from '../lib/api-client';
+import { productConfig } from '../config/product';
 
 interface AppRouterProps {
   api: ApiClient;
@@ -61,4 +63,17 @@ export function AppRouter({ api }: AppRouterProps) {
       </Routes>
     </div>
   );
+}
+
+/**
+ * Single ApiClient instance shared across the router. Reads
+ * VITE_API_URL through productConfig; if the var is empty AND we're
+ * not in vite-dev-on-:3000, we fall back to a relative path so the
+ * same bundle can sit behind a reverse proxy in production.
+ */
+export function useApiClient(): ApiClient {
+  return useMemo(() => {
+    const base = productConfig.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+    return new ApiClient(base);
+  }, []);
 }
