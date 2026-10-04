@@ -302,6 +302,7 @@ async function saveScreenshot(useCrop) {
         uploadResult = await sendMessageWithRetry({
           type: 'UPLOAD_IMAGE_FROM_CROPPER',
           imageUrl: imageUrl,
+          captureType: 'screenshot',
           payload: {
             title: item.title,
             note: item.note,

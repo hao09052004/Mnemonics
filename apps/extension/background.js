@@ -324,6 +324,12 @@ async function uploadImageFromContextMenu(imageUrl, pageUrl, pageTitle, extra) {
   if (!imageUrl) throw new Error('Không tìm thấy URL ảnh.');
   const noteText = extra && extra.note ? extra.note : '';
   const capturedAt = extra && extra.capturedAt ? extra.capturedAt : new Date().toISOString();
+  // 'screenshot' is the cropper flow; right-click saves a remote image
+  // and omits type, which we default to 'image'. The API then persists
+  // this in `type` (returned as `kind` by /items) and the dashboard
+  // filter chip VARIANT_KINDS.screenshot = ['screenshot'] matches it.
+  const requestedType = extra && extra.type ? extra.type : null;
+  const captureType = requestedType === 'screenshot' ? 'screenshot' : 'image';
 
   // Resolve the image to a Blob. data: URLs are decoded locally (so we
   // don't need any network fetch and CORS is irrelevant). Remote http(s)
@@ -439,7 +445,7 @@ form.append('file', blob, pickUploadFilename(imageUrl, mimeType));
 // (extension.js → savePendingScreenshot → uploadImageCapture) which
 // sends type='screenshot'; keep the explicit branch here so the
 // OCR pipeline treats web images and screenshots differently.
-form.append('type', 'image');
+form.append('type', captureType);
 form.append('title', (pageTitle || 'Ảnh đã lưu').slice(0, 500));
 form.append('note', noteText.slice(0, 4000));
 form.append('sourceUrl', pageUrl || '');
@@ -719,10 +725,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'UPLOAD_IMAGE_FROM_CROPPER') {
     const imageUrl = msg.imageUrl || '';
     const payload = msg.payload || {};
+    // The cropper flow saves browser-captured screenshots; the
+    // right-click flow (handled separately) saves remote images.
+    // Forward captureType so uploadImageFromContextMenu can persist
+    // the correct `type` in the captures row — otherwise the
+    // dashboard's "Screenshots" filter chip never matches the saved
+    // item (regression 2026-10-04).
+    const captureType = msg.captureType || 'screenshot';
     uploadImageFromContextMenu(imageUrl, payload.sourceUrl || '', payload.title || '', {
       note: payload.note || '',
       capturedAt: payload.capturedAt || new Date().toISOString(),
-      clientRequestId: payload.clientRequestId || crypto.randomUUID()
+      clientRequestId: payload.clientRequestId || crypto.randomUUID(),
+      type: captureType
     })
       .then((serverItem) => {
         sendResponse({ ok: true, data: serverItem });
