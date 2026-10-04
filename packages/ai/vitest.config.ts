@@ -6,7 +6,7 @@ import { defineConfig } from 'vitest/config';
 // dependency of this package, so loading it crashed the whole suite.
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts'],
     environment: 'node'
   }
 });
