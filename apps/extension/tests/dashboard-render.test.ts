@@ -232,3 +232,108 @@ _dSession('session storage shape (regression: signed-in user blocked from saving
     expect(stored.user, 'stored session must not have a nested user envelope (would shadow accessToken)').toBeUndefined();
   });
 });
+
+import { describe as _dLive, expect as _eLive, it as _iLive, beforeEach as _beforeEach } from 'vitest';
+_dLive('live updates from background broadcasts (regression: tab stuck after save)', () => {
+  // Reproduction of the 2026-10-04 incident where the user saved a
+  // screenshot (cropper reported success) but the "Everything" tab on
+  // the dashboard did not show the new item until manual reload.
+  //
+  // Root cause had two parts:
+  //   (1) background.js forwards RELOAD_ITEMS / ITEM_SAVED to every
+  //       open dashboard tab, but dashboard.js never registered a
+  //       chrome.runtime.onMessage listener, so the broadcast was
+  //       silently dropped.
+  //   (2) Clicking a top-nav tab only called setState({ route }),
+  //       it did not call loadAll(), so re-entering a route never
+  //       re-fetched items.
+  //
+  // Both are pinned here: a captured listener triggers loadAll() on
+  // the broadcast, and a tab click on the dashboard triggers loadAll().
+  let fetchCalls: string[];
+  let capturedListener: ((msg: any, _sender: any, sendResponse: any) => void) | undefined;
+  let loadAllCalls: number;
+
+  function loadDashboardLive() {
+    const htmlPath = join(ROOT, 'mnemonics-dashboard.html');
+    const dashboardJs = readFileSync(join(ROOT, 'dashboard.js'), 'utf8');
+    const apiClientJs = readFileSync(join(ROOT, 'api-client.js'), 'utf8');
+    const html = readFileSync(htmlPath, 'utf8').replace(/<script src="(api-client|dashboard)\.js"><\/script>/g, '');
+    const dom = new JSDOM(html, {
+      runScripts: 'outside-only',
+      url: 'chrome-extension://test-id/mnemonics-dashboard.html',
+      pretendToBeVisual: true
+    });
+    fetchCalls = [];
+    loadAllCalls = 0;
+    dom.window.fetch = (async (url: string, _init: any) => {
+      fetchCalls.push(String(url));
+      // For the "logged in" path return an items payload, otherwise
+      // return an empty session so login route renders.
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            items: [{ id: 'i1', kind: 'screenshot', title: 'From save', isFavorite: false, capturedAt: '2026-10-04T00:00:00Z', tags: [] }],
+            spaces: [],
+            total: 1, user: { id: 'u1', email: 'a@b.co' }, session: { accessToken: 'AT', refreshToken: 'RT', expiresAt: 9_999_999_999 }
+          }
+        })
+      };
+    }) as any;
+    dom.window.chrome = {
+      storage: {
+        local: {
+          get(k: string, cb: (r: any) => void) { cb({ mnemonics_session: { accessToken: 'AT', refreshToken: 'RT', expiresAt: 9_999_999_999, user: { id: 'u1', email: 'a@b.co' } } }); },
+          set(_o: any, cb?: () => void) { if (cb) cb(); },
+          remove(_k: string, cb?: () => void) { if (cb) cb(); }
+        }
+      },
+      runtime: {
+        sendMessage() {},
+        onMessage: {
+          addListener(fn: any) { capturedListener = fn; }
+        },
+        getURL(p: string) { return p; }
+      },
+      tabs: { create(_o: any, cb?: (t: any) => void) {} }
+    } as any;
+    try { dom.window.eval(apiClientJs); } catch (_) { /* ignore */ }
+    try { dom.window.eval(dashboardJs); } catch (_) { /* ignore */ }
+    return dom;
+  }
+
+  _iLive('dashboard registers a chrome.runtime.onMessage listener for live reload', async () => {
+    capturedListener = undefined;
+    loadDashboardLive();
+    // init() is async — wait a tick so bindRuntime() runs.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(typeof capturedListener, 'dashboard must register chrome.runtime.onMessage.addListener so background broadcasts (RELOAD_ITEMS / ITEM_SAVED) reach it').toBe('function');
+  });
+
+  _iLive('RELOAD_ITEMS broadcast triggers a fetch (items reload)', async () => {
+    capturedListener = undefined;
+    loadDashboardLive();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(typeof capturedListener).toBe('function');
+    fetchCalls = [];
+    // Simulate background.js broadcasting RELOAD_ITEMS to this tab.
+    capturedListener!({ type: 'RELOAD_ITEMS' }, {}, () => undefined);
+    // loadAll is async; wait a microtask for the fetch to register.
+    await new Promise((r) => setTimeout(r, 50));
+    const itemsCalls = fetchCalls.filter((u) => u.includes('/api/v1/items'));
+    expect(itemsCalls.length, 'dashboard must re-fetch /api/v1/items when RELOAD_ITEMS arrives').toBeGreaterThan(0);
+  });
+
+  _iLive('ITEM_SAVED broadcast triggers a fetch (items reload)', async () => {
+    capturedListener = undefined;
+    loadDashboardLive();
+    await new Promise((r) => setTimeout(r, 20));
+    fetchCalls = [];
+    capturedListener!({ type: 'ITEM_SAVED' }, {}, () => undefined);
+    await new Promise((r) => setTimeout(r, 50));
+    const itemsCalls = fetchCalls.filter((u) => u.includes('/api/v1/items'));
+    expect(itemsCalls.length, 'dashboard must re-fetch /api/v1/items when ITEM_SAVED arrives').toBeGreaterThan(0);
+  });
+});

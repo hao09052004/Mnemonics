@@ -682,13 +682,50 @@ async function loadAll() {
 
 // ----- event handlers -------------------------------------------------
 
+// Wire up chrome.runtime.onMessage so the dashboard reacts when
+// background.js broadcasts RELOAD_ITEMS / ITEM_SAVED (after a save
+// from the cropper, a PATCH from a popup action, etc.). Without this
+// listener the new item lives in the DB but the open dashboard never
+// re-fetches, so the tab appears stale until a manual reload.
+//
+// (Regression: 2026-10-04 — user saved a screenshot and the Everything
+// tab did not show the new item.)
+function bindRuntime() {
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
+  chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
+    if (!msg || typeof msg.type !== 'string') return;
+    if (msg.type === 'RELOAD_ITEMS' || msg.type === 'ITEM_SAVED') {
+      // Only re-fetch if we are logged in. On the login route there is
+      // no session yet and loadAll() would just no-op.
+      if (!state.user) return;
+      loadAll().catch((err) => console.error('[mnx] live reload failed:', err));
+    }
+  });
+}
+
 function bindEvents() {
-  // Tabs (top nav + mobile)
+  // Tabs (top nav + mobile). Clicking a tab both switches the route
+  // AND re-fetches items if the destination is one that shows the
+  // grid (everything / favorites / rediscover / spaces / space-detail).
+  // Without this re-fetch, switching tabs after a save would show
+  // stale items until manual reload.
+  const DATA_TABS = new Set(['everything', 'favorites', 'rediscover', 'spaces', 'space-detail']);
   document.body.addEventListener('click', (e) => {
     const tab = e.target.closest('[data-route-tab]');
-    if (tab) { e.preventDefault(); setState({ route: tab.dataset.routeTab }); return; }
+    if (tab) {
+      e.preventDefault();
+      const next = tab.dataset.routeTab;
+      setState({ route: next });
+      if (DATA_TABS.has(next) && state.user) loadAll().catch((err) => console.error('[mnx] tab reload failed:', err));
+      return;
+    }
     const goHome = e.target.closest('[data-action="go-home"]');
-    if (goHome) { e.preventDefault(); setState({ route: 'everything' }); return; }
+    if (goHome) {
+      e.preventDefault();
+      setState({ route: 'everything' });
+      if (state.user) loadAll().catch((err) => console.error('[mnx] home reload failed:', err));
+      return;
+    }
     const goSettings = e.target.closest('[data-action="go-settings"]');
     if (goSettings) { e.preventDefault(); setState({ route: 'settings' }); return; }
 
@@ -968,6 +1005,11 @@ async function init() {
     bindEvents();
   } catch (err) {
     console.error('[mnx] bindEvents failed:', err);
+  }
+  try {
+    bindRuntime();
+  } catch (err) {
+    console.error('[mnx] bindRuntime failed:', err);
   }
   const session = await loadSession();
   if (!session || !session.accessToken) {
