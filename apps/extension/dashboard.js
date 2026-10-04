@@ -108,12 +108,20 @@ function loadSession() {
 }
 
 function saveSession(session) {
-  state.user = session && session.user ? session.user : null;
+  // Unwrap the API envelope. The server returns `{ user, session: { ... } }`
+  // but every reader (dashboard.js, screenshot-cropper.js, background.js,
+  // api-client.js, loadSession() above) expects the *unwrapped* shape with
+  // a top-level `accessToken`. Storing the wrapped envelope would cause
+  // `session.accessToken` to be undefined everywhere, manifesting as
+  // 'Bạn cần đăng nhập trước khi lưu ảnh' right after a fresh sign-up.
+  // (Regression: 2026-10-04 dashboard sign-in loop.)
+  const flat = session && session.session ? session.session : session;
+  state.user = flat && flat.user ? flat.user : (session && session.user ? session.user : null);
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ mnemonics_session: session || null });
+    chrome.storage.local.set({ mnemonics_session: flat || null });
   }
   if (typeof localStorage !== 'undefined') {
-    if (session) localStorage.setItem('mnemonics_session', JSON.stringify(session));
+    if (flat) localStorage.setItem('mnemonics_session', JSON.stringify(flat));
     else localStorage.removeItem('mnemonics_session');
   }
 }
@@ -240,9 +248,10 @@ async function refreshToken() {
     if (!r.ok) { handleAuthFailure(); return null; }
     const body = await r.json();
     const fresh = body.data || {};
-    const next = Object.assign({}, session, fresh.session || fresh);
-    saveSession(next);
-    return next;
+    // API envelope is {user, session:{accessToken,...}}. saveSession()
+    // unwraps it before storing, so pass the envelope shape here.
+    saveSession(fresh);
+    return loadSession();
   } catch (_) { handleAuthFailure(); return null; }
 }
 

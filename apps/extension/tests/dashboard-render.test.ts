@@ -145,3 +145,90 @@ describe('dashboard renders blank-page bug repro', () => {
     expect(() => dom.window.document.getElementById('login-form')!.dispatchEvent(ev)).not.toThrow();
   });
 });
+
+import { describe as _dSession, expect as _eSession, it as _iSession } from 'vitest';
+_dSession('session storage shape (regression: signed-in user blocked from saving)', () => {
+  // Reproduction of the 2026-10-04 incident where signing up then
+  // clicking Capture produced 'Bạn cần đăng nhập trước khi lưu ảnh'.
+  // Root cause: saveSession() stored the API envelope
+  //   { user, session: { accessToken, refreshToken, expiresAt } }
+  // directly into chrome.storage.local.mnemonics_session, but every
+  // reader (dashboard.js, screenshot-cropper.js, background.js,
+  // api-client.js) reads session.accessToken flat — they look one
+  // level too high and always get undefined.
+  //
+  // The fix below pins the storage shape so a future regression that
+  // re-wraps the envelope fails immediately.
+  _iSession('saveSession() unwraps the { user, session } envelope before storing', () => {
+    // Execute dashboard.js in a sandbox via `new Function` so we can
+    // expose internal helpers (saveSession) without running the full
+    // init() that depends on DOM. This mirrors scripts/smoke-dashboard.mjs.
+    const dashboardJs = readFileSync(join(ROOT, 'dashboard.js'), 'utf8');
+    const storage = new Map<string, unknown>();
+    const chromeStub = {
+      storage: {
+        local: {
+          get: (k: string, cb: (r: any) => void) => cb({ [k]: storage.get(k) }),
+          set: (o: any, cb?: () => void) => { for (const [k, v] of Object.entries(o)) storage.set(k, v); cb?.(); },
+          remove: (k: string, cb?: () => void) => { storage.delete(k); cb?.(); }
+        }
+      },
+      runtime: { sendMessage() {}, onMessage: { addListener() {} }, getURL(p: string) { return p; } }
+    };
+    const factory = new Function(
+      'chrome', 'document', 'window', 'localStorage', 'crypto', 'console', 'Date', 'Map', 'Set', 'JSON', 'fetch',
+      'var __MN_API__ = "http://localhost:4000";\n' + dashboardJs +
+      '\nreturn { saveSession, loadSession };'
+    );
+    // Minimal stubs: dashboard.js only touches document at init(), which
+    // we never call here. Stub readyState so init() is not auto-scheduled
+    // (it would otherwise call renderRoute() against a missing DOM).
+    // Suppress init() error logging — the sandbox can't run the full
+    // init() because we lack a real DOM tree; we only want saveSession.
+    const stubElement: any = {
+      hidden: false,
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      children: [],
+      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      dataset: {},
+      addEventListener() {},
+      querySelector: () => stubElement,
+      querySelectorAll: () => []
+    };
+    const stubDocument = {
+      addEventListener() {},
+      readyState: 'complete',
+      body: { dataset: {}, classList: { add() {}, remove() {}, toggle() {} } },
+      getElementById: () => stubElement,
+      querySelector: () => stubElement,
+      querySelectorAll: () => []
+    };
+    const origConsoleError = console.error;
+    console.error = () => undefined;
+    let mod: any;
+    try {
+      mod = factory(
+        chromeStub, stubDocument as any, {} as any,
+        globalThis.localStorage, globalThis.crypto, console, Date, Map, Set, JSON,
+        (() => Promise.resolve({ ok: true, status: 200, json: async () => ({ data: {} }) })) as any
+      );
+    } finally {
+      console.error = origConsoleError;
+    }
+
+    expect(typeof mod.saveSession, 'dashboard.js must export saveSession').toBe('function');
+
+    const apiResponse = { user: { id: 'u1', email: 'a@b.co' }, session: { accessToken: 'AT-1', refreshToken: 'RT-1', expiresAt: 9_999_999_999 } };
+    mod.saveSession(apiResponse);
+
+    const stored = storage.get('mnemonics_session') as any;
+    expect(stored, 'session must be persisted to chrome.storage.local.mnemonics_session').toBeTruthy();
+    // The bug: previously this assertion failed because saveSession
+    // stored the wrapped envelope {user, session:{...}}. The fix
+    // unwraps to the flat session shape every reader expects.
+    expect(stored.accessToken, 'top-level accessToken must be reachable (screenshot-cropper / background read session.accessToken)').toBe('AT-1');
+    expect(stored.user, 'stored session must not have a nested user envelope (would shadow accessToken)').toBeUndefined();
+  });
+});
