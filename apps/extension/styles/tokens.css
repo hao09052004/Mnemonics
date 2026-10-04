@@ -1,0 +1,258 @@
+/* ============================================================
+   Mnemonics — shared design tokens (extension)
+
+   Canonical palette is the Figma reference (figma-ui-reference/src/index.css).
+   Every other extension surface (popup, cropper, original-image, future
+   viewers) consumes these same tokens so the whole extension stays
+   visually consistent with the web app.
+
+   CSP note: this stylesheet is loaded via <link rel="stylesheet"
+   href="styles/tokens.css">. No @import of remote fonts (Google Fonts is
+   blocked by extension_pages CSP), no remote images. System font stack
+   everywhere.
+   ============================================================ */
+
+:root {
+  /* ===== Surfaces (Figma dark palette) ===== */
+  --bg:               #15171C;   /* page background */
+  --surface:          #20232B;   /* card */
+  --elevated:         #1B1E24;   /* nav / sticky header / modal media */
+  --hover:            #272B35;   /* card hover, dense row */
+  --overlay:          rgba(5, 7, 12, 0.68);
+
+  /* ===== Borders / dividers ===== */
+  --border:           #303541;
+  --border-strong:    rgba(255, 255, 255, 0.12);
+
+  /* ===== Text ===== */
+  --text:             #E8EAF0;
+  --secondary:        #A5ACB8;
+  --muted:            #8D95A3;
+
+  /* ===== Brand / accent ===== */
+  --purple:           #7567E8;
+  --purple-soft:      #2A2648;
+  --purple-button:    #6557D6;
+  --purple-button-hover: #6B5DDA;
+  --purple-pressed:   #5B4CC6;
+  --purple-hover:     #887BF0;
+  --purple-text:      #9B90F5;
+  --on-primary:       #F4F5F7;
+  --selected-tag-text: #B8AEFA;
+  --focus-ring:       rgba(117, 103, 232, 0.35);
+
+  /* ===== Status ===== */
+  --success:          #73A58C;
+  --warning:          #C6A15B;
+  --error:            #C96C6C;
+
+  /* ===== Shape ===== */
+  --radius:           12px;
+  --radius-sm:        8px;
+  --radius-lg:        14px;
+  --radius-xl:        18px;
+
+  /* ===== Motion ===== */
+  --ease:             cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-pop:         cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ===== Shadows ===== */
+  --shadow-1:         0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2:         0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-3:         0 18px 50px rgba(0, 0, 0, 0.5);
+
+  /* ===== Type ===== */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter",
+    "Segoe UI", "Segoe UI Variable", "Helvetica Neue", system-ui,
+    Roboto, "Noto Sans", "Liberation Sans", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono",
+    Menlo, Consolas, monospace;
+
+  /* Apply default body style so extension pages that include this
+     stylesheet pick up the dark palette without extra CSS. */
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+}
+
+/* ============================================================
+   Backward-compat aliases — every surface that used --mn-* before
+   still works. The new code prefers the unprefixed names above.
+   ============================================================ */
+
+:root {
+  --mn-bg:            var(--bg);
+  --mn-bg-elev:       var(--elevated);
+  --mn-surface:       var(--surface);
+  --mn-surface-2:     var(--hover);
+  --mn-surface-hover: #232733;
+  --mn-overlay:       var(--overlay);
+
+  --mn-border:        var(--border);
+  --mn-border-strong: var(--border-strong);
+
+  --mn-text:    var(--text);
+  --mn-text-2:  var(--secondary);
+  --mn-text-3:  var(--muted);
+  --mn-text-mute: rgba(232, 234, 240, 0.55);
+
+  --mn-brand:        var(--purple-button);
+  --mn-brand-2:      var(--purple-hover);
+  --mn-brand-soft:   var(--purple-soft);
+  --mn-brand-ring:   var(--focus-ring);
+
+  --mn-danger:  #ef4444;
+  --mn-warn:    #f59e0b;
+  --mn-success: var(--success);
+  --mn-pink:    #ec4899;
+
+  --mn-radius:    var(--radius);
+  --mn-radius-lg: var(--radius-lg);
+  --mn-radius-xl: var(--radius-xl);
+  --mn-ease:      var(--ease);
+  --mn-ease-pop:  var(--ease-pop);
+  --mn-shadow-1:  var(--shadow-1);
+  --mn-shadow-2:  var(--shadow-2);
+  --mn-shadow-3:  var(--shadow-3);
+
+  --mn-font-sans: var(--font-sans);
+  --mn-font-mono: var(--font-mono);
+
+  /* Legacy palette aliases kept for the OLD mnemonics-dashboard.html
+     inline CSS. New code should not introduce new uses of these names. */
+  --purple-old:        var(--purple);
+  --purple-dark-old:   #5e44d1;
+  --purple-light-old:  var(--purple-soft);
+  --black:             var(--text);
+  --white:             var(--bg);
+  --gray-bg:           var(--elevated);
+  --gray-border:       var(--border);
+  --gray-text:         var(--secondary);
+  --gray-mid:          var(--muted);
+  --font:              var(--font-sans);
+}
+
+/* ============================================================
+   Shared utilities — buttons, chips, inputs, cards, skeletons
+   ============================================================ */
+
+.mn-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.mn-btn {
+  font: 600 12px/1 var(--font-sans);
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  cursor: pointer;
+  transition: background 0.15s var(--ease),
+              border-color 0.15s var(--ease),
+              transform 0.1s var(--ease);
+}
+.mn-btn:hover { background: var(--hover); border-color: var(--border-strong); }
+.mn-btn:active { transform: scale(0.97); transition-duration: 80ms; }
+.mn-btn:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+.mn-btn--primary {
+  background: var(--purple-button);
+  border-color: var(--purple-button);
+  color: var(--on-primary);
+}
+.mn-btn--primary:hover { background: var(--purple-button-hover); border-color: var(--purple-button-hover); }
+.mn-btn--ghost { background: transparent; border-color: var(--border); color: var(--secondary); }
+.mn-btn--ghost:hover { color: var(--text); background: var(--surface); }
+.mn-btn--danger { color: var(--error); border-color: rgba(201, 108, 108, 0.35); }
+.mn-btn--danger:hover { background: rgba(201, 108, 108, 0.12); }
+.mn-btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.mn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--secondary);
+  font: 600 10.5px/1 var(--font-sans);
+  letter-spacing: 0.3px;
+}
+.mn-chip--brand { background: var(--purple-soft); color: var(--purple-text); border-color: rgba(117, 103, 232, 0.4); }
+.mn-chip--active { background: var(--purple-button); color: var(--on-primary); border-color: var(--purple-button); }
+.mn-chip__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }
+
+.mn-eyebrow {
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mn-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font: 400 13px/1.5 var(--font-sans);
+  outline: none;
+  transition: border-color 0.15s var(--ease),
+              box-shadow 0.15s var(--ease);
+}
+.mn-input::placeholder { color: var(--muted); }
+.mn-input:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+textarea.mn-input { resize: vertical; min-height: 64px; line-height: 1.5; }
+
+.mn-skel {
+  background: linear-gradient(110deg,
+    var(--surface) 20%,
+    var(--hover) 38%,
+    var(--surface) 54%);
+  background-size: 200% 100%;
+  animation: mn-skel-shimmer 1.7s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+@keyframes mn-skel-shimmer {
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-skel { animation: none; }
+}
+
+.mn-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.15s var(--ease),
+              background 0.15s var(--ease),
+              transform 0.15s var(--ease);
+}
+.mn-card:hover { border-color: var(--border-strong); background: var(--hover); }
+
+/* ============================================================
+   Scrollbar / selection — match the web app.
+   ============================================================ */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--hover); border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+::selection { background: var(--purple-soft); color: var(--text); }

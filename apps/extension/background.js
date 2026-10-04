@@ -860,6 +860,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     setTimeout(function() { chrome.runtime.reload(); }, 50);
     return true;
   }
+
+  // Capture from the dashboard's "Save Link" / "Quick Note" sheet.
+  // Reuses uploadTextCapture so the path is identical to the context
+  // menu + popup save flows.
+  if (msg && msg.type === 'CAPTURE_FROM_DASHBOARD') {
+    const payload = msg.payload || {};
+    uploadTextCapture(payload)
+      .then((data) => {
+        sendResponse({ ok: true, data });
+        notifyDashboards('ITEM_SAVED');
+      })
+      .catch((err) => {
+        sendResponse({ ok: false, error: err && err.message ? err.message : 'Capture failed' });
+      });
+    return true;
+  }
 });
 
 // (deleteItemOnServer is declared earlier in this file. Single source of truth.)

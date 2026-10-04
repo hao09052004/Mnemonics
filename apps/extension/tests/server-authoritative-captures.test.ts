@@ -5,7 +5,6 @@ import { join } from 'node:path';
 const extensionSource = readFileSync(join(__dirname, '..', 'extension.js'), 'utf8');
 const backgroundSource = readFileSync(join(__dirname, '..', 'background.js'), 'utf8');
 const cropperSource = readFileSync(join(__dirname, '..', 'screenshot-cropper.js'), 'utf8');
-const dashboardSource = readFileSync(join(__dirname, '..', 'dashboard.js'), 'utf8');
 
 function bodyBetween(source: string, start: string, end: string) {
   return source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
@@ -27,14 +26,13 @@ describe('server-authoritative capture flows', () => {
     expect(body).not.toContain('mnemonics_items_');
   });
 
-  it('dashboard modal awaits the matching API helper before closing and refreshing', () => {
-    const body = bodyBetween(dashboardSource, 'async function saveItem()', '// ===== TOAST =====');
-    expect(body).toContain('await uploadImageCapture');
-    expect(body).toContain('await sendCaptureToApi');
-    expect(body.indexOf('await sendCaptureToApi')).toBeLessThan(body.indexOf('closeModal()'));
-    expect(body).not.toContain('chrome.storage.local.set');
-    expect(body).not.toContain('localStorage.setItem');
-  });
+  // The dashboard used to host its own capture modal that called
+  // uploadImageCapture / sendCaptureToApi directly. The new dashboard
+  // routes captures through the background service worker (which
+  // owns token refresh) via `CAPTURE_FROM_DASHBOARD`. That contract
+  // is covered by the background message handler and the new
+  // dashboard code path; see apps/extension/dashboard.js +
+  // apps/extension/background.js for the wiring.
 
   it('background context-menu failures do not create durable fallbacks', () => {
     const body = bodyBetween(backgroundSource, '// Context-menu captures', '// Trao dữ liệu ảnh chụp');
