@@ -1,97 +1,87 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthUser } from '../../lib/api-client';
+import { DashboardTopNav, type DashboardPage } from './DashboardTopNav';
+import { MobileBottomNav } from './MobileBottomNav';
 
 interface DashboardShellProps {
   user: AuthUser;
-  readyCount: number;
-  demoMode: boolean;
+  active: DashboardPage;
+  onNavigate: (page: DashboardPage) => void;
+  onCapture: () => void;
   onLogout: () => void;
+  demoMode?: boolean;
   children: ReactNode;
 }
 
 /**
- * Authenticated dashboard shell.
+ * Top-nav shell for the authenticated dashboard.
  *
- * Replaces the old inline `<header>` with a sticky brand bar and
- * reorganises the page to use the new design tokens. All existing
- * children (SearchBar, QuickCapture, TagSidebar, ItemCard grid) are
- * passed through unchanged so the per-component styling and tests
- * keep working.
+ * Layout (desktop):
+ *   ┌──────────────────────────────────────────────┐
+ *   │  brand  · nav links · capture · avatar       │
+ *   ├──────────────────────────────────────────────┤
+ *   │  children: page content (masonry etc.)       │
+ *   └──────────────────────────────────────────────┘
+ *
+ * Layout (mobile, ≤ 760px):
+ *   - top bar collapses
+ *   - bottom nav with capture CTA
+ *
+ * The shell does NOT own the search / filter / grid — those live in
+ * the page. Keeping the shell a layout-only component keeps the routes
+ * drop-in compatible.
  */
-export function DashboardShell({ user, readyCount, demoMode, onLogout, children }: DashboardShellProps) {
+export function DashboardShell({
+  user,
+  active,
+  onNavigate,
+  onCapture,
+  onLogout,
+  demoMode,
+  children,
+}: DashboardShellProps) {
+  // Cmd/Ctrl + K focuses the dashboard search input if present.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const isMac = navigator.platform.toLowerCase().includes('mac');
+      const hotkey = isMac ? e.metaKey : e.ctrlKey;
+      if (!hotkey || e.key.toLowerCase() !== 'k') return;
+      const el = document.querySelector<HTMLInputElement>('[data-mn-search]');
+      if (el) {
+        e.preventDefault();
+        el.focus();
+        el.select();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // onLogout / demoMode are read by pages that pass them down; keeping
+  // them on the shell contract for now prevents breaking callers.
+  void onLogout;
+  void demoMode;
+  const initials = computeInitials(user.email);
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 24px 48px' }}>
-        <header
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 20,
-            gap: 16,
-            flexWrap: 'wrap'
-          }}
-        >
-          <div>
-            <div className="eyebrow">Your second brain</div>
-            <h1
-              style={{
-                marginTop: 4,
-                fontSize: 30,
-                fontWeight: 800,
-                fontFamily: 'var(--font-display)',
-                letterSpacing: '-0.01em'
-              }}
-            >
-              Mnemonics
-            </h1>
-            <div style={{ marginTop: 4, color: 'var(--muted)', fontSize: 13 }}>Save once — Find anytime.</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{user.email}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>{readyCount} memory sẵn sàng</div>
-            </div>
-            <Link
-              to="/browser-extension"
-              className="btn btn--ghost btn--sm"
-            >
-              Get the extension
-            </Link>
-            <button
-              onClick={onLogout}
-              data-testid="logout-btn"
-              className="btn btn--ghost btn--sm"
-            >
-              Đăng xuất
-            </button>
-          </div>
-        </header>
-
-        {demoMode && (
-          <div
-            data-testid="demo-banner"
-            style={{
-              marginBottom: 18,
-              padding: '14px 16px',
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, var(--brand-soft), var(--bg-elevated))',
-              border: '1px solid var(--brand-soft)'
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--brand)' }}>⚡ Demo mode</div>
-            <div style={{ marginTop: 4, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-              Thử các bước: <b>Lưu nhanh</b> → chờ <b>tag + embedding</b> → tìm kiếm → mở <b>Ý liên quan</b>
-              → bấm vào card để xem chi tiết / sửa → click tag để lọc theo tag.
-              Dữ liệu demo chạy hoàn toàn trên máy local.
-            </div>
-          </div>
-        )}
-
+    <div className="app">
+      <div className="content">
+        <DashboardTopNav
+          active={active}
+          onNavigate={onNavigate}
+          onCapture={onCapture}
+          initials={initials}
+        />
         {children}
       </div>
+      <MobileBottomNav active={active} onNavigate={onNavigate} onCapture={onCapture} />
     </div>
   );
+}
+
+function computeInitials(email: string): string {
+  const at = email.indexOf('@');
+  const name = at > 0 ? email.slice(0, at) : email;
+  return name.slice(0, 2).toUpperCase();
 }

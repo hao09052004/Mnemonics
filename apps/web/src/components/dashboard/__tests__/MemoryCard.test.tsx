@@ -7,6 +7,7 @@ afterEach(() => cleanup());
 
 const baseItem = (id: string): MemoryCardItem => ({
   id,
+  kind: 'link',
   title: 'Three-headed dragon',
   snippet: 'A humorous comparison of AI models.',
   source_url: 'https://facebook.com',
