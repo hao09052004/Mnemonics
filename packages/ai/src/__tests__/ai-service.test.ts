@@ -35,7 +35,10 @@ describe("createAiService", () => {
     });
     const svc = await createAiService({ config });
     expect(svc.text.info().name).toBe("gemini+ollama");
-    expect(svc.embeddings.info().name).toBe("gemini+noop");
+    // The embedding fallback is the LOCAL provider, so semantic search
+    // survives a Gemini outage instead of dropping to lexical-only.
+    expect(svc.embeddings.info().name).toBe("gemini+ollama");
+    expect(svc.embeddings.info().dimensions).toBe(1024);
     // Health snapshot still surfaces the primary model in `model`
     expect(svc.text.info().model).toBe("gemini-3.8-flash");
   });
@@ -46,8 +49,23 @@ describe("createAiService", () => {
     expect(svc.primaryOcr.info().name).toBe("tesseract");
   });
 
-  it("uses noop embedding provider when no key is set", async () => {
+  it("falls back to the LOCAL embedding provider when no Gemini key is set", async () => {
     const config = loadAiConfig({ AI_FREE_ONLY: "true" });
+    const svc = await createAiService({ config });
+    // A missing Gemini key must not mean "no semantic search": the
+    // local bge-m3 model is the primary in that case.
+    expect(svc.embeddings.info().name).toBe("ollama+noop");
+    expect(svc.embeddings.info().model).toBe("bge-m3");
+    expect(svc.embeddings.info().dimensions).toBe(1024);
+  });
+
+  it("uses noop embeddings only when the local width cannot match the column", async () => {
+    // A non-1024 column means no local model can fill it safely, so the
+    // provider degrades to noop (lexical-only) rather than padding.
+    const config = loadAiConfig({
+      AI_FREE_ONLY: "true",
+      GEMINI_EMBEDDING_DIMENSIONS: "1536",
+    });
     const svc = await createAiService({ config });
     expect(svc.embeddings.info().name).toBe("noop");
   });
@@ -92,11 +110,14 @@ describe("formatSnapshot", () => {
         embeddings: "gemini:gemini-embedding-001",
         ocr: "ocrspace:engine=2",
         visual: "clip-local:Xenova/clip-vit-base-patch32",
+        understanding: "image=local:Xenova/vit-gpt2-image-captioning, tldr=deterministic:heuristic-v1"
       },
       textReady: true,
       embeddingsReady: true,
       ocrReady: true,
       visualReady: false,
+      imageDescriptionReady: true,
+      tldrReady: true,
       notes: [],
     });
     expect(s).toContain("Gemini text ........ OK");

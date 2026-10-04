@@ -3,58 +3,97 @@ import { useNavigate } from 'react-router-dom';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
 import { Icon } from '../components/dashboard/Icons';
 import {
+  CreateSpaceDialog,
+  SpaceRuleSummary
+} from '../components/spaces/CreateSpaceDialog';
+import {
+  SpaceDot,
+  SpaceKindBadge,
+  spaceColorVars
+} from '../components/spaces/SpaceIdentity';
+import '../components/spaces/spaces.css';
+import {
   ApiClient,
   type Session,
-  type SpaceWithCount,
-  type SpaceSuggestion,
+  type SpaceColor,
+  type SpaceWithCount
 } from '../lib/api-client';
 
 interface SpacesPageProps {
   api: ApiClient;
 }
 
+/**
+ * All Spaces.
+ *
+ * Smart counts are requested with `withCounts: 1`, which costs one
+ * search per smart Space. That is the right trade here: this is the
+ * only page where a user browses their Spaces, and a card reading
+ * "Auto" instead of a number would be actively unhelpful. Manual
+ * counts come from a cheap indexed COUNT and never pay for it.
+ */
 export function SpacesPage({ api }: SpacesPageProps) {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [spaces, setSpaces] = useState<SpaceWithCount[]>([]);
-  const [suggestions, setSuggestions] = useState<SpaceSuggestion[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = api.loadStoredSession();
     if (stored) setSession(stored);
   }, [api]);
 
-  const loadAll = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!session) return;
     setLoading(true);
+    setError(null);
     try {
       const token = await api.getValidAccessToken();
-      if (!token) return;
-      const [list, sugs] = await Promise.all([
-        api.listSpaces(token),
-        api.listSuggestions(token).catch(() => []),
-      ]);
-      setSpaces(list);
-      setSuggestions(sugs);
+      if (!token) {
+        setError('Your session has expired. Please sign in again.');
+        return;
+      }
+      setSpaces(await api.listSpaces(token, { withCounts: true }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load Spaces');
     } finally {
       setLoading(false);
     }
   }, [api, session]);
 
   useEffect(() => {
-    if (session) loadAll();
-  }, [session, loadAll]);
+    if (session) void load();
+  }, [session, load]);
 
-  const handleAccept = useCallback(
-    async (id: string) => {
-      if (!session) return;
-      const token = await api.getValidAccessToken();
-      if (!token) return;
-      await api.acceptSuggestion(id, token);
-      await loadAll();
+  const handleCreate = useCallback(
+    async (input: { name: string; description: string; color: SpaceColor }) => {
+      setCreating(true);
+      setCreateError(null);
+      try {
+        const token = await api.getValidAccessToken();
+        if (!token) throw new Error('Session expired');
+        await api.createSpace(
+          {
+            name: input.name,
+            ...(input.description ? { description: input.description } : {}),
+            color: input.color,
+            spaceType: 'manual'
+          },
+          token
+        );
+        setDialogOpen(false);
+        await load();
+      } catch (err) {
+        setCreateError(err instanceof Error ? err.message : 'Could not create Space');
+      } finally {
+        setCreating(false);
+      }
     },
-    [api, session, loadAll]
+    [api, load]
   );
 
   if (!session) return null;
@@ -67,106 +106,144 @@ export function SpacesPage({ api }: SpacesPageProps) {
         if (p === 'Everything') navigate('/app');
         else if (p === 'Rediscover') navigate('/app/rediscover');
       }}
-      onCapture={() => undefined}
+      onCapture={() => navigate('/app')}
       onLogout={() => {
         api.saveSession(null);
         setSession(null);
         navigate('/');
       }}
-      demoMode={false}
+      demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
     >
-      <main className="main standard">
-        <header className="page-header">
+      <main className="spaces-page">
+        <header className="spaces-page__head">
           <div>
-            <span className="eyebrow">YOUR COLLECTIONS</span>
-            <h1>Spaces</h1>
-            <p>Bring related memories together.</p>
+            <h1 className="spaces-page__title">Spaces</h1>
+            <p className="spaces-page__sub">
+              Organize memories around the things that matter.
+            </p>
           </div>
           <button
             type="button"
             className="primary"
-            onClick={() => navigate('/app/spaces/new')}
+            onClick={() => {
+              setCreateError(null);
+              setDialogOpen(true);
+            }}
             data-testid="new-space-btn"
           >
             <Icon name="plus" size={16} /> New Space
           </button>
         </header>
 
-        <section>
-          <div className="dashboard-heading" style={{ marginBottom: 12 }}>
-            <h1 style={{ fontSize: 18, margin: 0 }}>My Spaces</h1>
-            <span className="memory-count">{spaces.length}</span>
-          </div>
-          {loading && spaces.length === 0 ? (
-            <p>Loading…</p>
-          ) : spaces.length === 0 ? (
-            <p style={{ color: 'var(--secondary)' }}>No spaces yet.</p>
-          ) : (
-            <div className="spaces-grid">
-              {spaces.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="space-card"
-                  onClick={() => navigate(`/app/spaces/${s.id}`)}
-                >
-                  <div className="collage" aria-hidden="true">
-                    <Icon name="file" />
-                  </div>
-                  <h3 style={{ margin: '6px 0', fontSize: 15 }}>
-                    {s.name}
-                  </h3>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 12,
-                      color: 'var(--secondary)',
-                    }}
-                  >
-                    {s.itemCount} memories
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+        {error ? (
+          <p role="alert" data-testid="spaces-error">
+            {error}
+          </p>
+        ) : null}
 
-        <section style={{ marginTop: 56 }}>
-          <span className="eyebrow">SUGGESTED</span>
-          {suggestions.length === 0 ? (
-            <p style={{ marginTop: 8, color: 'var(--secondary)' }}>
-              No suggestions right now.
-            </p>
+        <section>
+          <h2 className="spaces-section__label">
+            My Spaces
+            <span className="memory-count">{spaces.length}</span>
+          </h2>
+
+          {loading && spaces.length === 0 ? (
+            <p className="space-picker__hint">Loading Spaces…</p>
+          ) : spaces.length === 0 ? (
+            <div className="space-card" data-testid="spaces-empty" style={{ cursor: 'default' }}>
+              <p className="space-card__count">
+                Create a Space to keep related memories together.
+              </p>
+              <button
+                type="button"
+                className="primary"
+                style={{ alignSelf: 'flex-start' }}
+                onClick={() => setDialogOpen(true)}
+              >
+                New Space
+              </button>
+            </div>
           ) : (
-            <div className="spaces-grid" style={{ marginTop: 12 }}>
-              {suggestions.map((sg) => (
-                <article key={sg.id} className="space-card">
-                  <h3 style={{ margin: '6px 0', fontSize: 15 }}>
-                    {sg.suggestedName}
-                  </h3>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 12,
-                      color: 'var(--secondary)',
-                    }}
-                  >
-                    {sg.suggestedDescription}
-                  </p>
+            <div className="spaces-grid" data-testid="spaces-grid">
+              {spaces.map((space) => {
+                const vars = spaceColorVars(space.color);
+                const tiles = space.previewItems.slice(0, 4);
+                return (
                   <button
+                    key={space.id}
                     type="button"
-                    className="primary"
-                    style={{ marginTop: 12 }}
-                    onClick={() => handleAccept(sg.id)}
+                    className="space-card"
+                    style={{ borderLeftColor: vars.dot }}
+                    data-testid={`space-card-${space.id}`}
+                    onClick={() => navigate(`/app/spaces/${space.id}`)}
                   >
-                    Create Space
+                    <div className="space-card__top">
+                      <SpaceDot color={space.color} />
+                      <h3 className="space-card__name">{space.name}</h3>
+                      <SpaceKindBadge kind={space.spaceType} />
+                    </div>
+
+                    <p className="space-card__count">
+                      {space.itemCount === null
+                        ? 'Updating…'
+                        : `${space.itemCount} ${
+                            space.itemCount === 1 ? 'memory' : 'memories'
+                          }`}
+                    </p>
+
+                    {tiles.length > 0 ? (
+                      <div className="space-card__preview" aria-hidden="true">
+                        {tiles.map((tile) => (
+                          <div className="space-card__tile" key={tile.id} title={tile.title}>
+                            <span>{shortKind(tile.kind)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {space.spaceType === 'smart' && space.rule ? (
+                      <SpaceRuleSummary rule={space.rule} />
+                    ) : null}
                   </button>
-                </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
       </main>
+
+      {dialogOpen ? (
+        <CreateSpaceDialog
+          mode="manual"
+          onClose={() => setDialogOpen(false)}
+          onSubmit={handleCreate}
+          busy={creating}
+          error={createError}
+        />
+      ) : null}
     </DashboardShell>
   );
+}
+
+/**
+ * Tile label for a preview.
+ *
+ * Thumbnails live behind the signed-asset endpoint, which the Spaces
+ * list does not mint URLs for, so a tile shows the memory's kind rather
+ * than an image that would fail to load — a grid of broken images reads
+ * as data loss.
+ */
+function shortKind(kind: string): string {
+  switch (kind) {
+    case 'image':
+      return 'img';
+    case 'screenshot':
+      return 'shot';
+    case 'link':
+      return 'link';
+    case 'text':
+      return 'note';
+    default:
+      return kind.slice(0, 4) || 'item';
+  }
 }

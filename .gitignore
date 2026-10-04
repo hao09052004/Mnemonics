@@ -44,3 +44,23 @@ out/
 .env
 .env.local
 .env.*.local
+
+# Figma Make design reference.
+# `figma-ui-reference/` and `.figma/` are throwaway UI mockups, not
+# product code. The root `src/`, `index.html`, `vite.config.ts` and
+# `tsconfig.json` belong to that scaffold and shadow the real
+# monorepo layout — committing them would add a second, hardcoded
+# dashboard (including a competing Spaces prototype).
+/.figma/
+/figma-ui-reference/
+/src/
+/index.html
+/vite.config.ts
+/tsconfig.json
+# Figma Make also drops these two here. `.gitattributes` would route
+# every .png through Git LFS, turning the 234-byte extension icons
+# into LFS pointers that render as empty files for anyone who has not
+# run `git lfs pull`. `.mise.toml` pins pnpm 10 while package.json
+# declares pnpm 9, so `pnpm` errors out under mise.
+/.gitattributes
+/.mise.toml

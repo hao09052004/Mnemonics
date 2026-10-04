@@ -9,10 +9,11 @@ modes look like. The authoritative code lives in
 
 1. **Zero paid cost by default.** A fresh `pnpm install` plus
    `pnpm demo` works end-to-end without any paid API.
-2. **AI_FREE_ONLY is a hard contract.** `OPENAI_API_KEY` is allowed
-   to be set; it just will not be used. The provider factory throws
-   at boot if the configuration tries to call a paid provider under
-   free mode.
+2. **Gemini first, local second, OpenAI never.** OpenAI was removed
+   from the codebase entirely. There is no `OPENAI_API_KEY` and no
+   `openai` provider, so a ChatGPT key can no longer be selected by
+   accident. `AI_FREE_ONLY` remains as a guard against a future paid
+   provider being enabled silently.
 3. **Capture is always preserved.** Every enrichment step (OCR,
    tags, embeddings, visual) is best-effort. A failure marks the
    item as "enrichment degraded" but the saved item is still
@@ -60,12 +61,18 @@ UNKNOWN               catch-all
 
 ## Provider implementations
 
-| Interface          | `gemini`                       | `heuristic`        | `openai` (legacy) | `noop`     | `ocrspace`             | `tesseract`        | `local` (CLIP) |
-|--------------------|--------------------------------|--------------------|--------------------|------------|------------------------|--------------------|-----------------|
-| TextProvider       | GeminiTextProvider             | HeuristicTextProvider | —                 | —          | —                      | —                  | —               |
-| EmbeddingProvider  | GeminiEmbeddingProvider        | —                  | OpenAIEmbeddingProvider | NoopEmbeddingProvider | —              | —                  | —               |
-| OcrProvider        | —                              | —                  | —                 | —          | OcrSpaceProvider       | TesseractOcrProvider | —              |
-| VisualProvider     | —                              | —                  | —                 | —          | —                      | —                  | ClipLocalProvider |
+| Interface          | `gemini` (primary)   | `ollama` (local fallback) | `heuristic`    | `noop`     | `ocrspace`             | `tesseract`        | `local` (CLIP) |
+|--------------------|----------------------|---------------------------|----------------|------------|------------------------|--------------------|-----------------|
+| TextProvider       | GeminiTextProvider   | OllamaTextProvider    | HeuristicTextProvider | —   | —                      | —                  | —               |
+| EmbeddingProvider  | GeminiEmbeddingProvider (1024-d) | OllamaEmbeddingProvider (1024-d, `bge-m3`) | — | NoopEmbeddingProvider | —      | —                  | —               |
+| OcrProvider        | —                     | —                        | —              | —          | OcrSpaceProvider       | TesseractOcrProvider | —              |
+| VisualProvider     | —                     | —                        | —              | —          | —                      | —                  | ClipLocalProvider |
+
+Both embedding providers emit **exactly 1024 floats** because they
+share the `item_embeddings.embedding` column (`vector(1024)`, migration
+017). A local model of a different width is rejected rather than
+padded — see `providers/embeddings/ollama.ts` for why padding is worse
+than degrading.
 
 The `noop` provider is **not** a mock. It throws `ProviderError` with
 `code=PROVIDER_UNAVAILABLE` on every call. This is intentional: the
@@ -130,10 +137,13 @@ The check is in `ai-config.ts`:
 
 ```ts
 if (freeOnly) {
-  if (embeddingProvider === "openai") throw new Error("...");
-  if (visionProvider !== "local")     throw new Error("...");
+  if (visionProvider !== "local") throw new Error("...");
 }
 ```
+
+Note what is *no longer* here: the old `embeddingProvider === "openai"`
+check. OpenAI is not a provider at all, so the guard for it is gone
+rather than merely enforced.
 
 This is the single place that knows about the rule. Every other
 component can trust the resulting `AiConfig` to be free-only when
@@ -182,7 +192,7 @@ flight.
 | Heuristic    | `packages/ai/src/__tests__/providers/text-heuristic.test.ts` |
 | Gemini text  | `packages/ai/src/__tests__/providers/text-gemini.test.ts` |
 | Gemini embed | `packages/ai/src/__tests__/providers/embeddings-gemini.test.ts` |
-| OpenAI / noop| `packages/ai/src/__tests__/providers/embeddings-openai-noop.test.ts` |
+| Local embed / noop | `packages/ai/src/__tests__/providers/embeddings-local-noop.test.ts` |
 | OCR.Space    | `packages/ai/src/__tests__/providers/ocr-ocrspace.test.ts` |
 | CLIP stub    | `packages/ai/src/__tests__/providers/vision-clip.test.ts` |
 | Service      | `packages/ai/src/__tests__/ai-service.test.ts`  |

@@ -12,7 +12,7 @@
 
 import type { Pool } from 'pg';
 
-export type JobType = 'ocr' | 'tag' | 'embed';
+export type JobType = 'ocr' | 'tag' | 'embed' | 'enrich';
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface Job {
@@ -41,6 +41,16 @@ export interface CreateJobInput {
 const DEFAULT_MAX_ATTEMPTS = 3;
 
 /**
+ * How long a job may sit in 'processing' before another process assumes the
+ * worker holding it died. Generous relative to the 1s poll interval so a
+ * slow-but-alive handler (OCR, a cold LLM call) is never stolen mid-flight.
+ */
+const DEFAULT_STALE_JOB_MS = 5 * 60_000;
+
+/** Minimum gap between two stale-job reaper runs. */
+const REAP_INTERVAL_MS = 60_000;
+
+/**
  * JobQueue with EventEmitter for job processing callbacks
  */
 export type JobHandler = (job: Job) => Promise<void>;
@@ -52,6 +62,7 @@ export class JobQueue {
   private handlers = new Map<JobType, JobHandler>();
   private onTerminalFailure?: JobFailureHandler;
   private processingInterval: NodeJS.Timeout | null = null;
+  private lastReapAt = 0;
 
   constructor(pool: Pool, onTerminalFailure?: JobFailureHandler) {
     this.pool = pool;
@@ -115,6 +126,35 @@ export class JobQueue {
     );
 
     return result.rows.map(row => this.mapRow(row));
+  }
+
+  /**
+   * Re-queue jobs that a previous process abandoned mid-flight.
+   *
+   * `markProcessing` flips a row to 'processing' before the handler runs, so
+   * if the process dies (deploy, crash, OOM) the row stays 'processing'
+   * forever: `getPendingJobs` only selects 'pending', so the job is never
+   * picked up again and its item never advances past `status = 'processing'`.
+   * Those items are invisible to search, which requires 'ready'.
+   *
+   * A row is considered abandoned when it has sat in 'processing' with an
+   * unchanged `updated_at` for longer than `staleAfterMs`. Rows that have
+   * exhausted `attempts` are marked 'failed' instead of being retried
+   * forever. Returns the number of jobs recovered.
+   */
+  async reapStaleJobs(staleAfterMs: number = DEFAULT_STALE_JOB_MS): Promise<number> {
+    const result = await this.pool.query(
+      `UPDATE jobs
+       SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'pending' END,
+           error = CASE WHEN attempts >= max_attempts THEN COALESCE(error, 'reaped: attempts exhausted') ELSE error END,
+           updated_at = NOW()
+       WHERE status = 'processing'
+         AND updated_at < NOW() - ($1 || ' milliseconds')::interval
+       RETURNING id`,
+      [String(staleAfterMs)]
+    );
+
+    return result.rowCount ?? 0;
   }
 
   /**
@@ -227,6 +267,7 @@ export class JobQueue {
     this.isProcessing = true;
 
     try {
+      await this.maybeReapStaleJobs();
       const jobs = await this.getPendingJobs(5);
       for (const job of jobs) {
         await this.processJob(job);
@@ -235,6 +276,29 @@ export class JobQueue {
       console.error('[JobQueue] Error processing jobs:', error);
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  /**
+   * Run the stale-job reaper at most once per `REAP_INTERVAL_MS`.
+   *
+   * The poll loop runs every second; reaping on every tick would mean a
+   * needless UPDATE against the jobs table 60x a minute. Reaping is only
+   * useful when a worker has actually died, so a minute is plenty.
+   */
+  private async maybeReapStaleJobs(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastReapAt < REAP_INTERVAL_MS) return;
+    this.lastReapAt = now;
+
+    try {
+      const reaped = await this.reapStaleJobs();
+      if (reaped > 0) {
+        console.warn(`[JobQueue] Re-queued ${reaped} abandoned job(s) stuck in 'processing'`);
+      }
+    } catch (error) {
+      // A reaper failure must never stop the queue from processing jobs.
+      console.error('[JobQueue] Failed to reap stale jobs:', error);
     }
   }
 

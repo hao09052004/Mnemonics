@@ -71,6 +71,8 @@ interface OllamaCallArgs {
   json: boolean;
   opts: { timeoutMs: number; signal?: AbortSignal };
   maxAttempts?: number;
+  /** When true, adds `options: { num_gpu: 0 }` to force CPU execution. */
+  forceCpu?: boolean;
 }
 
 async function callOllama({
@@ -80,6 +82,7 @@ async function callOllama({
   json,
   opts,
   maxAttempts = 3,
+  forceCpu,
 }: OllamaCallArgs): Promise<string> {
   const url = `${baseUrl.replace(/\/$/, "")}/api/generate`;
   const body = JSON.stringify({
@@ -95,6 +98,7 @@ async function callOllama({
       // Generous num_predict cap: small open models can ramble.
       // The post-processing step trims to <=32 chars and 5 tags.
       num_predict: 512,
+      ...(forceCpu ? { num_gpu: 0 } : {}),
     },
   });
   let lastErr: ProviderError | null = null;
@@ -202,7 +206,8 @@ Content:
 export class OllamaTextProvider implements TextProvider {
   constructor(
     private readonly baseUrl: string,
-    private readonly model: string
+    private readonly model: string,
+    private readonly forceCpu: boolean = false,
   ) {
     if (!baseUrl) {
       throw new Error("OllamaTextProvider: baseUrl is required");
@@ -250,6 +255,7 @@ export class OllamaTextProvider implements TextProvider {
         prompt,
         json: true,
         opts: { timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+        forceCpu: this.forceCpu,
       });
       const cleaned = raw
         .replace(/```json/gi, "")
@@ -289,6 +295,7 @@ export class OllamaTextProvider implements TextProvider {
         prompt,
         json: false,
         opts: { timeoutMs: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+        forceCpu: this.forceCpu,
       });
       return raw.trim().slice(0, 200);
     } catch (err) {

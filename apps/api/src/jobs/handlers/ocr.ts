@@ -69,6 +69,9 @@ export class OcrHandler {
     if (!TYPES_THAT_NEED_OCR.has(item.type)) {
       console.log(`[OcrHandler] Skipping non-image item ${job.itemId} (type=${item.type})`);
       await this.queue.markCompleted(job.id);
+      // No downstream enqueue here. Non-image items (text/link/note)
+      // already get their `enrich` job from the capture route; OCR is
+      // not part of their pipeline at all.
       return;
     }
 
@@ -78,6 +81,12 @@ export class OcrHandler {
       await this.repository.updateOcrText(job.itemId, "", { errorCode: "NO_ASSET" });
       await this.queue.markCompleted(job.id);
       await this.enqueueTag(job.itemId, job.userId);
+      // Enrichment must be enqueued on this path too. This early
+      // return used to skip it, so an image whose asset row was
+      // missing (or whose storage lookup failed) never received a
+      // caption/tldr enrichment job at all and stayed permanently
+      // bare in the dashboard.
+      await this.enqueueEnrich(job.itemId, job.userId);
       return;
     }
 
@@ -147,6 +156,7 @@ export class OcrHandler {
 
     await this.queue.markCompleted(job.id);
     await this.enqueueTag(job.itemId, job.userId);
+    await this.enqueueEnrich(job.itemId, job.userId);
   }
 
   private async enqueueTag(itemId: string, userId: string): Promise<void> {
@@ -156,6 +166,27 @@ export class OcrHandler {
       userId,
       payload: { afterOcr: true },
     });
+  }
+
+  private async enqueueEnrich(itemId: string, userId: string): Promise<void> {
+    // Best-effort: enrich is enrichment, not a save boundary. If
+    // the queue does not know about the 'enrich' type yet, this
+    // throws and we log without failing the OCR job.
+    try {
+      await this.queue.create({
+        // Cast: JobType union is extended at runtime to include
+        // 'enrich'. Cast keeps the rest of the file typed.
+        type: "enrich" as unknown as "ocr" | "tag" | "embed",
+        itemId,
+        userId,
+        payload: { afterOcr: true },
+      });
+    } catch (err) {
+      console.warn(
+        `[OcrHandler] failed to enqueue enrich job for ${itemId}:`,
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 
   private guessMime(storageKey: string): string {

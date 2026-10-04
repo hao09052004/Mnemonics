@@ -1,12 +1,15 @@
 /**
  * Text embedding provider interface.
  *
- * Embeddings are stored in `item_embeddings.embedding` (existing
- * pgvector column, 1536-d by default). New providers must support
- * the configured dimension, OR the schema must be migrated.
+ * Embeddings are stored in `item_embeddings.embedding` (the
+ * pgvector column, `vector(1024)` since migration 017). New providers
+ * must support the configured dimension, OR the schema must be
+ * migrated.
  *
  * Implementations must:
  * - return a vector of exactly `dimensions` length
+ * - NEVER pad or truncate to fit the column: a zero-padded vector
+ *   ranks on its zero tail and returns arbitrary neighbours
  * - use cosine-friendly L2-normalised vectors (callers may
  *   normalise on read; the existing pgvector migration uses cosine)
  * - never silently degrade to a smaller-dim mock in production
@@ -34,8 +37,8 @@ export interface EmbeddingProvider {
 
   /**
    * Embed a batch. Implementations should batch internally where the
-   * upstream API supports it (Gemini batchEmbedContents, OpenAI
-   * /v1/embeddings with array input).
+   * upstream API supports it (Gemini batchEmbedContents, Ollama
+   * /api/embed with array input).
    */
   embedMany(texts: string[], opts?: EmbeddingOptions): Promise<number[][]>;
 

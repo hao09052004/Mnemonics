@@ -22,6 +22,10 @@ import {
 } from "./providers/ocr/index.js";
 import { buildVisualProvider, type VisualProvider } from "./providers/vision/index.js";
 import {
+  buildUnderstandingProviders,
+  type UnderstandingProviders,
+} from "./providers/understanding/index.js";
+import {
   MemoryCache,
   createMemoryCache,
   type CacheStore,
@@ -35,6 +39,7 @@ export interface AiService {
   readonly primaryOcr: OcrProvider;
   readonly fallbackOcr: OcrProvider;
   readonly visual: VisualProvider;
+  readonly understanding: UnderstandingProviders;
   /** Run OCR with primary → fallback chain. */
   recognizeWithFallback(input: OcrInput): Promise<OcrResult>;
   /** Cache helpers exposed so job handlers can store derived results. */
@@ -54,12 +59,15 @@ export interface AiHealthSnapshot {
     embeddings: string;
     ocr: string;
     visual: string;
+    understanding: string;
   };
   /** True if the provider can be reached / has the right shape. */
   textReady: boolean;
   embeddingsReady: boolean;
   ocrReady: boolean;
   visualReady: boolean;
+  imageDescriptionReady: boolean;
+  tldrReady: boolean;
   ocrDailyCount?: number;
   ocrDailyLimit?: number;
   notes: string[];
@@ -79,6 +87,7 @@ export async function createAiService(opts?: {
       ? primaryOcr
       : new (await import("./providers/ocr/index.js")).TesseractOcrProvider());
   const visual = buildVisualProvider(config);
+  const understanding = buildUnderstandingProviders({ config });
 
   const tagCache = createMemoryCache<string[]>({ defaultTtlMs: 6 * 60 * 60 * 1000 });
   const summaryCache = createMemoryCache<string>({ defaultTtlMs: 6 * 60 * 60 * 1000 });
@@ -92,6 +101,7 @@ export async function createAiService(opts?: {
     primaryOcr,
     fallbackOcr,
     visual,
+    understanding,
     async recognizeWithFallback(input) {
       const key = await contentHash([
         "ocr",
@@ -115,11 +125,12 @@ export async function createAiService(opts?: {
       const textReady = await probe(text.info().name === "noop" ? null : text);
       const embeddingsReady = await probe(embeddings.info().name === "noop" ? null : embeddings);
       const ocrReady = await probe(primaryOcr);
-      const visualReady = primaryOcr.info().name !== "noop" ? true : false;
-      // visual readiness is best-effort; the stub returns false
-      // until M7 wires the real model.
       const visualInfo = visual.info();
       const ocrInfo = primaryOcr.info();
+      const understandingImage = understanding.imageDescription.info();
+      const understandingTldr = understanding.tldr.info();
+      const imageDescriptionReady = understandingImage.loaded;
+      const tldrReady = true; // deterministic always ready; ollama best-effort
       const ocrCounter = (primaryOcr as unknown as {
         // best-effort — only OcrSpaceProvider has this
         dailyCounter?: { count: () => number; limit: () => number };
@@ -132,11 +143,14 @@ export async function createAiService(opts?: {
           embeddings: `${embeddings.info().name}:${embeddings.info().model}`,
           ocr: `${ocrInfo.name}:${ocrInfo.model}`,
           visual: `${visualInfo.name}:${visualInfo.model}`,
+          understanding: `image=${understandingImage.name}:${understandingImage.model}, tldr=${understandingTldr.name}:${understandingTldr.model}`
         },
         textReady,
         embeddingsReady,
         ocrReady,
         visualReady: visualInfo.loaded,
+        imageDescriptionReady,
+        tldrReady,
         ocrDailyCount: ocrCounter?.count?.(),
         ocrDailyLimit:
           typeof ocrCounter?.limit === "function" ? ocrCounter.limit() : undefined,

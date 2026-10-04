@@ -5,14 +5,19 @@
 
 ## Embedding registry
 
+Provider order is **Gemini first, local Ollama second, OpenAI never**
+(`providers/embeddings/index.ts`).
+
 | model name              | dim | provider       | notes                                 |
 |-------------------------|-----|----------------|---------------------------------------|
-| `text-embedding-3-small`| 1536 | openai         | default; cheapest                     |
-| `text-embedding-3-large`| 3072 | openai         | higher quality                        |
-| `bge-large-en-v1.5`     | 1024 | self-hosted    | offline fallback                      |
+| `gemini-embedding-001`  | 1024 | gemini         | primary; requested via `outputDimensionality=1024` |
+| `bge-m3`                | 1024 | ollama (local) | local fallback; `ollama pull bge-m3`  |
 
-Adding a new model requires an ADR. Models are referenced by **string name** in
-the `document_embeddings.model` column.
+Both models are **1024-d on purpose**: they share one
+`item_embeddings.embedding` column (migration 017), so a fallback never
+mixes embedding spaces. Adding a model of a different width therefore
+requires an ADR *and* a column migration — a vector of the wrong width
+is rejected at write time by `enforce_item_embedding_dimensions()`.
 
 ## Vector column
 

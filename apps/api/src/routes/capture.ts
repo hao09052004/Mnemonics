@@ -15,7 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface CaptureRouterDeps {
   repository: ItemRepository;
   imageStorage?: ImageStorage;
-  createJob?: (type: 'ocr' | 'tag' | 'embed', itemId: string, userId: string) => Promise<unknown>;
+  createJob?: (type: 'ocr' | 'tag' | 'embed' | 'enrich', itemId: string, userId: string) => Promise<unknown>;
   supabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
@@ -101,6 +101,14 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         if (createJob) {
           // Tag is the first stage. TagHandler enqueues embedding after success.
           await createJob('tag', item.id, userId);
+          // Memory Understanding is enrichment, not a save boundary.
+          // It runs after tagging so the caption + tldr can use the
+          // generated tags.
+          try {
+            await createJob('enrich', item.id, userId);
+          } catch {
+            // queue might not have 'enrich' registered; that's fine.
+          }
         }
 
         response.status(201).json({ data: { id: item.id, status: item.status } });

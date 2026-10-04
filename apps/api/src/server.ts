@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createItemRepository, createPool } from '@mnemonics/database';
+import { createItemRepository, createPool, createSpaceRepository, createEnrichmentRepository } from '@mnemonics/database';
 import { createClient } from '@supabase/supabase-js';
 import { createApp } from './app.js';
 import { createSupabaseImageStorage, createInMemoryImageStorage } from './storage.js';
@@ -13,6 +13,8 @@ import { createCaptureRouter } from './routes/capture.js';
 import { createSearchRouter } from './routes/search.js';
 import { createItemRouter } from './routes/items.js';
 import { createTagRouter } from './routes/tags.js';
+import { createSpaceRouter } from './routes/spaces.js';
+import { createEnrichmentRouter } from './routes/enrichments.js';
 import { createMonitoringRouter } from './monitoring/monitoring-router.js';
 import { metricsMiddleware } from './monitoring/metrics.js';
 import { captureLimiter, searchLimiter } from './middleware/rate-limit.js';
@@ -56,6 +58,8 @@ const authDeps = supabase
 	: undefined;
 
 const repository = createItemRepository(pool);
+const spaceRepository = createSpaceRepository(pool);
+const enrichmentRepository = createEnrichmentRepository(pool);
 const app = createApp(
 	repository,
 	process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
@@ -71,17 +75,18 @@ const aiService = await createAiService();
 const { queue, router: jobRouter } = createJobRouter({
 	pool,
 	repository,
+	spaceRepository,
+	enrichmentRepository,
 	supabase: serviceSupabase,
 	authSupabase: supabase,
 	imageStorage: imageStorage ?? createInMemoryImageStorage(),
 	ai: aiService,
 	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
-	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
-	openAiKey: process.env.OPENAI_API_KEY
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
 });
 
 // Create job function for capture routes
-const createJob = async (type: 'ocr' | 'tag' | 'embed', itemId: string, userId: string) => {
+const createJob = async (type: 'ocr' | 'tag' | 'embed' | 'enrich', itemId: string, userId: string) => {
 	return queue.create({ type, itemId, userId });
 };
 
@@ -131,14 +136,34 @@ const graphRouter = createGraphRouter({
   developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
 });
 
+// Mount spaces router
+const spaceRouter = createSpaceRouter({
+  pool,
+  supabase,
+  expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+  developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
+  embeddings: aiService.embeddings
+});
+
+// Mount enrichment router
+const enrichmentRouter = createEnrichmentRouter({
+  pool,
+  supabase,
+  expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+  developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
+  queue
+});
+
 // Mount routes
 app.use(metricsMiddleware());
 app.use('/api/v1', jobRouter);
-app.use('/api/v1', captureRouter);
+app.use('/api/v1', captureLimiter, captureRouter);
 app.use('/api/v1', searchLimiter, searchRouter);
-app.use('/api/v1', captureLimiter, itemRouter);
+app.use('/api/v1', itemRouter);
 app.use('/api/v1', tagRouter);
 app.use('/api/v1', graphRouter);
+app.use('/api/v1', spaceRouter);
+app.use('/api/v1', enrichmentRouter);
 app.use('/', monitoringRouter);
 
 // Start queue processor

@@ -3,14 +3,14 @@
  * ProviderError, retries once with a fallback. Mirrors the text
  * wrapper's contract exactly so the same reasoning applies.
  *
- * Today the only allowed fallback is a NoopEmbeddingProvider: the
- * project's pgvector column is 1536-d, and no Ollama model we ship
- * by default produces 1536-d vectors. The fallback is therefore
- * "lexical-only search" — semantic search degrades gracefully.
+ * For embeddings the fallback is a REAL second provider, not a no-op:
+ * the chain is gemini -> ollama (local) -> noop. Because both real
+ * providers emit exactly 1024-d vectors (the width of
+ * `item_embeddings.embedding`), a Gemini outage degrades to
+ * slower local semantic search rather than to lexical-only.
  *
- * If a future 1536-d local model is wired in (e.g. an Ollama build
- * that does project embeddings to 1536), swap the noop out for that
- * concrete provider; this wrapper does not need to change.
+ * The chain always terminates at a noop, which throws — so a caller
+ * can never mistake "no embedding" for "semantically unrelated".
  */
 
 import { ProviderError } from "../../types.js";

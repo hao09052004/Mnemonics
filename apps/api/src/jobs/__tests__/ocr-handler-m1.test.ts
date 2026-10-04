@@ -68,9 +68,10 @@ function createAi(overrides: {
         provider: 'noop',
         geminiApiKey: undefined,
         geminiModel: 'gemini-embedding-001',
-        geminiDimensions: 1536,
-        openaiApiKey: undefined,
-        openaiModel: 'text-embedding-3-small'
+        geminiDimensions: 1024,
+        ollamaBaseUrl: undefined,
+        ollamaEmbeddingModel: 'bge-m3',
+        embeddingsFallback: true
       },
       ocr: {
         provider: 'ocrspace',

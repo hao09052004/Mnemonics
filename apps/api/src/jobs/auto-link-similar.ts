@@ -17,9 +17,9 @@ const DEFAULT_LIMIT = 5;
  * Create similarity edges from a newly embedded item to the closest
  * READY memories owned by the same user.
  *
- * This deliberately runs only for production OpenAI embeddings. Mock
- * development embeddings are deterministic by text length and are not
- * meaningful for semantic relationships.
+ * This only runs for real embeddings. The embed handler refuses to
+ * write synthetic vectors, so any row reaching this function holds a
+ * genuine 1024-d vector from Gemini or the local model.
  */
 export async function autoLinkSimilarItems(
   pool: Pool,

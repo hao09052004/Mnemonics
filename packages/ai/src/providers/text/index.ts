@@ -56,7 +56,8 @@ function pickPrimary(config: AiConfig): TextProvider {
     case "ollama": {
       return new OllamaTextProvider(
         config.text.ollamaBaseUrl ?? "http://localhost:11434",
-        config.text.ollamaTextModel
+        config.text.ollamaTextModel,
+        config.ollamaForceCpu,
       );
     }
     case "heuristic":
@@ -77,7 +78,8 @@ function pickFallback(
   if (primaryName === "gemini") {
     return new OllamaTextProvider(
       config.text.ollamaBaseUrl ?? "http://localhost:11434",
-      config.text.ollamaTextModel
+      config.text.ollamaTextModel,
+      config.ollamaForceCpu,
     );
   }
   if (primaryName === "ollama") {

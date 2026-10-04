@@ -7,10 +7,20 @@
 import type { Request, Response, NextFunction } from 'express';
 
 interface RateLimitConfig {
-  windowMs: number; // Time window in milliseconds
+    windowMs: number; // Time window in milliseconds
   maxRequests: number; // Max requests per window
   keyGenerator?: (req: Request) => string;
   message?: string;
+  /**
+   * Decides whether this request is actually guarded by the limiter.
+   *
+   * Limiters are mounted on a shared '/api/v1' prefix so the underlying
+   * routers can keep their own absolute paths. That means the middleware
+   * also runs for routes it does not own, and every one of those requests
+   * used to consume the budget. Returning false makes the limiter a pass
+   *-through for routes outside its scope. Defaults to counting everything.
+   */
+  shouldLimit?: (req: Request) => boolean;
 }
 
 interface RequestRecord {
@@ -28,7 +38,8 @@ export function rateLimit(config: RateLimitConfig) {
     windowMs,
     maxRequests,
     keyGenerator = (req) => req.ip || 'unknown',
-    message = 'Too many requests, please try again later.'
+    message = 'Too many requests, please try again later.',
+    shouldLimit = () => true
   } = config;
 
   const storeKey = `${windowMs}-${maxRequests}`;
@@ -40,6 +51,12 @@ export function rateLimit(config: RateLimitConfig) {
   const store = stores.get(storeKey)!;
 
   return (req: Request, res: Response, next: NextFunction): void => {
+    // Not a route this limiter guards — pass through without spending budget.
+    if (!shouldLimit(req)) {
+      next();
+      return;
+    }
+
     const key = keyGenerator(req);
     const now = Date.now();
 
@@ -91,17 +108,32 @@ function cleanupExpired(store: Map<string, RequestRecord>, now: number): void {
 
 /**
  * Pre-configured limiters for different endpoints
+ *
+ * The `shouldLimit` predicates matter: these limiters are mounted on the
+ * shared '/api/v1' prefix (so each router can keep its own absolute paths),
+ * which means the middleware also sees /tags, /spaces, /graph, /items, etc.
+ * Without the predicate a single dashboard page load burns the capture
+ * budget and unrelated endpoints start returning 429.
  */
+
+/** Matches a route path (ignoring query string) against exact prefixes. */
+function isUnder(path: string, ...prefixes: string[]): boolean {
+  const clean = path.split('?')[0].replace(/\/+$/, '') || '/';
+  return prefixes.some((prefix) => clean === prefix || clean.startsWith(`${prefix}/`));
+}
+
 export const captureLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   maxRequests: 30, // 30 captures per minute
-  message: 'Quá nhiều captures. Vui lòng thử lại sau 1 phút.'
+  message: 'Quá nhiều captures. Vui lòng thử lại sau 1 phút.',
+  shouldLimit: (req) => isUnder(req.path, '/captures', '/api/v1/captures')
 });
 
 export const searchLimiter = rateLimit({
   windowMs: 60 * 1000,
   maxRequests: 100, // 100 searches per minute
-  message: 'Quá nhiều tìm kiếm. Vui lòng thử lại sau.'
+  message: 'Quá nhiều tìm kiếm. Vui lòng thử lại sau.',
+  shouldLimit: (req) => isUnder(req.path, '/search', '/api/v1/search')
 });
 
 export const authLimiter = rateLimit({

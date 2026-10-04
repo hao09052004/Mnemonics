@@ -1,37 +1,74 @@
-import { readFile } from 'node:fs/promises';
-import { resolve, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import pg from 'pg';
+/**
+ * Apply pending SQL migrations in numeric order.
+ *
+ * Idempotent per file: each migration is written with IF EXISTS /
+ * IF NOT EXISTS guards, and a file is skipped when the migrations
+ * ledger already records it. Keeping the ledger in a local table
+ * (rather than trusting file order) means a developer who applied 014
+ * by hand is not re-run through it.
+ */
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { config } from 'dotenv';
+import { createPool } from '@mnemonics/database';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = resolve(here, '..', '..', '..', 'packages', 'database', 'migrations');
-const databaseUrl = process.env.DATABASE_URL;
+config({ path: join(process.cwd(), '.env') });
+config({ path: join(process.cwd(), '../../.env') });
 
-if (!databaseUrl) {
-  console.error('DATABASE_URL is missing in env');
+const MIGRATIONS_DIR = join(process.cwd(), '..', '..', 'packages', 'database', 'migrations');
+const url = process.env.DATABASE_URL;
+if (!url) {
+  console.error('DATABASE_URL is not set');
   process.exit(1);
 }
 
-const wanted = ['004_job_queue.sql', '005_pgvector_search.sql', '006_knowledge_graph.sql'];
+const pool = createPool(url);
 
-const pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
+const ledger = `
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    filename TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`;
 
-try {
-  for (const name of wanted) {
-    const sql = await readFile(join(migrationsDir, name), 'utf8');
-    console.log(`Applying ${name} ...`);
-    await pool.query(sql);
-    console.log(`  ok`);
-  }
-
-  const tables = await pool.query(
-    "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
+async function main() {
+  await pool.query(ledger);
+  const applied = new Set(
+    (await pool.query<{ filename: string }>('SELECT filename FROM schema_migrations')).rows.map(
+      (r) => r.filename
+    )
   );
-  console.log('Tables now in public:');
-  for (const r of tables.rows) console.log('  ' + r.tablename);
-} catch (e) {
-  console.error('ERR:', e.message);
-  process.exit(1);
-} finally {
-  await pool.end();
+
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+
+  let count = 0;
+  for (const file of files) {
+    if (applied.has(file)) {
+      console.log(`  = ${file} (already applied)`);
+      continue;
+    }
+    const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
+    try {
+      await pool.query(sql);
+      await pool.query(
+        'INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING',
+        [file]
+      );
+      console.log(`  + ${file}`);
+      count += 1;
+    } catch (error) {
+      console.error(`  ! ${file} failed: ${(error as Error).message}`);
+      process.exitCode = 1;
+      break;
+    }
+  }
+  console.log(count === 0 ? 'nothing to do' : `applied ${count} migration(s)`);
 }
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  })
+  .finally(() => pool.end());

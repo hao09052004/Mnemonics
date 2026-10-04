@@ -3,16 +3,13 @@
  *
  * Processes embedding jobs for all item types.
  * Generates vector embeddings via the injected AiService (which is
- * the single source of truth for provider selection — Gemini by
- * default, OpenAI as legacy fallback, noop when free-only is on
- * without a Gemini key).
+ * the single source of truth for provider selection — Gemini first,
+ * a local Ollama model second, noop only when neither is usable).
  *
- * M1 fix: previously this handler called OpenAI directly via a
- * `fetch('https://api.openai.com/v1/embeddings')` URL. That broke
- * the FREE-ONLY-only deployment because no OpenAI key is set. Now
- * the handler delegates to `ai.embeddings.embed()` so the provider
- * picked by `loadAiConfig()` (Gemini when `GEMINI_API_KEY` is set,
- * OpenAI legacy when explicitly chosen, else NoopEmbedding) wins.
+ * The handler never calls a provider directly; it delegates to
+ * `ai.embeddings`, so loadAiConfig() owns the whole chain. Every
+ * provider in that chain emits 1024-d vectors, which is what
+ * `item_embeddings.embedding` (vector(1024)) accepts.
  */
 
 import type { JobQueue } from "../queue.js";
@@ -55,27 +52,68 @@ export class EmbedHandler {
         throw new Error("Item not found");
       }
 
+      // Pull the AI-derived fields in the same call so the
+      // embedding reflects the most recent understanding. We read
+      // them out-of-band (not via the item repository) to keep the
+      // repository surface small.
+      let caption: string | null = null;
+      let tldr: string | null = null;
+      if (this.pool) {
+        try {
+          const enr = await this.pool.query<{ caption: string | null; tldr: string | null }>(
+            `SELECT caption, tldr FROM item_enrichments WHERE item_id = $1`,
+            [job.itemId]
+          );
+          caption = enr.rows[0]?.caption ?? null;
+          tldr = enr.rows[0]?.tldr ?? null;
+        } catch (enrErr) {
+          // The `item_enrichments` table may not exist in some
+          // environments (e.g. in-memory test pools, or legacy
+          // installations without the migration applied yet). The
+          // embedding must still succeed; just skip enrichment.
+          console.warn(
+            `[EmbedHandler] item_enrichments lookup skipped (${(enrErr as Error).message ?? 'unknown'})`
+          );
+        }
+      }
+
       // 2. Generate embedding
-      const textToEmbed = this.prepareTextForEmbedding(item);
+      const textToEmbed = this.prepareTextForEmbedding({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        rawText: item.rawText ?? null,
+        ocrText: item.ocrText ?? null,
+        caption,
+        tldr
+      });
       if (!textToEmbed.trim()) {
         console.log(`[EmbedHandler] No text to embed for item ${job.itemId}`);
         await this.queue.markCompleted(job.id);
+        await this.markReadyIfComplete(job);
         return;
       }
 
       const providerInfo = this.ai.embeddings.info();
-      let embedding: number[];
-      if (providerInfo.name === "noop") {
-        // No provider available — store a deterministic mock so the
-        // search table stays consistent. Same shape as the old
-        // OpenAI keyless fallback.
+
+      // Noop means NEITHER Gemini NOR a local model is usable. We refuse
+      // to invent a vector: a synthetic embedding would be written into
+      // the same vector(1024) column as real ones and then compared
+      // against real query vectors, silently returning arbitrary
+      // neighbours. Skipping the write keeps search honest — it degrades
+      // to lexical-only, which is a visible, correct behaviour.
+      if (providerInfo.name === "noop" || providerInfo.name.endsWith("+noop")) {
         console.warn(
-          `[EmbedHandler] No embedding provider configured (name=${providerInfo.name}), storing mock embedding`
+          `[EmbedHandler] No embedding provider available (${providerInfo.name}); ` +
+            `skipping embedding for item ${job.itemId}. Search stays lexical-only. ` +
+            `Set GEMINI_API_KEY, or 'ollama pull bge-m3' for the local fallback.`
         );
-        embedding = this.generateMockEmbedding(textToEmbed.length);
-      } else {
-        embedding = await this.ai.embeddings.embedOne(textToEmbed);
+        await this.queue.markCompleted(job.id);
+        await this.markReadyIfComplete(job);
+        return;
       }
+
+      const embedding = await this.ai.embeddings.embedOne(textToEmbed);
 
       // 3. Save embedding to database
       await this.saveEmbedding(
@@ -89,27 +127,7 @@ export class EmbedHandler {
       await this.queue.markCompleted(job.id);
 
       // 5. Check if all jobs are done, then mark item as ready
-      const allDone = await this.queue.areAllJobsCompleted(job.itemId);
-      if (allDone) {
-        await this.repository.updateStatus(job.itemId, "ready");
-
-        if (this.pool) {
-          try {
-            const related = await autoLinkSimilarItems(this.pool, job.userId, job.itemId);
-            console.log(
-              `[EmbedHandler] Auto-linked ${related.length} similar memories for item ${job.itemId}`
-            );
-          } catch (graphError) {
-            // Graph enrichment is best-effort: a graph outage must not turn
-            // a successfully embedded, searchable item back into a failed job.
-            console.warn("[EmbedHandler] Similarity linking failed:", graphError);
-          }
-        }
-
-        console.log(`[EmbedHandler] Item ${job.itemId} is now ready`);
-      } else {
-        console.log(`[EmbedHandler] Item ${job.itemId} still has pending jobs`);
-      }
+      await this.markReadyIfComplete(job);
 
       console.log(`[EmbedHandler] Embedding completed for item ${job.itemId}`);
     } catch (error) {
@@ -119,37 +137,66 @@ export class EmbedHandler {
     }
   }
 
+  /**
+   * Promote the item to 'ready' once every one of its jobs is done.
+   *
+   * This is the single funnel for the transition, because an item that
+   * never reaches 'ready' is invisible to search (the search route
+   * filters on `status = 'ready'`). Every exit path must call it — the
+   * happy path, the "nothing to embed" path, and the "no embedding
+   * provider" path. An embed job that completes without a vector still
+   * counts as completed: a memory with no embedding is still a usable
+   * memory, searchable lexically.
+   */
+  private async markReadyIfComplete(job: { itemId: string; userId: string }): Promise<void> {
+    const allDone = await this.queue.areAllJobsCompleted(job.itemId);
+    if (!allDone) {
+      console.log(`[EmbedHandler] Item ${job.itemId} still has pending jobs`);
+      return;
+    }
+
+    await this.repository.updateStatus(job.itemId, "ready");
+
+    if (this.pool) {
+      try {
+        const related = await autoLinkSimilarItems(this.pool, job.userId, job.itemId);
+        console.log(
+          `[EmbedHandler] Auto-linked ${related.length} similar memories for item ${job.itemId}`
+        );
+      } catch (graphError) {
+        // Graph enrichment is best-effort: a graph outage must not turn
+        // a successfully embedded, searchable item back into a failed job.
+        console.warn("[EmbedHandler] Similarity linking failed:", graphError);
+      }
+    }
+
+    console.log(`[EmbedHandler] Item ${job.itemId} is now ready`);
+  }
+
   private prepareTextForEmbedding(item: {
     id: string;
     type: string;
     title: string;
     rawText?: string | null;
     ocrText?: string | null;
+    caption?: string | null;
+    tldr?: string | null;
   }): string {
-    // Combine available text fields for embedding
+    // Build a structured representation so the embedding captures
+    // the user-curated fields AND the AI-derived fields. The two
+    // most retrieval-useful signals (title, tldr) come first; OCR
+    // and caption come later so the centroid is biased towards
+    // what the user typed.
     const parts = [
-      item.title,
-      item.rawText || "",
-      item.ocrText || "",
+      item.title ? `Title: ${item.title}` : "",
+      item.tldr ? `TLDR: ${item.tldr}` : "",
+      item.caption ? `Description: ${item.caption}` : "",
+      item.rawText ? `Content: ${item.rawText}` : "",
+      item.ocrText ? `OCR: ${item.ocrText}` : ""
     ].filter(Boolean);
 
     // Join with separators and truncate to ~8000 chars (leaving room for model limits)
     return parts.join("\n\n").slice(0, 8000);
-  }
-
-  private generateMockEmbedding(size: number): number[] {
-    // Generate a deterministic mock embedding based on text length.
-    // This is NOT a real embedding — search/cluster quality will be
-    // bad. Only used when no embedding provider is configured.
-    const dimensions = 1536;
-    const embedding: number[] = [];
-
-    for (let i = 0; i < dimensions; i++) {
-      embedding.push(Math.sin(size + i * 0.1) * 0.5);
-    }
-
-    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    return embedding.map(val => val / magnitude);
   }
 
   private async saveEmbedding(

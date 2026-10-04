@@ -5,9 +5,14 @@
  * which AI providers Mnemonics talks to. Centralised here so the
  * rest of the codebase never reads process.env directly.
  *
- * Hard rule: when AI_FREE_ONLY=true, the OpenAI provider is FORBIDDEN
- * regardless of OPENAI_API_KEY. This is the project-wide promise
- * documented in docs/free-ai-setup.md.
+ * Hard rule: when AI_FREE_ONLY=true, only free / local providers may
+ * be called. Gemini's free tier and a local Ollama daemon both qualify;
+ * the flag exists so a future paid provider cannot be enabled silently.
+ *
+ * Provider order for every AI capability: **Gemini first, local
+ * (Ollama) second, OpenAI never.** OpenAI was removed from the codebase
+ * entirely — there is no OPENAI_API_KEY and no openai provider, so a
+ * ChatGPT key can no longer be selected by accident.
  */
 
 export interface AiConfig {
@@ -38,18 +43,22 @@ export interface AiConfig {
   };
 
   embeddings: {
-    provider: "gemini" | "openai" | "noop";
+    provider: "gemini" | "ollama" | "noop";
     geminiApiKey?: string;
     geminiModel: string;
     geminiDimensions: number;
-    openaiApiKey?: string;
-    openaiModel: string;
     /**
-     * Embedding-time fallback when the primary provider throws.
-     * The project has no Ollama 1536-d model on offer, so the
-     * fallback is `noop` (refuses to embed, search degrades to
-     * lexical-only). The flag exists so future 1536-d local
-     * models can be wired in without a config-shape change.
+     * Local embedding fallback. Must be a model that emits exactly
+     * `geminiDimensions` floats (bge-m3 is 1024-d) because both
+     * providers write into the same `item_embeddings.embedding`
+     * column — mixing widths would corrupt every similarity score.
+     */
+    ollamaBaseUrl?: string;
+    ollamaEmbeddingModel: string;
+    /**
+     * Embedding-time fallback when the primary provider throws:
+     * gemini -> local (Ollama) -> noop (lexical-only). The flag
+     * exists so a deployment can opt out of the local hop.
      */
     embeddingsFallback: boolean;
   };
@@ -61,9 +70,31 @@ export interface AiConfig {
     localFallback: boolean;
   };
 
+  /**
+   * Force Ollama to run on CPU even when a GPU is available.
+   * Needed when CUDA/cuDNN is broken on the host — Ollama attempts GPU
+   * execution first and fails with a stack-buffer-overrun before
+   * falling back to CPU automatically.
+   */
+  ollamaForceCpu: boolean;
+
   vision: {
     provider: "local";
     clipModel: string;
+  };
+
+  understanding: {
+    /** Local image-description provider. Always on. */
+    localImageModel: string;
+    /** Whether the local model may be downloaded on first use. */
+    allowDownload: boolean;
+    /** "deterministic" (default) or "ollama" (local LLM upgrade). */
+    tldrProvider: "deterministic" | "ollama";
+    /** Hard ceiling for the TLDR string we persist. */
+    tldrMaxLength: number;
+    /** Below this raw content length the deterministic provider is
+     *  used verbatim — no LLM call is attempted. */
+    tldrMinTextLength: number;
   };
 }
 
@@ -88,8 +119,8 @@ function readInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number
 
 /**
  * Build the config. Throws if a configuration is internally
- * inconsistent (e.g. AI_FREE_ONLY=true with AI_TEXT_PROVIDER=openai,
- * which we do not currently support anyway).
+ * inconsistent (e.g. AI_FREE_ONLY=true with a non-local visual
+ * provider).
  */
 export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
   const freeOnly = readBool(env, "AI_FREE_ONLY", true);
@@ -102,22 +133,18 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
     | "ollama";
   const embeddingProvider = (readString(env, "AI_EMBEDDING_PROVIDER", "gemini") ?? "gemini") as
     | "gemini"
-    | "openai"
+    | "ollama"
     | "noop";
   const ocrProvider = (readString(env, "OCR_PROVIDER", "ocrspace") ?? "ocrspace") as
     | "ocrspace"
     | "tesseract";
   const visionProvider = (readString(env, "VISUAL_EMBEDDING_PROVIDER", "local") ?? "local") as
     | "local";
+  const tldrProvider = (readString(env, "AI_TLDR_PROVIDER", "deterministic") ?? "deterministic") as
+    | "deterministic"
+    | "ollama";
 
   if (freeOnly) {
-    if (embeddingProvider === "openai") {
-      throw new Error(
-        "AI_FREE_ONLY=true but AI_EMBEDDING_PROVIDER=openai. " +
-          "Free mode forbids paid providers. Set AI_EMBEDDING_PROVIDER=gemini " +
-          "or AI_FREE_ONLY=false."
-      );
-    }
     if (visionProvider !== "local") {
       throw new Error(
         "AI_FREE_ONLY=true but VISUAL_EMBEDDING_PROVIDER is not 'local'. " +
@@ -149,11 +176,13 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       geminiApiKey: readString(env, "GEMINI_API_KEY"),
       geminiModel:
         readString(env, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001") ?? "gemini-embedding-001",
-      geminiDimensions: readInt(env, "GEMINI_EMBEDDING_DIMENSIONS", 1536),
-      openaiApiKey: readString(env, "OPENAI_API_KEY"),
-      openaiModel:
-        readString(env, "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") ??
-        "text-embedding-3-small",
+      // Must stay in sync with item_embeddings.embedding — migration
+      // 017 narrowed the column to 1024 so Gemini and the local model
+      // share one embedding space.
+      geminiDimensions: readInt(env, "GEMINI_EMBEDDING_DIMENSIONS", 1024),
+      ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://localhost:11434"),
+      ollamaEmbeddingModel:
+        readString(env, "OLLAMA_EMBEDDING_MODEL", "bge-m3") ?? "bge-m3",
       embeddingsFallback: readBool(env, "AI_EMBEDDING_FALLBACK", true),
     },
     ocr: {
@@ -162,11 +191,21 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       ocrSpaceDailySoftLimit: readInt(env, "OCR_SPACE_DAILY_SOFT_LIMIT", 450),
       localFallback: readBool(env, "OCR_LOCAL_FALLBACK", true),
     },
+    ollamaForceCpu: readBool(env, "OLLAMA_FORCE_CPU", false),
     vision: {
       provider: visionProvider,
       clipModel:
         readString(env, "VISUAL_EMBEDDING_MODEL", "Xenova/clip-vit-base-patch32") ??
         "Xenova/clip-vit-base-patch32",
+    },
+    understanding: {
+      localImageModel:
+        readString(env, "LOCAL_IMAGE_DESCRIPTION_MODEL", "Xenova/vit-gpt2-image-captioning") ??
+        "Xenova/vit-gpt2-image-captioning",
+      allowDownload: readBool(env, "AI_IMAGE_DESCRIPTION_ALLOW_DOWNLOAD", true),
+      tldrProvider,
+      tldrMaxLength: readInt(env, "TLDR_MAX_LENGTH", 240),
+      tldrMinTextLength: readInt(env, "AI_TLDR_MIN_TEXT_LENGTH", 160)
     },
   };
 

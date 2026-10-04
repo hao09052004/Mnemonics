@@ -35,7 +35,7 @@ interface Session {
   user: AuthUser;
 }
 
-export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem, ItemDetail, UpdateItemRequest, TagListItem, TagItemsResponse, TagSuggestion, TagSuggestionResponse };
+export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem, ItemDetail, UpdateItemRequest, TagListItem, TagItemsResponse, TagSuggestion, TagSuggestionResponse, ItemEnrichment, Space, SpaceWithCount, SpaceRule, SpaceType, SpacePreviewItem };
 
 interface LoginRequest {
   email: string;
@@ -90,6 +90,12 @@ interface Item {
   status?: string;
   image_url?: string;
   source_url?: string;
+  // The list endpoint (`GET /api/v1/items`) returns the stored body
+  // columns; only `/search` returns a pre-built `snippet`. The
+  // dashboard must fall back to these or every card renders empty.
+  raw_text?: string | null;
+  ocr_text?: string | null;
+  is_favorite?: boolean;
 }
 
 interface ItemDetail extends Item {
@@ -98,9 +104,100 @@ interface ItemDetail extends Item {
   notes?: string | null;
 }
 
+interface ItemEnrichment {
+  itemId: string;
+  caption: string | null;
+  captionProvider: string | null;
+  captionModel: string | null;
+  captionStatus: 'pending' | 'processing' | 'ready' | 'failed' | 'disabled';
+  captionErrorCode: string | null;
+  tldr: string | null;
+  tldrSource: 'pending' | 'local_ai' | 'cloud_ai' | 'heuristic' | 'user';
+  tldrProvider: string | null;
+  tldrModel: string | null;
+  tldrPromptVersion: string | null;
+  tldrStatus: 'pending' | 'processing' | 'ready' | 'failed' | 'disabled';
+  tldrErrorCode: string | null;
+  summary: string | null;
+  updatedAt: string;
+}
+
+/**
+ * A Space is either `manual` (the user picked the memories) or `smart`
+ * (the user saved criteria and membership is derived). The two behave
+ * differently enough that the distinction is load-bearing in the UI:
+ * a manual Space offers "remove from Space", a smart one does not.
+ */
+type SpaceType = 'manual' | 'smart';
+
+/** Curated identity palette, mirrored from the DB CHECK constraint. */
+export const SPACE_COLORS = [
+  'violet',
+  'blue',
+  'teal',
+  'sage',
+  'amber',
+  'rose',
+  'slate'
+] as const;
+export type SpaceColor = (typeof SPACE_COLORS)[number];
+
+/**
+ * The criteria a Smart Space stores. This is the same shape
+ * `POST /api/v1/search` accepts, which is what makes "save this search
+ * as a Space" a straight serialise with no translation layer.
+ */
+interface SpaceRule {
+  q?: string;
+  filters?: {
+    tags?: string[];
+    kind?: Array<'link' | 'text' | 'image' | 'screenshot'>;
+    captured_after?: string;
+    captured_before?: string;
+    favorite?: boolean;
+  };
+}
+
+/** A representative memory on a Space card. No bodies, no image bytes. */
+interface SpacePreviewItem {
+  id: string;
+  kind: string;
+  title: string;
+  thumbnailUrl: string | null;
+  isFavorite: boolean;
+}
+
+interface Space {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  color: SpaceColor | null;
+  spaceType: SpaceType;
+  coverItemId: string | null;
+  /** Present on a smart Space only. */
+  rule: SpaceRule | null;
+  ruleVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SpaceWithCount extends Space {
+  /**
+   * `null` for a smart Space whose count has not been resolved yet —
+   * computing it means running the search. The UI shows "Auto" rather
+   * than a misleading 0.
+   */
+  itemCount: number | null;
+  previewItems: SpacePreviewItem[];
+}
+
 interface UpdateItemRequest {
   title?: string;
   notes?: string;
+  /** Toggles `items.is_favorite`. Backed by `PATCH /api/v1/items/:id`. */
+  isFavorite?: boolean;
+  tags?: string[];
 }
 
 interface TagListItem {
@@ -380,6 +477,166 @@ export class ApiClient {
       accessToken,
       body: { text, max }
     });
+  }
+
+  // ----- Memory Understanding -----
+
+  async getEnrichment(itemId: string, accessToken: string): Promise<ItemEnrichment | null> {
+    const response = await this.request<{ data: { enrichment: ItemEnrichment | null } }>(
+      `/api/v1/items/${encodeURIComponent(itemId)}/enrichment`,
+      { accessToken }
+    );
+    return response.data?.enrichment ?? null;
+  }
+
+  async setUserTldr(itemId: string, tldr: string, accessToken: string): Promise<ItemEnrichment | null> {
+    const response = await this.request<{ data: { enrichment: ItemEnrichment | null } }>(
+      `/api/v1/items/${encodeURIComponent(itemId)}/tldr`,
+      {
+        method: 'PATCH',
+        accessToken,
+        body: { tldr }
+      }
+    );
+    return response.data?.enrichment ?? null;
+  }
+
+  async regenerateTldr(itemId: string, accessToken: string): Promise<void> {
+    await this.request<{ data: { regenerating: boolean } }>(
+      `/api/v1/items/${encodeURIComponent(itemId)}/tldr`,
+      {
+        method: 'PATCH',
+        accessToken,
+        body: { tldr: ' ', regenerate: true }
+      }
+    );
+  }
+
+  // ----- Spaces -----
+
+  /**
+   * `withCounts` resolves smart counts (and their live previews) in one
+   * extra server-side pass. Off by default because each smart Space
+   * costs a search; the All Spaces page opts in so its cards can show a
+   * real number instead of "Auto".
+   */
+  async listSpaces(
+    accessToken: string,
+    options: { withCounts?: boolean } = {}
+  ): Promise<SpaceWithCount[]> {
+    const query = options.withCounts ? '?withCounts=1' : '';
+    const response = await this.request<{ data: { spaces: SpaceWithCount[] } }>(
+      `/api/v1/spaces${query}`,
+      { accessToken }
+    );
+    return response.data?.spaces ?? [];
+  }
+
+  async getSpace(id: string, accessToken: string): Promise<SpaceWithCount | null> {
+    const response = await this.request<{ data: { space: SpaceWithCount | null } }>(
+      `/api/v1/spaces/${encodeURIComponent(id)}`,
+      { accessToken }
+    );
+    return response.data?.space ?? null;
+  }
+
+  async createSpace(
+    payload: {
+      name: string;
+      description?: string;
+      color?: SpaceColor;
+      spaceType: SpaceType;
+      coverItemId?: string;
+      /** Required for, and only accepted on, a smart Space. */
+      rule?: SpaceRule;
+    },
+    accessToken: string
+  ): Promise<Space> {
+    const response = await this.request<{ data: { space: Space } }>(
+      '/api/v1/spaces',
+      { method: 'POST', accessToken, body: payload }
+    );
+    return response.data.space;
+  }
+
+  /**
+   * Dedicated "save this search as a Space" call. Server-side it is
+   * the same handler with `spaceType` pinned to `smart`, which stops
+   * the client from ever sending a mismatched { spaceType, rule } pair.
+   */
+  async createSmartSpace(
+    payload: {
+      name: string;
+      description?: string;
+      color?: SpaceColor;
+      rule: SpaceRule;
+    },
+    accessToken: string
+  ): Promise<Space> {
+    const response = await this.request<{ data: { space: Space } }>(
+      '/api/v1/spaces/from-search',
+      { method: 'POST', accessToken, body: payload }
+    );
+    return response.data.space;
+  }
+
+  async updateSpace(
+    id: string,
+    patch: Partial<Pick<Space, 'name' | 'description' | 'color' | 'coverItemId' | 'rule'>>,
+    accessToken: string
+  ): Promise<Space | null> {
+    const response = await this.request<{ data: { space: Space | null } }>(
+      `/api/v1/spaces/${encodeURIComponent(id)}`,
+      { method: 'PATCH', accessToken, body: patch }
+    );
+    return response.data.space;
+  }
+
+  async deleteSpace(id: string, accessToken: string): Promise<void> {
+    await this.request<void>(`/api/v1/spaces/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      accessToken,
+      parseJson: false
+    });
+  }
+
+  /**
+   * Members of a Space. For a manual Space these are the persisted
+   * membership rows; for a smart Space the server re-runs the stored
+   * criteria, so the result reflects memories captured since the Space
+   * was created.
+   */
+  async listSpaceItems(
+    id: string,
+    accessToken: string
+  ): Promise<{ ids: string[]; items: SpacePreviewItem[]; source: SpaceType; total?: number }> {
+    const response = await this.request<{
+      data: { ids: string[]; items: SpacePreviewItem[]; source: SpaceType; total?: number };
+    }>(`/api/v1/spaces/${encodeURIComponent(id)}/items`, { accessToken });
+    return response.data;
+  }
+
+  /**
+   * Add memories to a manual Space. Idempotent: an id that is already
+   * a member comes back under `skipped` rather than failing the call.
+   */
+  async addItemsToSpace(
+    spaceId: string,
+    itemIds: string[],
+    accessToken: string
+  ): Promise<{ added: string[]; skipped: string[] }> {
+    const response = await this.request<{ data: { added: string[]; skipped: string[] } }>(
+      `/api/v1/spaces/${encodeURIComponent(spaceId)}/items`,
+      { method: 'POST', accessToken, body: { itemIds } }
+    );
+    return response.data;
+  }
+
+  async removeItemFromSpace(spaceId: string, itemId: string, accessToken: string): Promise<void> {
+    await this.request<void>(
+      `/api/v1/spaces/${encodeURIComponent(spaceId)}/items/${encodeURIComponent(itemId)}`,
+      { method: 'DELETE', accessToken, parseJson: false }
+    );
   }
 
   async forgotPassword(email: string): Promise<void> {

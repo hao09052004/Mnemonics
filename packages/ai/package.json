@@ -8,7 +8,9 @@
     "./providers/text": "./dist/providers/text/index.js",
     "./providers/embeddings": "./dist/providers/embeddings/index.js",
     "./providers/ocr": "./dist/providers/ocr/index.js",
-    "./providers/vision": "./dist/providers/vision/index.js"
+    "./providers/vision": "./dist/providers/vision/index.js",
+    "./providers/understanding": "./dist/providers/understanding/index.js",
+    "./understanding": "./dist/understanding/types.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -16,7 +18,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@huggingface/transformers": "^3.0.0"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

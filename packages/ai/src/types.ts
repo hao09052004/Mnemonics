@@ -7,7 +7,7 @@
  * Spaces suggester) should depend on these types, NOT on a concrete
  * provider implementation.
  *
- * Why: we want to be able to swap Gemini ↔ OpenAI ↔ local CLIP
+ * Why: we want to be able to swap Gemini ↔ local Ollama ↔ local CLIP
  * without touching business logic, and we want AI_FREE_ONLY=true to
  * be enforced at the type-boundary, not at scattered `if (process.env…)`
  * checks.
@@ -25,6 +25,8 @@ export type ProviderFailureCode =
   | "INVALID_RESPONSE"
   | "INPUT_TOO_LARGE"
   | "TIMEOUT"
+  | "MODEL_NOT_FOUND"
+  | "EMPTY_RESPONSE"
   | "UNKNOWN";
 
 export class ProviderError extends Error {
@@ -53,7 +55,7 @@ export class ProviderError extends Error {
 /**
  * Truncate a string for transport to a remote AI provider.
  *
- * 8 KB is a safe default for a 1536-d text embedding input; for
+ * 8 KB is a safe default for a text embedding input; for
  * Gemini text generation the input budget is much larger but we still
  * prefer to keep requests small.
  */

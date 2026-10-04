@@ -317,3 +317,43 @@ export function createItemRepository(pool: Pool): ItemRepository {
 export function createPool(databaseUrl: string) {
   return new Pool({ connectionString: databaseUrl });
 }
+
+export {
+  createSpaceRepository,
+  type SpaceRepository,
+  type Space,
+  type SpaceSummary,
+  type SpaceType,
+  type SpaceColor,
+  SPACE_COLORS,
+  isSpaceColor,
+  type SpaceItem,
+  type SpacePreviewItem,
+  type CreateSpaceInput,
+  type UpdateSpaceInput
+} from './spaces.js';
+
+export {
+  runSearch,
+  resolveSmartSpaceIds,
+  hasMeaningfulCriteria,
+  normalizeTag,
+  SEARCH_KINDS,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  type SearchRequest,
+  type SearchFilters,
+  type SearchKind,
+  type SearchHit,
+  type SearchResponse,
+  type SearchDeps,
+  type EmbeddingLike
+} from './search-service.js';
+
+export {
+  createEnrichmentRepository,
+  type EnrichmentRepository,
+  type EnrichmentStatus,
+  type ItemEnrichment,
+  type TldrSource
+} from './enrichments.js';

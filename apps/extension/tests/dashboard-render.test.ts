@@ -157,8 +157,11 @@ _dSession('session storage shape (regression: signed-in user blocked from saving
   // api-client.js) reads session.accessToken flat — they look one
   // level too high and always get undefined.
   //
-  // The fix below pins the storage shape so a future regression that
-  // re-wraps the envelope fails immediately.
+  // A follow-up bug fixed the unwrap but kept only the session half,
+  // dropping `user`. On reload init() then resolved state.user to null,
+  // which disabled the tab re-fetch and left the Favorites tab showing
+  // nothing. So the shape is: flat session fields PLUS a top-level
+  // `user`. The assertions below pin both halves.
   _iSession('saveSession() unwraps the { user, session } envelope before storing', () => {
     // Execute dashboard.js in a sandbox via `new Function` so we can
     // expose internal helpers (saveSession) without running the full
@@ -225,11 +228,17 @@ _dSession('session storage shape (regression: signed-in user blocked from saving
 
     const stored = storage.get('mnemonics_session') as any;
     expect(stored, 'session must be persisted to chrome.storage.local.mnemonics_session').toBeTruthy();
-    // The bug: previously this assertion failed because saveSession
-    // stored the wrapped envelope {user, session:{...}}. The fix
-    // unwraps to the flat session shape every reader expects.
+    // The original bug: saveSession stored the wrapped envelope
+    // {user, session:{...}}, so every reader (screenshot-cropper,
+    // background) that does session.accessToken saw undefined.
     expect(stored.accessToken, 'top-level accessToken must be reachable (screenshot-cropper / background read session.accessToken)').toBe('AT-1');
-    expect(stored.user, 'stored session must not have a nested user envelope (would shadow accessToken)').toBeUndefined();
+    expect(stored.session, 'session must be flat — a nested `session` envelope shadows accessToken').toBeUndefined();
+    // Second, quieter bug: `user` was dropped on write, so on the next
+    // load init() resolved state.user to null, which silently disabled
+    // the tab re-fetch guard (`DATA_TABS.has(next) && state.user`) and
+    // the Favorites tab never requested `?favorite=true`. The user must
+    // therefore be persisted too — as a top-level field, not nested.
+    expect(stored.user, 'user must be persisted so a reload can resolve state.user').toEqual({ id: 'u1', email: 'a@b.co' });
   });
 });
 

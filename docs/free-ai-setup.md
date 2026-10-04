@@ -1,11 +1,12 @@
 # Free AI setup
 
-Mnemonics defaults to **zero-paid-AI-cost** mode. The product runs
-end-to-end without any paid API, and the code refuses to call a paid
-provider while `AI_FREE_ONLY=true` — even if `OPENAI_API_KEY` is set.
+Mnemonics defaults to **zero-paid-AI-cost** mode. Every AI feature runs
+on **Gemini first, a local Ollama daemon second**, and OpenAI/ChatGPT
+is no longer supported at all — there is no `OPENAI_API_KEY` and no
+openai provider in the codebase.
 
-This document walks you through the free providers Mnemonics talks
-to, how to obtain keys, and what happens when a key is missing.
+This document walks you through the providers Mnemonics talks to, how
+to obtain keys, and what happens when a key is missing.
 
 ## Quick start
 
@@ -44,17 +45,31 @@ Mode ............... FREE-ONLY
 
 ## Provider map
 
-| Concern        | Default provider (free)            | Optional legacy | Env vars                                |
-|----------------|------------------------------------|-----------------|-----------------------------------------|
-| Text (tags, summary, classification) | Gemini free tier (`gemini-2.5-flash`) | `heuristic`     | `AI_TEXT_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL` |
-| Text embeddings (1536-d) | Gemini (`gemini-embedding-001`) | OpenAI          | `AI_EMBEDDING_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`, `GEMINI_EMBEDDING_DIMENSIONS` |
-| OCR            | OCR.Space free tier                | Tesseract local | `OCR_PROVIDER`, `OCR_SPACE_API_KEY`, `OCR_SPACE_DAILY_SOFT_LIMIT`, `OCR_LOCAL_FALLBACK` |
+| Concern        | Primary (Gemini)                   | Local fallback    | Env vars                                |
+|----------------|------------------------------------|-------------------|-----------------------------------------|
+| Text (tags, summary, classification) | Gemini free tier (`gemini-2.5-flash`) | Ollama (`llama3.2:3b`) → heuristic | `AI_TEXT_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `OLLAMA_TEXT_MODEL` |
+| Text embeddings (1024-d) | Gemini (`gemini-embedding-001`) | Ollama (`bge-m3`) → lexical-only | `AI_EMBEDDING_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`, `GEMINI_EMBEDDING_DIMENSIONS`, `OLLAMA_EMBEDDING_MODEL` |
+| OCR            | OCR.Space free tier                | Tesseract local   | `OCR_PROVIDER`, `OCR_SPACE_API_KEY`, `OCR_SPACE_DAILY_SOFT_LIMIT`, `OCR_LOCAL_FALLBACK` |
 | Visual similarity (CLIP, 512-d) | Local CLIP (transformers.js) | —               | `VISUAL_EMBEDDING_PROVIDER`, `VISUAL_EMBEDDING_MODEL` |
 
-`OPENAI_API_KEY` is kept as **optional legacy** support only. When
-`AI_FREE_ONLY=true`, the OpenAI embedding provider refuses to
-construct, and the AI service throws on boot. This is enforced in
-`packages/ai/src/ai-config.ts`.
+### Enabling the local fallback
+
+```bash
+# One-time: install Ollama, then pull the models used by the fallback chain.
+ollama pull bge-m3        # embeddings, 1024-d — MUST match the pgvector column
+ollama pull llama3.2:3b   # text generation
+```
+
+`bge-m3` is not an arbitrary default: it is the widest widely-available
+local embedding model at exactly **1024 dimensions**, which is the
+width of `item_embeddings.embedding` (see migration 017). Gemini is
+asked for 1024 via `outputDimensionality`, so both providers write into
+the one column and no embedding space is ever mixed.
+
+A local model of a different width (`nomic-embed-text` = 768,
+`bge-small` = 384) is **rejected at runtime, not padded**. Cosine
+distance over a zero-padded vector ranks on the zero tail, which yields
+confidently wrong neighbours — worse than no semantic search at all.
 
 ## Step 1 — Gemini (text + embeddings)
 

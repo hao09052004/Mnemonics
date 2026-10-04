@@ -8,7 +8,7 @@ export type IconName =
   | 'grid' | 'star' | 'layers' | 'sparkle' | 'bell' | 'settings'
   | 'search' | 'sliders' | 'arrow' | 'more' | 'heart' | 'plus'
   | 'chevron' | 'clock' | 'link' | 'x' | 'check' | 'image'
-  | 'file' | 'share' | 'copy' | 'upload';
+  | 'file' | 'share' | 'copy' | 'upload' | 'trash';
 
 const PATHS: Record<IconName, ReactNode> = {
   grid: (
@@ -68,6 +68,9 @@ const PATHS: Record<IconName, ReactNode> = {
       <circle cx="19" cy="12" r="1" fill="currentColor" />
     </>
   ),
+  // The heart is the only icon that has a meaningful "on" state at
+  // 15px, so it alone accepts `filled`. Everything else keeps
+  // fill="none" to match the Figma reference.
   heart: (
     <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z" />
   ),
@@ -120,20 +123,28 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M5 14v5h14v-5" />
     </>
   ),
+  trash: (
+    <>
+      <path d="M4 7h16M10 4h4M6 7l1 13h10l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
 };
 
 interface IconProps {
   name: IconName;
   size?: number;
+  /** Fills the shape. Only the heart supports it (see `PATHS`). */
+  filled?: boolean;
 }
 
-export function Icon({ name, size = 18 }: IconProps) {
+export function Icon({ name, size = 18, filled = false }: IconProps) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth="1.7"
       strokeLinecap="round"

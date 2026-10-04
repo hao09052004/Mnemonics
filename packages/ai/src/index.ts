@@ -1,9 +1,10 @@
 /**
  * @mnemonics/ai — provider surface for Mnemonics AI features.
  *
- * This package is the single place that knows about Gemini, OpenAI,
- * OCR.Space, Tesseract, and CLIP. The rest of the application talks
- * to the interfaces, never to a concrete provider.
+ * This package is the single place that knows about Gemini, a local
+ * Ollama daemon, OCR.Space, Tesseract, and CLIP. The rest of the
+ * application talks to the interfaces, never to a concrete provider.
+ * Provider order everywhere: Gemini first, local second, OpenAI never.
  *
  * Public entry points:
  *  - createAiService() — DI container; constructed once at boot
@@ -41,7 +42,7 @@ export type { TextProvider, TextProviderInfo, TextGenerationOptions } from "./pr
 export { buildTextProvider, GeminiTextProvider, HeuristicTextProvider } from "./providers/text/index.js";
 
 export type { EmbeddingProvider, EmbeddingProviderInfo, EmbeddingOptions } from "./providers/embeddings/index.js";
-export { buildEmbeddingProvider, GeminiEmbeddingProvider, OpenAIEmbeddingProvider, NoopEmbeddingProvider } from "./providers/embeddings/index.js";
+export { buildEmbeddingProvider, GeminiEmbeddingProvider, OllamaEmbeddingProvider, NoopEmbeddingProvider, LOCAL_EMBEDDING_DIMENSIONS } from "./providers/embeddings/index.js";
 
 export type { OcrProvider, OcrInput, OcrOptions, OcrResult } from "./providers/ocr/index.js";
 export { buildOcrProvider, recognizeWithFallback, OcrSpaceProvider, TesseractOcrProvider, InMemoryDailyCounter } from "./providers/ocr/index.js";
@@ -49,3 +50,20 @@ export type { OcrSpaceDailyCounter } from "./providers/ocr/index.js";
 
 export type { VisualProvider, VisualInput, VisualEmbeddingResult, VisualProviderInfo } from "./providers/vision/index.js";
 export { buildVisualProvider, ClipLocalProvider } from "./providers/vision/index.js";
+
+export type {
+  ImageDescriptionProvider,
+  ImageDescriptionInput,
+  ImageDescriptionResult,
+  TldrProvider,
+  TldrInput,
+  TldrResult,
+  UnderstandingError
+} from "./understanding/types.js";
+export {
+  LocalImageDescriptionProvider,
+  DeterministicTldrProvider,
+  OllamaTldrProvider,
+  buildUnderstandingProviders,
+  type UnderstandingProviders
+} from "./providers/understanding/index.js";

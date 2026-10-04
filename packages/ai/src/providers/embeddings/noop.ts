@@ -1,17 +1,17 @@
 /**
  * "No-op" embedding provider.
  *
- * Selected only when AI_EMBEDDING_PROVIDER=noop. This provider REFUSES
- * to produce fake vectors: every call throws ProviderError.
+ * Selected only when NO real provider is usable — neither Gemini (no
+ * key / failing) nor a local model of the right width. This provider
+ * REFUSES to produce fake vectors: every call throws ProviderError.
  *
- * Why this exists: the previous architecture silently generated a
- * deterministic sin-based mock in the absence of an OpenAI key. That
- * behaviour is unsafe — it lets a missing API key pass a smoke test
- * while producing semantically-meaningless vectors. We replace it
- * with an explicit refusal so the caller is forced to either:
- *  - configure a real key, OR
- *  - mark semantic enrichment as degraded and continue with lexical
- *    search.
+ * Why this exists: an earlier architecture silently generated a
+ * deterministic sin-based mock when no API key was configured. That
+ * behaviour is unsafe — it lets a missing key pass a smoke test while
+ * producing semantically-meaningless vectors, and those vectors get
+ * compared against real query vectors at search time. We use an
+ * explicit refusal so the caller is forced to either configure a real
+ * provider OR accept lexical-only search.
  */
 
 import { ProviderError } from "../../types.js";
@@ -28,8 +28,8 @@ export class NoopEmbeddingProvider implements EmbeddingProvider {
     throw new ProviderError({
       message:
         "Embedding provider is 'noop'. No real embedding was produced. " +
-        "Configure AI_EMBEDDING_PROVIDER=gemini with a valid GEMINI_API_KEY " +
-        "or accept lexical-only search.",
+        "Configure GEMINI_API_KEY, or run 'ollama pull bge-m3' for the " +
+        "local 1024-d fallback, or accept lexical-only search.",
       code: "PROVIDER_UNAVAILABLE",
       provider: "noop",
       retryable: false,
@@ -40,8 +40,8 @@ export class NoopEmbeddingProvider implements EmbeddingProvider {
     throw new ProviderError({
       message:
         "Embedding provider is 'noop'. No real embedding was produced. " +
-        "Configure AI_EMBEDDING_PROVIDER=gemini with a valid GEMINI_API_KEY " +
-        "or accept lexical-only search.",
+        "Configure GEMINI_API_KEY, or run 'ollama pull bge-m3' for the " +
+        "local 1024-d fallback, or accept lexical-only search.",
       code: "PROVIDER_UNAVAILABLE",
       provider: "noop",
       retryable: false,

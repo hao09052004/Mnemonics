@@ -1,0 +1,595 @@
+/* Spaces — All Spaces, Space detail, picker and dialogs.
+ *
+ * Everything here builds on the existing token layer (--mn-*) so the
+ * feature inherits the current Mnemonics dark surface instead of
+ * introducing a parallel palette. The Space colour appears as a dot or
+ * a 2px left edge only: a tinted card body would fight the violet brand
+ * accent and turn a grid of Spaces into a swatch chart.
+ */
+
+.space-dot {
+  display: inline-block;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ===== Kind badge ================================================= */
+
+.space-kind {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mn-text-3);
+  border: 1px solid var(--mn-border-strong);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.space-kind--smart {
+  color: var(--mn-text-2);
+}
+
+/* ===== All Spaces page =========================================== */
+
+.spaces-page {
+  padding: 28px 32px 64px;
+  max-width: 1180px;
+}
+
+.spaces-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+}
+
+.spaces-page__title {
+  font-size: var(--mn-fs-h1);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  color: var(--mn-text);
+}
+
+.spaces-page__sub {
+  font-size: var(--mn-fs-body);
+  color: var(--mn-text-2);
+  margin: 0;
+}
+
+.spaces-section__label {
+  font-size: var(--mn-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mn-text-3);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 14px;
+}
+
+/* A Space card. The left edge carries the identity colour; the body
+ * stays on the shared surface. */
+.space-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-left: 2px solid var(--mn-border-strong);
+  border-radius: var(--mn-r-md);
+  padding: 14px 15px 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.space-card:hover {
+  background: var(--mn-surface-hover);
+  border-color: var(--mn-border-strong);
+}
+
+.space-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.space-card__name {
+  font-size: var(--mn-fs-card-title);
+  font-weight: 600;
+  color: var(--mn-text);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-card__count {
+  font-size: var(--mn-fs-meta);
+  color: var(--mn-text-2);
+  margin: 0;
+}
+
+.space-card__preview {
+  display: flex;
+  gap: 5px;
+  min-height: 34px;
+  align-items: stretch;
+}
+
+.space-card__tile {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border-radius: var(--mn-r-xs);
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 4px;
+  text-align: center;
+}
+
+.space-card__tile span {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mn-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-card__rule {
+  font-size: var(--mn-fs-micro);
+  color: var(--mn-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Space detail ============================================== */
+
+.space-detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.space-detail__title {
+  font-size: var(--mn-fs-h2);
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--mn-text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.space-detail__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: var(--mn-fs-meta);
+  color: var(--mn-text-2);
+  margin-bottom: 18px;
+}
+
+.space-detail__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.space-rule-summary {
+  font-size: var(--mn-fs-meta);
+  color: var(--mn-text-2);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.space-rule-summary.is-empty {
+  color: var(--mn-text-3);
+  font-style: italic;
+}
+
+/* ===== Selection toolbar ========================================= */
+
+.selection-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  margin-bottom: 16px;
+  background: var(--mn-bg-elev);
+  border: 1px solid var(--mn-brand-soft);
+  border-radius: var(--mn-r-sm);
+  box-shadow: var(--mn-shadow-md);
+}
+
+.selection-bar__count {
+  font-size: var(--mn-fs-meta);
+  font-weight: 600;
+  color: var(--mn-text);
+  white-space: nowrap;
+}
+
+.selection-bar__spacer {
+  flex: 1;
+}
+
+.selection-bar button {
+  font: inherit;
+  font-size: var(--mn-fs-meta);
+  padding: 6px 11px;
+  border-radius: var(--mn-r-xs);
+  border: 1px solid var(--mn-border-strong);
+  background: var(--mn-surface);
+  color: var(--mn-text-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.selection-bar button:hover:not(:disabled) {
+  background: var(--mn-surface-hover);
+  color: var(--mn-text);
+}
+
+.selection-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selection-bar__danger:hover:not(:disabled) {
+  border-color: var(--mn-danger);
+  color: var(--mn-danger);
+}
+
+/* A card in selection mode. The checkbox is the only new affordance;
+ * the card body is untouched so the grid does not shift. */
+.memory-card.is-selectable {
+  cursor: pointer;
+}
+
+.memory-card.is-selected {
+  border-color: var(--mn-brand);
+  box-shadow: 0 0 0 1px var(--mn-brand);
+}
+
+.card-select {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1.5px solid var(--mn-border-strong);
+  background: rgba(10, 12, 16, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  color: transparent;
+  z-index: 2;
+}
+
+.card-select.is-checked {
+  background: var(--mn-brand);
+  border-color: var(--mn-brand);
+  color: #fff;
+}
+
+/* ===== Picker ==================================================== */
+
+.space-picker-backdrop,
+.space-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--mn-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.space-dialog-backdrop {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.space-picker {
+  width: min(420px, 100%);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--mn-bg-elev);
+  border: 1px solid var(--mn-border-strong);
+  border-radius: var(--mn-r-lg);
+  box-shadow: var(--mn-shadow-lg);
+  padding: 18px;
+}
+
+.space-picker__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.space-picker__head h2 {
+  font-size: var(--mn-fs-h3);
+  font-weight: 600;
+  color: var(--mn-text);
+  margin: 0;
+  flex: 1;
+}
+
+.space-picker__count {
+  font-size: var(--mn-fs-meta);
+  color: var(--mn-text-2);
+}
+
+.space-picker__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-r-sm);
+  color: var(--mn-text-3);
+}
+
+.space-picker__search input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--mn-text);
+  font: inherit;
+  font-size: var(--mn-fs-body);
+  padding: 9px 0;
+}
+
+.space-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.space-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-left-width: 2px;
+  border-radius: var(--mn-r-sm);
+  cursor: pointer;
+  font: inherit;
+  color: var(--mn-text);
+  text-align: left;
+}
+
+.space-picker__row:hover:not(:disabled) {
+  background: var(--mn-surface-hover);
+}
+
+.space-picker__row:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.space-picker__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--mn-fs-body);
+}
+
+.space-picker__meta,
+.space-picker__hint,
+.space-picker__note {
+  font-size: var(--mn-fs-micro);
+  color: var(--mn-text-3);
+  margin: 0;
+}
+
+.space-picker__note {
+  line-height: 1.5;
+}
+
+.space-picker__error {
+  font-size: var(--mn-fs-meta);
+  color: var(--mn-danger);
+  margin: 0;
+}
+
+.space-picker__new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px;
+  background: none;
+  border: 1px dashed var(--mn-border-strong);
+  border-radius: var(--mn-r-sm);
+  color: var(--mn-text-2);
+  font: inherit;
+  font-size: var(--mn-fs-meta);
+  cursor: pointer;
+}
+
+.space-picker__new:hover {
+  background: var(--mn-surface);
+  color: var(--mn-text);
+}
+
+.space-picker__create,
+.space-dialog__criteria {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-r-sm);
+}
+
+.space-picker__actions,
+.space-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.space-picker__actions button,
+.space-dialog__actions button {
+  font: inherit;
+  font-size: var(--mn-fs-body);
+  padding: 8px 15px;
+  border-radius: var(--mn-r-sm);
+  cursor: pointer;
+  border: 1px solid var(--mn-border-strong);
+  background: var(--mn-surface);
+  color: var(--mn-text);
+}
+
+.space-picker__actions button.primary,
+.space-dialog__actions button.primary {
+  background: var(--mn-brand);
+  border-color: var(--mn-brand);
+  color: #fff;
+}
+
+.space-picker__actions button:disabled,
+.space-dialog__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Create dialog ============================================= */
+
+.space-dialog {
+  width: min(460px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--mn-bg-elev);
+  border: 1px solid var(--mn-border-strong);
+  border-radius: var(--mn-r-lg);
+  box-shadow: var(--mn-shadow-lg);
+  padding: 22px;
+}
+
+.space-dialog h2 {
+  font-size: var(--mn-fs-h3);
+  font-weight: 650;
+  color: var(--mn-text);
+  margin: 0 0 2px;
+}
+
+.space-dialog__explain {
+  font-size: var(--mn-fs-meta);
+  line-height: 1.55;
+  color: var(--mn-text-2);
+  margin: 0 0 2px;
+}
+
+.field-label {
+  font-size: var(--mn-fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mn-text-3);
+}
+
+.field-optional {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border-strong);
+  border-radius: var(--mn-r-sm);
+  color: var(--mn-text);
+  font: inherit;
+  font-size: var(--mn-fs-body);
+  padding: 9px 11px;
+  outline: none;
+}
+
+.field-input:focus {
+  border-color: var(--mn-brand);
+}
+
+/* ===== Colour picker ============================================ */
+
+.space-color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.space-color-picker__row {
+  display: flex;
+  gap: 8px;
+}
+
+.space-color-picker__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--mn-border-strong);
+  cursor: pointer;
+  padding: 0;
+}
+
+.space-color-picker__dot.is-active {
+  border: 2px solid var(--mn-text);
+}

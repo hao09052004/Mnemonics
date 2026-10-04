@@ -1,9 +1,9 @@
 /**
  * Gemini text embedding provider.
  *
- * Uses `models/gemini-embedding-001` with `outputDimensionality=1536`
- * so the result is compatible with the existing `item_embeddings`
- * pgvector column (vector(1536)).
+ * Uses `models/gemini-embedding-001` with `outputDimensionality=1024`
+ * so the result is compatible with the `item_embeddings`
+ * pgvector column (vector(1024) — migration 017).
  *
  * Free tier limits (gemini-embedding-001): 1500 RPD, 15 RPM. No
  * server-side enforcement here.

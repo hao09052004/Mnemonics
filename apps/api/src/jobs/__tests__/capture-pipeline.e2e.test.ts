@@ -236,9 +236,10 @@ function createStubAi() {
         provider: 'noop',
         geminiApiKey: undefined,
         geminiModel: 'gemini-embedding-001',
-        geminiDimensions: 1536,
-        openaiApiKey: undefined,
-        openaiModel: 'text-embedding-3-small'
+        geminiDimensions: 1024,
+        ollamaBaseUrl: undefined,
+        ollamaEmbeddingModel: 'bge-m3',
+        embeddingsFallback: true
       },
       ocr: {
         provider: 'ocrspace',
@@ -274,6 +275,16 @@ function createStubAi() {
     async recognizeWithFallback() {
       return { text: '', engine: 'none', confidence: 0 };
     },
+    understanding: {
+      imageDescription: {
+        async describe() { return { caption: '', confidence: 0, model: 'stub', provider: 'local' }; },
+        info() { return { name: 'local', model: 'stub', loaded: false }; }
+      },
+      tldr: {
+        async summarize() { return { tldr: '', provider: 'deterministic', model: 'heuristic-v1', promptVersion: 'v1', source: 'heuristic', confidence: 0 }; },
+        info() { return { name: 'deterministic', model: 'heuristic-v1', promptVersion: 'v1' }; }
+      }
+    },
     tagCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
     summaryCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
     embeddingCache: { get() { return undefined; }, set() {}, has() { return false; }, delete() {}, size() { return 0; }, clear() {} },
@@ -286,12 +297,15 @@ function createStubAi() {
           text: 'heuristic:deterministic-keyword-v1',
           embeddings: 'noop:none',
           ocr: 'none:none',
-          visual: 'clip-local:Xenova/clip-vit-base-patch32'
+          visual: 'clip-local:Xenova/clip-vit-base-patch32',
+          understanding: 'image=local:stub, tldr=deterministic:heuristic-v1'
         },
         textReady: false,
         embeddingsReady: false,
         ocrReady: false,
         visualReady: false,
+        imageDescriptionReady: false,
+        tldrReady: true,
         notes: []
       };
     }
@@ -304,11 +318,35 @@ async function drainQueue(queue: { processOnce: () => Promise<void> }, steps: nu
   }
 }
 
+/**
+ * Stub EnrichmentRepository used by the E2E test. The test pipeline
+ * does not exercise real image description / TLDR; we just need the
+ * `enrich` job to complete so the queue does not stall.
+ */
+function createStubEnrichments() {
+  return {
+    async ensureRow() {},
+    async getForItem() { return null; },
+    async setCaption() {},
+    async setCaptionFailure() {},
+    async setTldr() {},
+    async setUserTldr() {},
+    async setFailure() {},
+    async listTextForEmbedding() { return []; }
+  };
+}
+
 describe('capture processing pipeline E2E', () => {
   it('processes text capture from pending to ready', async () => {
     const { pool } = createInMemoryPool();
     const { repository, items } = createInMemoryRepository();
-    const { queue } = createJobRouter({ pool: pool as any, repository, imageStorage: createFakeStorage(), ai: createStubAi() as any });
+    const { queue } = createJobRouter({
+      pool: pool as any,
+      repository,
+      imageStorage: createFakeStorage(),
+      ai: createStubAi() as any,
+      enrichmentRepository: createStubEnrichments() as any
+    });
 
     const app = express();
     app.use(express.json());
@@ -332,7 +370,10 @@ describe('capture processing pipeline E2E', () => {
     expect(response.status).toBe(201);
     expect(response.body.data.status).toBe('pending');
 
-    await drainQueue(queue, 2);
+    // The pipeline is now: tag → embed → enrich. We drain three
+    // rounds. If a job is still pending the next round is a no-op,
+    // so the test fails if the pipeline gets stuck.
+    await drainQueue(queue, 5);
 
     const item = items.get(response.body.data.id);
     expect(item?.status).toBe('ready');
@@ -344,7 +385,13 @@ describe('capture processing pipeline E2E', () => {
   it('processes image capture through OCR -> tag -> embed -> ready', async () => {
     const { pool } = createInMemoryPool();
     const { repository, items } = createInMemoryRepository();
-    const { queue } = createJobRouter({ pool: pool as any, repository, imageStorage: createFakeStorage(), ai: createStubAi() as any });
+    const { queue } = createJobRouter({
+      pool: pool as any,
+      repository,
+      imageStorage: createFakeStorage(),
+      ai: createStubAi() as any,
+      enrichmentRepository: createStubEnrichments() as any
+    });
 
     const app = express();
     app.use('/api/v1', createCaptureRouter({
@@ -368,7 +415,9 @@ describe('capture processing pipeline E2E', () => {
     expect(response.status).toBe(201);
     expect(response.body.data.status).toBe('pending');
 
-    await drainQueue(queue, 3);
+    // Image pipeline: ocr → tag → embed → enrich. The OCR handler
+    // also enqueues enrich directly, so we may get an extra job.
+    await drainQueue(queue, 5);
 
     const item = items.get(response.body.data.id);
     expect(item?.status).toBe('ready');

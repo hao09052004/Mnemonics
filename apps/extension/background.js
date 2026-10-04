@@ -162,6 +162,43 @@ async function setFavoriteOnServer(itemId, isFavorite, accessToken) {
   throw new Error(message);
 }
 
+// Read the Memory Understanding row for an item (AI caption + TLDR).
+//
+// The dashboard used to render `item.note` in the "TLDR" slot, which is
+// the captured raw_text — empty for link captures — so the panel always
+// said "No summary yet" even though the enrichment job had written a
+// real summary. This is the endpoint that carries the real thing.
+async function getEnrichmentOnServer(itemId, accessToken) {
+  let token = accessToken;
+  let response;
+  const url = MNEMONICS_API_URL + '/api/v1/items/' + encodeURIComponent(itemId) + '/enrichment';
+  try {
+    response = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  } catch (networkErr) {
+    throw new Error('Không kết nối được API: ' + (networkErr && networkErr.message ? networkErr.message : 'network error'));
+  }
+
+  if (response.status === 401) {
+    const refreshed = await forceRefreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    }
+  }
+
+  if (response.status === 401) {
+    throw new Error('Phiên đã hết hạn, vui lòng đăng nhập lại');
+  }
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error('API từ chối yêu cầu (HTTP ' + response.status + ').');
+  }
+
+  let body = {};
+  try { body = await response.json(); } catch (_) { body = {}; }
+  return (body.data && body.data.enrichment) || null;
+}
+
 // Generic PATCH against /items/:id. Supports a subset of fields that
 // the reader modal writes (title, notes, isFavorite, tags). The server
 // rejects anything it doesn't recognise with NO_UPDATES, so this stays
@@ -554,6 +591,139 @@ async function uploadTextCapture(payload) {
   return body;
 }
 
+// ----- page title extraction ------------------------------------------
+//
+// The browser tab title is a poor caption for a capture: on Facebook it
+// is "(1) Facebook" (an unread badge plus the site name), on Gmail it is
+// a long thread dump, on YouTube it appends "(12:34)". None of that
+// identifies the saved thing.
+//
+// So for `link` captures we read the page itself and prefer, in order:
+//   og:title  →  twitter:title  →  <title>  →  first <h1>
+// and only fall back to the tab title when the fetch fails (offline,
+// CORS, 4xx) or yields nothing usable.
+//
+// The service worker holds `host_permissions: <all_urls>`, so this fetch
+// is not subject to CORS the way a page-context fetch would be.
+
+var PAGE_FETCH_TIMEOUT_MS = 6000;
+var PAGE_FETCH_MAX_BYTES = 400000;
+
+/** Hosts where fetching HTML reliably fails or is actively hostile. */
+var NO_FETCH_HOSTS = new Set([
+  'mail.google.com', 'accounts.google.com'
+]);
+
+function isFetchableUrl(url) {
+  if (!url) return false;
+  try {
+    var u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    if (NO_FETCH_HOSTS.has(u.hostname)) return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function decodeEntities(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, function (_m, code) {
+      if (code.charAt(0) === '#') {
+        var n = code.charAt(1) === 'x' || code.charAt(1) === 'X'
+          ? parseInt(code.slice(2), 16)
+          : parseInt(code.slice(1), 10);
+        return isNaN(n) ? '' : String.fromCodePoint(n);
+      }
+      var named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+      var key = code.toLowerCase();
+      return Object.prototype.hasOwnProperty.call(named, key) ? named[key] : '';
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Read one `<meta property|name="...">` content from the HTML. */
+function readMeta(html, keys) {
+  for (var i = 0; i < keys.length; i++) {
+    var re = new RegExp(
+      '<meta[^>]+(?:property|name)\\s*=\\s*["\']' + keys[i] + '["\'][^>]*' +
+      'content\\s*=\\s*["\']([^"\']*)["\']',
+      'i'
+    );
+    var alt = new RegExp(
+      '<meta[^>]+content\\s*=\\s*["\']([^"\']*)["\'][^>]*' +
+      '(?:property|name)\\s*=\\s*["\']' + keys[i] + '["\']',
+      'i'
+    );
+    var m = re.exec(html) || alt.exec(html);
+    if (m && m[1] && m[1].trim()) return decodeEntities(m[1]);
+  }
+  return '';
+}
+
+function readTagText(html, tag) {
+  var m = new RegExp('<' + tag + '[^>]*>([\\s\\S]{0,400}?)</' + tag + '>', 'i').exec(html);
+  return m && m[1] ? decodeEntities(m[1]) : '';
+}
+
+/**
+ * Fetch a page and return the most human-meaningful title we can find,
+ * or `null` when the page is unreachable or has no usable title.
+ *
+ * @param {string} url
+ * @param {string} [fallbackTitle] used only when the page gives us nothing
+ * @returns {Promise<{ title: string, source: string } | null>}
+ */
+async function fetchPageTitle(url, fallbackTitle) {
+  if (!isFetchableUrl(url)) {
+    return fallbackTitle ? { title: fallbackTitle, source: 'fallback' } : null;
+  }
+
+  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var timer = controller
+    ? setTimeout(function () { controller.abort(); }, PAGE_FETCH_TIMEOUT_MS)
+    : null;
+
+  var html = '';
+  try {
+    var res = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      credentials: 'omit',
+      signal: controller ? controller.signal : undefined
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    // Read at most MAX_BYTES so a huge page can't stall the worker.
+    var raw = await res.text();
+    html = raw.length > PAGE_FETCH_MAX_BYTES
+      ? raw.slice(0, PAGE_FETCH_MAX_BYTES)
+      : raw;
+  } catch (_) {
+    // Offline, CORS, DNS, 4xx/5xx — fall back rather than block capture.
+    return fallbackTitle ? { title: fallbackTitle, source: 'fallback' } : null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  var candidate = readMeta(html, ['og:title', 'twitter:title', 'dc.title'])
+    || readTagText(html, 'title')
+    || readTagText(html, 'h1');
+
+  if (!candidate) {
+    return fallbackTitle ? { title: fallbackTitle, source: 'fallback' } : null;
+  }
+
+  // Strip the notification-badge shape "(12) Site Name" and the player
+  // suffix "(3:45)" that a few hosts append, so the stored title reads
+  // like a caption rather than a browser status.
+  candidate = candidate.replace(/^\s*\(\s*\d+\s*\)\s*/, '');
+  if (!candidate && fallbackTitle) {
+    return { title: fallbackTitle, source: 'fallback' };
+  }
+  return { title: candidate || fallbackTitle, source: 'page' };
+}
 
 // Tạo context menu khi extension được cài
 let contextMenusSetupInProgress = false;
@@ -592,28 +762,56 @@ chrome.runtime.onStartup.addListener(function() {
 setupContextMenus();
 
 // Context-menu captures are confirmed by the API before the extension reports success.
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(function (info, tab) {
   if (info.menuItemId === 'save-link-to-mnemonics') {
-    const linkUrl = info.linkUrl || '';
-    const title = (info.selectionText || tab.title || linkUrl).slice(0, 80) || 'Link đã lưu';
-    uploadTextCapture({
-      type: 'link',
-      title,
-      sourceUrl: linkUrl,
-      capturedAt: new Date().toISOString(),
-      clientRequestId: crypto.randomUUID()
-    }).then(function() {
-      notifyDashboards('ITEM_SAVED');
-      chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics', message: '🔗 Đã lưu link lên database!' });
-    }).catch(function(error) {
-      chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lỗi lưu link', message: error.message || 'Không lưu được link.' });
-    });
+    var linkUrl = info.linkUrl || '';
+    // A right-clicked link has no text selection, so `selectionText`
+    // is always empty here. `tab.title` is the *tab's* title — on
+    // Facebook that is "(1) Facebook", which identifies nothing. Read
+    // the target page for a real title instead, and only fall back to
+    // the tab title if the page can't be read.
+    var tabTitle = (tab && tab.title) || '';
+    fetchPageTitle(linkUrl, tabTitle.slice(0, 80))
+      .then(function (resolved) {
+        var title = (resolved && resolved.title ? resolved.title : tabTitle || linkUrl)
+          .slice(0, 200) || 'Link đã lưu';
+        return uploadTextCapture({
+          type: 'link',
+          title: title,
+          sourceUrl: linkUrl,
+          capturedAt: new Date().toISOString(),
+          clientRequestId: crypto.randomUUID()
+        });
+      })
+      .then(function () {
+        notifyDashboards('ITEM_SAVED');
+        chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics', message: '🔗 Đã lưu link lên database!' });
+      })
+      .catch(function (error) {
+        chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics - Lỗi lưu link', message: error.message || 'Không lưu được link.' });
+      });
+    return;
   }
 
   if (info.menuItemId === 'save-image-to-mnemonics') {
     const imageUrl = info.srcUrl || '';
     notifyCapture('Mnemonics', 'Đang lưu ảnh...', '…', '#f59e0b');
-    uploadImageFromContextMenu(imageUrl, tab.url || '', tab.title || '', { clientRequestId: crypto.randomUUID() })
+    var imageTabTitle = (tab && tab.title) || '';
+    var imagePageUrl = (tab && tab.url) || '';
+    // Prefer the real page title (the image's host page) over the
+    // browser's tab title, which on social sites is again a badge.
+    fetchPageTitle(imagePageUrl, imageTabTitle)
+      .then(function (resolved) {
+        var imagePageTitle = (resolved && resolved.title)
+          ? resolved.title
+          : imageTabTitle;
+        return uploadImageFromContextMenu(
+          imageUrl,
+          imagePageUrl,
+          imagePageTitle,
+          { clientRequestId: crypto.randomUUID() }
+        );
+      })
       .then(function() {
         notifyDashboards('ITEM_SAVED');
         notifyCapture('Mnemonics', 'Đã lưu ảnh vào database!', '', '#22c55e');
@@ -625,9 +823,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
   if (info.menuItemId === 'save-to-mnemonics') {
     const selectedText = info.selectionText || '';
+    // A selection always beats the page title: the user picked *this*
+    // text, so the page it came from is the better label.
+    var selectionTabTitle = (tab && tab.title) || 'Đoạn trích';
     uploadTextCapture({
       type: 'text',
-      title: (tab.title || 'Đoạn trích').slice(0, 80),
+      title: selectionTabTitle.slice(0, 200),
       sourceUrl: tab.url || undefined,
       selectedText: selectedText || undefined,
       capturedAt: new Date().toISOString(),
@@ -789,6 +990,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: error && error.message ? error.message : 'Could not load related memories.'
+        });
+      });
+
+    return true;
+  }
+
+  // Read the Memory Understanding row (AI caption + TLDR) for the
+  // detail modal. Kept in the service worker for the same reason as
+  // GET_RELATED_ITEMS: token refresh must not live in the page.
+  if (msg && msg.type === 'GET_ENRICHMENT') {
+    const itemId = String(msg.itemId || '');
+    if (!itemId) {
+      sendResponse({ ok: false, error: 'itemId is required' });
+      return true;
+    }
+
+    getValidAccessToken()
+      .then(function(accessToken) {
+        return getEnrichmentOnServer(itemId, accessToken);
+      })
+      .then(function(enrichment) {
+        // A 404 (no enrichment yet) is a legitimate empty state, not an
+        // error — the dashboard shows a "still processing" note.
+        sendResponse({ ok: true, data: enrichment || null });
+      })
+      .catch(function(error) {
+        sendResponse({
+          ok: false,
+          error: error && error.message ? error.message : 'Could not load summary.'
         });
       });
 

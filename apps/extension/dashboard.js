@@ -56,7 +56,14 @@ const state = {
   detail: null,
   capture: false,
   loading: false,
-  error: null
+  error: null,
+  // Last query string sent to GET /api/v1/items. Surfaced in the empty
+  // state so a "Favorites shows nothing" report can be diagnosed without
+  // a debugger.
+  lastItemsQuery: null,
+  // Id of the card whose "..." overflow menu is open, or null. Only one
+  // menu can reasonably be open at a time on a masonry grid.
+  openMenuId: null
 };
 
 let lastRoute = null;       // persisted across reloads
@@ -107,6 +114,45 @@ function loadSession() {
   });
 }
 
+/**
+ * Decide who the signed-in user is.
+ *
+ * `saveSession()` stores only the *flat* session
+ * (`{ accessToken, refreshToken, expiresAt }`), so a reload finds a
+ * session with no `user` field. Reading `session.user` alone made
+ * `state.user` null on every reload, which silently disabled the
+ * tab re-fetch in `bindEvents` (`DATA_TABS.has(next) && state.user`) —
+ * the Favorites tab then rendered the previous route's rows and never
+ * issued `?favorite=true`.
+ *
+ * The JWT is the only reliable source left, so decode the `sub` claim.
+ * This is not a security decision (the API re-authorises every request);
+ * it only decides which UI to draw.
+ */
+function resolveUser(session) {
+  if (!session) return null;
+  if (session.user) return session.user;
+  const token = session.accessToken;
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payload = JSON.parse(decodeURIComponent(
+      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
+    ));
+    if (!payload || !payload.sub) return null;
+    return {
+      id: payload.sub,
+      email: payload.email || null,
+      // Provenance matters for the sign-out button: only a real session
+      // write may clear storage, and this object never is one.
+      derivedFromToken: true
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 function saveSession(session) {
   // Unwrap the API envelope. The server returns `{ user, session: { ... } }`
   // but every reader (dashboard.js, screenshot-cropper.js, background.js,
@@ -116,12 +162,18 @@ function saveSession(session) {
   // 'Bạn cần đăng nhập trước khi lưu ảnh' right after a fresh sign-up.
   // (Regression: 2026-10-04 dashboard sign-in loop.)
   const flat = session && session.session ? session.session : session;
-  state.user = flat && flat.user ? flat.user : (session && session.user ? session.user : null);
+  const user = (session && session.user) || (flat && flat.user) || null;
+  state.user = user;
+  // Persist `user` alongside the tokens. Without it the stored session
+  // has no identity, so every reload resolved `state.user` to null and
+  // silently disabled the tab re-fetch — the root cause of the Favorites
+  // tab never requesting `?favorite=true`.
+  const stored = flat ? Object.assign({}, flat, user ? { user } : {}) : null;
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ mnemonics_session: flat || null });
+    chrome.storage.local.set({ mnemonics_session: stored || null });
   }
   if (typeof localStorage !== 'undefined') {
-    if (flat) localStorage.setItem('mnemonics_session', JSON.stringify(flat));
+    if (stored) localStorage.setItem('mnemonics_session', JSON.stringify(stored));
     else localStorage.removeItem('mnemonics_session');
   }
 }
@@ -160,6 +212,14 @@ async function fetchItems({ favorite = false, limit = 50, capturedAfter = null }
   params.set('limit', String(limit));
   if (favorite) params.set('favorite', 'true');
 
+  // Logged because a silent `return null` on a missing session was the
+  // reason the Favorites tab stayed empty with no visible error: the
+  // grid rendered "No favorites yet." while no request was ever made.
+  const who = (session.user && (session.user.email || session.user.id)) || 'unknown';
+  console.log('[mnx] GET /items?' + params.toString()
+    + '  user=' + who
+    + '  (userId=' + ((session.user && session.user.id) || '?') + ')');
+
   async function req(t) {
     return fetch(window.MNEMONICS_API_URL + '/api/v1/items?' + params.toString(), {
       headers: { Authorization: 'Bearer ' + t }
@@ -174,6 +234,9 @@ async function fetchItems({ favorite = false, limit = 50, capturedAfter = null }
   if (r.status === 401) { handleAuthFailure(); return null; }
   if (!r.ok) throw new Error('Failed to load items (HTTP ' + r.status + ')');
   const body = await r.json();
+  const rows = (body.data && body.data.items) || [];
+  console.log('[mnx] /items -> HTTP', r.status, rows.length, 'row(s); total=' + (body.data && body.data.total),
+    'favorited=' + rows.filter((x) => x.is_favorite).length);
   return body.data || { items: [], total: 0, limit, offset: 0 };
 }
 
@@ -229,7 +292,12 @@ async function searchItems(q, filters) {
     tags: Array.isArray(hit.tags) ? hit.tags : [],
     savedAt: hit.captured_at || new Date().toISOString(),
     capturedAt: hit.captured_at || null,
-    isFavorite: false,
+    // Search responses omit `is_favorite`, so a hit would render as
+    // un-favorited even when the stored memory is a favorite. Preserve
+    // the flag from the loaded list when we can resolve the id.
+    isFavorite: hit.is_favorite !== undefined
+      ? !!hit.is_favorite
+      : !!(state.items.find((x) => String(x.id) === String(hit.id)) || {}).isFavorite,
     serverSynced: true,
     searchScore: hit.score,
     rawQuery: q
@@ -259,7 +327,7 @@ async function refreshToken() {
 // state, shows a toast, and routes back to /login so the user can
 // re-authenticate instead of staring at a 401'd grid.
 function handleAuthFailure() {
-  saveSession(null);
+      saveSession(null);
   state.items = []; state.spaces = []; state.detail = null; state.search.results = [];
   setState({ route: 'login', user: null });
   toast('Phiên đã hết hạn, vui lòng đăng nhập lại', 'error');
@@ -274,8 +342,8 @@ async function patchItem(itemId, patch) {
     chrome.runtime.sendMessage({ type: 'PATCH_ITEM', itemId, patch }, (response) => {
       if (chrome.runtime && chrome.runtime.lastError) {
         resolve({ ok: false, error: chrome.runtime.lastError.message });
-        return;
-      }
+      return;
+    }
       resolve(response || { ok: false, error: 'No response' });
     });
   });
@@ -290,8 +358,8 @@ async function deleteItem(itemId) {
     chrome.runtime.sendMessage({ type: 'DELETE_ITEM', itemId }, (response) => {
       if (chrome.runtime && chrome.runtime.lastError) {
         resolve({ ok: false, error: chrome.runtime.lastError.message });
-        return;
-      }
+      return;
+    }
       resolve(response || { ok: false, error: 'No response' });
     });
   });
@@ -307,6 +375,142 @@ async function toggleFavorite(itemId, isFavorite) {
       { type: 'TOGGLE_FAVORITE_ITEM', itemId, isFavorite },
       (response) => resolve(response || { ok: false })
     );
+  });
+}
+
+/**
+ * Read the Memory Understanding row (AI caption + TLDR) for an item.
+ * Resolves to `null` when the row does not exist yet — the enrichment
+ * job is async, so "no summary" is a normal state, not a failure.
+ */
+async function fetchEnrichment(itemId) {
+  return new Promise((resolve) => {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+      resolve(null);
+      return;
+    }
+    chrome.runtime.sendMessage(
+      { type: 'GET_ENRICHMENT', itemId },
+      (response) => resolve(response && response.ok ? (response.data || null) : null)
+    );
+  });
+}
+
+// ----- item lookup ----------------------------------------------------
+
+/**
+ * Translate one `GET /api/v1/items` row into the shape the dashboard
+ * renders. The BE returns snake_case columns and an `excerpt`-less body,
+ * so without this the favorite heart and the card body would both stay
+ * empty after a reload.
+ */
+function normalizeServerItem(row) {
+  if (!row) return row;
+  return Object.assign({}, row, {
+    isFavorite: row.isFavorite !== undefined ? !!row.isFavorite : !!row.is_favorite,
+    excerpt: row.excerpt || row.raw_text || row.ocr_text || '',
+    savedAt: row.savedAt || row.captured_at || row.created_at || null,
+    capturedAt: row.capturedAt || row.captured_at || null
+  });
+}
+
+/**
+ * Resolve a card id against whichever list is currently driving the
+ * view: server items, or search hits when a query is active.
+ */
+function findItemById(id) {
+  if (!id) return null;
+  const key = String(id);
+  return state.items.find((x) => String(x.id) === key)
+    || (state.search.hits && state.search.hits.find((x) => String(x.id) === key))
+    || null;
+}
+
+/** Replace one item in both lists so every render sees the new value. */
+function patchItemEverywhere(id, mutate) {
+  const key = String(id);
+  const apply = (list) => (list || []).map((x) => (
+    String(x.id) === key ? mutate(x) : x
+  ));
+  state.items = apply(state.items);
+  if (state.search.hits) state.search.hits = apply(state.search.hits);
+  if (state.detail && String(state.detail.id) === key) {
+    state.detail = mutate(state.detail);
+  }
+}
+
+// ----- card actions ---------------------------------------------------
+
+/**
+ * Flip `is_favorite` for a card. Optimistic: the heart fills before the
+ * bridge round-trip resolves, and reverts if the server rejects the
+ * write. The dashboard must never claim a state the BE did not accept.
+ */
+function handleToggleFavorite(item) {
+  if (!item) return;
+  const next = !item.isFavorite;
+  patchItemEverywhere(item.id, (x) => Object.assign({}, x, { isFavorite: next }));
+  // On the favorites route the grid is a filtered view, so un-favoriting
+  // must remove the card — keeping it would show a card with an outline
+  // heart inside a tab called "Favorites".
+  if (state.route === 'favorites' && !next) {
+    state.items = state.items.filter((x) => String(x.id) !== String(item.id));
+    if (state.search.hits) {
+      state.search.hits = state.search.hits.filter((x) => String(x.id) !== String(item.id));
+    }
+  }
+  renderGrid();
+  if (state.route === 'detail') renderDetail();
+
+  toggleFavorite(item.id, next).then((res) => {
+    if (res && res.ok) {
+      // The favorites list came from `?favorite=true`, so it no longer
+      // contains this row. Re-fetch rather than patch locally, otherwise
+      // the tab drifts from the server's view of what is favorited.
+      if (state.route === 'favorites' && !next) {
+        loadAll().catch((err) => console.error('[mnx] favorites reload failed:', err));
+      }
+      return;
+    }
+    // Roll back so the heart stops lying about the server.
+    patchItemEverywhere(item.id, (x) => Object.assign({}, x, { isFavorite: !next }));
+    if (state.route === 'favorites' && !next) {
+      state.items.push(Object.assign({}, item, { isFavorite: true }));
+    }
+    renderGrid();
+    if (state.route === 'detail') renderDetail();
+    toast('Không lưu được yêu thích', 'error');
+  });
+}
+
+/**
+ * Delete a card for real. `DELETE /api/v1/items/:id` removes the row and
+ * every child record (enrichments, embeddings, tags, assets, jobs), so
+ * this is irreversible — hence the confirmation.
+ */
+function handleDelete(item) {
+  if (!item) return;
+  const label = item.title || 'memory này';
+  if (typeof confirm === 'function' && !confirm('Xóa "' + label + '"? Hành động này không thể hoàn tác.')) {
+    return;
+  }
+
+  deleteItem(item.id).then((res) => {
+    if (res && res.ok) {
+      state.items = state.items.filter((x) => String(x.id) !== String(item.id));
+      if (state.search.hits) {
+        state.search.hits = state.search.hits.filter((x) => String(x.id) !== String(item.id));
+      }
+      if (state.detail && String(state.detail.id) === String(item.id)) {
+        state.detail = null;
+        setState({ route: lastRoute || 'everything' });
+        return;
+      }
+      renderGrid();
+      toast('Đã xóa memory', 'success');
+      return;
+    }
+    toast('Không xóa được memory', 'error');
   });
 }
 
@@ -421,8 +625,29 @@ function renderGrid() {
       t1.textContent = 'Your memory starts here.';
       t2.textContent = 'Save something worth remembering.';
     }
+    // Diagnostic for "the grid is empty although the API has data".
+    // Shown on every empty route (not just favorites) because the
+    // symptom — an empty grid with no console output — is the same
+    // whether the query was wrong or the session was missing.
+    const diag = $('cards-diagnostic');
+    if (diag) {
+      const rows = Array.isArray(state.items) ? state.items.length : 0;
+      const favRows = Array.isArray(state.items)
+        ? state.items.filter((x) => x.isFavorite).length
+        : 0;
+      diag.hidden = false;
+      diag.textContent =
+        'Diagnostics — route=' + state.route +
+        '; variant=' + state.filter.variant +
+        '; server rows=' + rows +
+        '; favorited=' + favRows +
+        '; query=' + (state.lastItemsQuery || '(none)') +
+        '; user=' + ((state.user && (state.user.email || state.user.id)) || 'null');
+    }
     return;
   }
+  const diagOk = $('cards-diagnostic');
+  if (diagOk) { diagOk.hidden = true; diagOk.textContent = ''; }
   empty.hidden = true;
   cards.innerHTML = filtered.map(renderCard).join('');
 }
@@ -453,18 +678,35 @@ function renderCard(item) {
   const meta = (variant !== 'highlight')
     ? `<div class="mnx-card__meta"><span>${escapeHtml(sourceLabel(item))}</span>${tagBlock}</div>` : '';
 
-  return `<article class="mnx-card ${variant}" data-memory-id="${escapeHtml(String(item.id))}" tabindex="0" role="button" aria-label="Open memory">
+  const itemId = escapeHtml(String(item.id));
+  const menuOpen = state.openMenuId === itemId;
+  const menuBlock = menuOpen ? `
+      <div class="mnx-cardmenu" data-cardmenu>
+        <button class="mnx-cardmenu__item" data-action="menu-favorite" role="menuitem">
+          <svg width="14" height="14" aria-hidden="true"><use href="#i-heart"/></svg>
+          ${isFav ? 'Remove favorite' : 'Add favorite'}
+        </button>
+        <button class="mnx-cardmenu__item mnx-cardmenu__item--danger" data-action="menu-delete" role="menuitem">
+          <svg width="14" height="14" aria-hidden="true"><use href="#i-trash"/></svg>
+          Delete
+        </button>
+      </div>` : '';
+
+  return `<article class="mnx-card ${variant}" data-memory-id="${itemId}" tabindex="0" role="button" aria-label="Open memory">
     ${mediaBlock}
     <div class="mnx-card__body">
       <div class="mnx-card__top">
         <span class="mnx-eyebrow"><i></i>${eyebrow}${score}</span>
         <div class="mnx-card__actions">
           <button class="mnx-iconbtn ${isFav ? 'is-favorite' : ''}" data-action="favorite" aria-pressed="${isFav}" aria-label="Toggle favorite">
-            <svg width="14" height="14"><use href="#i-heart"/></svg>
+            <svg width="14" height="14" ${isFav ? 'fill="currentColor"' : ''}><use href="#i-heart"/></svg>
           </button>
-          <button class="mnx-iconbtn" data-action="more" aria-label="More"><svg width="14" height="14"><use href="#i-more"/></svg></button>
-        </div>
+          <div class="mnx-cardmenu-anchor">
+            <button class="mnx-iconbtn" data-action="more" aria-haspopup="menu" aria-expanded="${menuOpen}" aria-label="More actions"><svg width="14" height="14"><use href="#i-more"/></svg></button>
+            ${menuBlock}
+          </div>
       </div>
+    </div>
       <h3>${highlightTitle}</h3>
       ${excerptBlock}
       ${meta}
@@ -552,7 +794,7 @@ function renderReminders() {
             <span style="${c.done ? 'text-decoration:line-through' : ''}">${escapeHtml(c.text || '')}</span>
           </label>
         `).join('')}
-      </div>
+        </div>
     </article>`;
   }).join('');
 }
@@ -599,6 +841,88 @@ function renderLogin() {
 
 // ----- DETAIL ---------------------------------------------------------
 
+/**
+ * Which text the TLDR panel should show, in priority order.
+ *
+ * The AI summary (`enrichment.tldr`) is the product. `note` / `excerpt`
+ * are the captured body — for a link capture they are empty, which is
+ * why this panel used to read "No summary yet" for every link even
+ * though the enrichment job had written a real summary.
+ *
+ * The `status` flag lets the UI say "đang xử lý" instead of pretending
+ * the memory has no summary.
+ */
+function tldrViewFor(item) {
+  const e = item && item.enrichment;
+  if (e && e.tldr) {
+    return { text: e.tldr, state: 'ready' };
+  }
+  // A captured body is real content, so show it immediately while the
+  // AI summary is still being generated. Preferring "đang tạo…" over
+  // text the user can already read would be strictly worse.
+  const body = (item && (item.note || item.excerpt)) || '';
+  const status = e && e.tldrStatus;
+  if (body) return { text: body, state: 'fallback' };
+  if (status === 'pending' || status === 'processing') {
+    return { text: 'Đang tạo tóm tắt…', state: 'pending' };
+  }
+  if (status === 'failed') {
+    return { text: 'Không tạo được tóm tắt.', state: 'failed' };
+  }
+  if (status === 'disabled') {
+    return { text: 'Tóm tắt đang tắt.', state: 'disabled' };
+  }
+  return { text: 'Chưa có tóm tắt.', state: 'empty' };
+}
+
+/**
+ * Fetch the enrichment row for `item` and merge it into state, then
+ * re-render the detail modal if it is still the open item.
+ *
+ * The modal renders before this resolves, so the user sees the raw
+ * capture immediately and the AI summary replaces it a beat later.
+ * A null result is normal (job hasn't run) and is recorded as such so
+ * the panel can say "đang tạo tóm tắt…" rather than "no summary".
+ */
+function loadEnrichmentFor(item) {
+  if (!item || !item.id) return;
+  const id = String(item.id);
+  fetchEnrichment(id).then(function (enrichment) {
+    // The user may have navigated away; don't clobber another item.
+    if (!state.detail || String(state.detail.id) !== id) return;
+    state.detail = Object.assign({}, state.detail, {
+      enrichment: enrichment ? normalizeEnrichment(enrichment) : { tldr: null, tldrStatus: 'pending' }
+    });
+    if (state.route === 'detail') renderDetail();
+  });
+}
+
+/** Map the API's snake_case enrichment row onto the UI's shape. */
+function normalizeEnrichment(e) {
+  if (!e) return null;
+  return {
+    caption: e.caption || null,
+    captionStatus: e.captionStatus || e.caption_status || 'pending',
+    tldr: e.tldr || null,
+    tldrStatus: e.tldrStatus || e.tldr_status || 'pending',
+    tldrSource: e.tldrSource || e.tldr_source || 'pending',
+    tldrModel: e.tldrModel || e.tldr_model || null,
+    summary: e.summary || null
+  };
+}
+
+/** Human label for where the shown TLDR came from. */function tldrSourceLabel(item, state_) {
+  const e = item && item.enrichment;
+  if (state_ === 'ready' && e) {
+    if (e.tldrSource === 'user') return 'bạn đã viết';
+    if (e.tldrSource === 'cloud_ai') return e.tldrModel || 'cloud ai';
+    if (e.tldrSource === 'local_ai') return e.tldrModel || 'local ai';
+    return 'heuristic';
+  }
+  if (state_ === 'fallback') return 'nguyên văn';
+  return '';
+}
+
 function renderDetail() {
   const item = state.detail;
   if (!item) { setState({ route: lastRoute || 'everything' }); return; }
@@ -623,6 +947,11 @@ function renderDetail() {
     ? `<div class="mnx-tag-list">${item.tags.map((t) => `<span>#${escapeHtml(t)}</span>`).join('')}</div>`
     : '<span style="color:var(--muted);font-size:12px">No tags</span>';
 
+  const tldr = tldrViewFor(item);
+  // Show provenance so the user can tell an AI summary from their own
+  // notes or from a heuristic fallback.
+  const tldrSource = tldrSourceLabel(item, tldr.state);
+
   side.innerHTML = `
     <div class="mnx-detail__side-head">
       <span class="mnx-eyebrow"><i></i>${escapeHtml(VARIANT_LABEL[variant])}</span>
@@ -631,11 +960,11 @@ function renderDetail() {
     <h1>${escapeHtml(item.title || 'Saved memory')}</h1>
     ${source ? `<p class="mnx-detail__source">${source}<span>Saved ${escapeHtml(formatRelative(item.savedAt || item.captured_at))}</span></p>` : ''}
 
-    <section class="mnx-detail__section tldr">
-      <div class="mnx-section-label">TLDR <small>understood</small></div>
-      <p class="mnx-tldr-text">${escapeHtml(item.note || item.excerpt || 'No summary yet.')}</p>
+    <section class="mnx-detail__section tldr" data-tldr-state="${tldr.state}">
+      <div class="mnx-section-label">TLDR ${tldrSource ? `<small>${escapeHtml(tldrSource)}</small>` : ''}</div>
+      <p class="mnx-tldr-text">${escapeHtml(tldr.text)}</p>
       <div class="mnx-tldr-actions">
-        <button data-action="copy-tldr"><svg width="14" height="14"><use href="#i-copy"/></svg> Copy</button>
+        <button data-action="copy-tldr" ${tldr.state === 'empty' || tldr.state === 'pending' ? 'disabled' : ''}><svg width="14" height="14"><use href="#i-copy"/></svg> Copy</button>
         <button data-action="edit-note">Edit</button>
       </div>
     </section>
@@ -660,15 +989,53 @@ function renderDetail() {
 
 // ----- data loaders ---------------------------------------------------
 
+/** The limit the grid uses. The API caps at 100. */
+const GRID_PAGE_SIZE = 100;
+
+/**
+ * Fetch the rows the current route needs.
+ *
+ * The favorites route MUST ask the server for `?favorite=true`. Filtering
+ * the everything-list client-side looks equivalent but is not: that list
+ * is capped at GRID_PAGE_SIZE, so a memory the user favorited last month
+ * is simply not in it and the tab renders "No favorites yet" while the
+ * heart on its card is filled. The server-side filter has no such blind
+ * spot.
+ *
+ * Deliberately NOT `async`: it is passed straight into `fetchItems`,
+ * which destructures its argument synchronously. An `async` version
+ * returns a Promise, and destructuring a Promise yields `undefined`
+ * for every key — so `fetchItems` would silently fall back to its own
+ * defaults (`favorite=false, limit=50`) and the tab would keep showing
+ * the capped, unfiltered list.
+ */
+function fetchItemsForRoute(route) {
+  if (route === 'favorites') {
+    return { favorite: true, limit: GRID_PAGE_SIZE };
+  }
+  return { limit: GRID_PAGE_SIZE };
+}
+
 async function loadAll() {
   state.loading = true;
   renderRoute();
+  // Tag this request so a slower earlier one cannot clobber a newer
+  // result. Switching Everything → Favorites fires two loads; without
+  // this the slower one wins and the grid shows the wrong subset.
+  const myEpoch = ++apiEpoch;
+  const requestedRoute = state.route;
   try {
     const [itemsData, spaces] = await Promise.all([
-      fetchItems({ limit: 50 }),
+      fetchItems(fetchItemsForRoute(requestedRoute)),
       fetchSpaces()
     ]);
-    state.items = (itemsData && itemsData.items) || [];
+    state.lastItemsQuery = 'limit=' + GRID_PAGE_SIZE
+      + (requestedRoute === 'favorites' ? '&favorite=true' : '');
+    if (myEpoch !== apiEpoch) return;   // superseded by a newer loadAll
+    const rawItems = (itemsData && itemsData.items) || [];
+    // The API speaks snake_case (`is_favorite`); the dashboard renders
+    // camelCase. Normalise once, here, instead of every read site.
+    state.items = rawItems.map(normalizeServerItem);
     state.spaces = spaces;
     state.error = null;
     // If the user is currently viewing a detail modal, refresh the
@@ -682,11 +1049,14 @@ async function loadAll() {
       }
     }
   } catch (e) {
+    if (myEpoch !== apiEpoch) return;
     state.error = e.message || String(e);
     toast(state.error, 'error');
   } finally {
-    state.loading = false;
-    renderRoute();
+    if (myEpoch === apiEpoch) {
+      state.loading = false;
+      renderRoute();
+    }
   }
 }
 
@@ -735,11 +1105,11 @@ function bindEvents() {
       const next = tab.dataset.routeTab;
       setState({ route: next });
       if (DATA_TABS.has(next) && state.user) loadAll().catch((err) => console.error('[mnx] tab reload failed:', err));
-      return;
-    }
+    return;
+  }
     const goHome = e.target.closest('[data-action="go-home"]');
     if (goHome) {
-      e.preventDefault();
+        e.preventDefault();
       setState({ route: 'everything' });
       if (state.user) loadAll().catch((err) => console.error('[mnx] home reload failed:', err));
       return;
@@ -777,31 +1147,51 @@ function bindEvents() {
     // Card click → detail
     const card = e.target.closest('.mnx-card[data-memory-id]');
     if (card) {
-      // Ignore clicks on the card actions (favorite, more).
-      if (e.target.closest('[data-action]')) {
-        if (e.target.closest('[data-action="favorite"]')) {
-          const id = card.dataset.memoryId;
-          const item = state.items.find((x) => String(x.id) === String(id));
-          if (item) {
-            item.isFavorite = !item.isFavorite;
-            toggleFavorite(id, item.isFavorite);
-            renderGrid();
-          }
+      const id = card.dataset.memoryId;
+      const item = findItemById(id);
+
+      // Card actions. Each one owns its behaviour and must not fall
+      // through to "open detail".
+      const actionEl = e.target.closest('[data-action]');
+      if (actionEl) {
+        const act = actionEl.dataset.action;
+
+        if (act === 'favorite' || act === 'menu-favorite') {
+          state.openMenuId = null;
+          if (item) handleToggleFavorite(item);
           return;
         }
-        if (e.target.closest('[data-action="more"]')) {
+
+        if (act === 'more') {
+          state.openMenuId = state.openMenuId === id ? null : id;
+          renderGrid();
+          return;
+        }
+
+        if (act === 'menu-delete') {
+          state.openMenuId = null;
+          if (item) handleDelete(item);
           return;
         }
       }
-      const id = card.dataset.memoryId;
-      const item = state.items.find((x) => String(x.id) === String(id))
-        || (state.search.hits && state.search.hits.find((x) => String(x.id) === String(id)));
+
+      // Clicking anywhere else on the card dismisses an open menu.
+      if (state.openMenuId) { state.openMenuId = null; renderGrid(); return; }
+
       if (item) {
         lastRoute = state.route;
         setState({ detail: item, route: 'detail' });
+        // Load the AI summary for this card. Rendered immediately from
+        // whatever we have, then re-rendered when the fetch lands — the
+        // enrichment job may not have run yet, and the modal must not
+        // block on that.
+        loadEnrichmentFor(item);
       }
       return;
     }
+
+    // A click outside any card dismisses an open overflow menu.
+    if (state.openMenuId) { state.openMenuId = null; renderGrid(); return; }
 
     // Detail-side buttons
     if (state.route === 'detail') {
@@ -809,28 +1199,25 @@ function bindEvents() {
       if (ds) {
         const act = ds.dataset.action;
         if (act === 'detail-favorite') {
-          const item = state.detail;
-          if (item) {
-            item.isFavorite = !item.isFavorite;
-            toggleFavorite(item.id, item.isFavorite);
-            renderDetail();
-          }
+          if (state.detail) handleToggleFavorite(state.detail);
           return;
         }
         if (act === 'open-source' && state.detail && state.detail.source_url) {
           if (typeof chrome !== 'undefined' && chrome.tabs) {
             chrome.tabs.create({ url: state.detail.source_url });
-          } else {
+        } else {
             window.open(state.detail.source_url, '_blank');
-          }
-          return;
-        }
+      }
+      return;
+    }
         if (act === 'copy-tldr') {
-          const text = (state.detail && (state.detail.note || state.detail.excerpt)) || '';
+          // Copy whatever the panel is actually showing, not a stale
+          // read of the raw capture.
+          const text = tldrViewFor(state.detail).text;
           navigator.clipboard && navigator.clipboard.writeText(text);
           toast('Copied to clipboard', 'success');
-          return;
-        }
+      return;
+    }
         if (act === 'save-notes') {
           const ta = document.querySelector('[data-bind="notes"]');
           if (ta && state.detail) {
@@ -889,8 +1276,8 @@ function bindEvents() {
         state.search.query = '';
         state.search.hits = null;
         renderGrid();
-        return;
-      }
+      return;
+    }
       searchTimer = setTimeout(() => doSearch(q), 350);
     });
   }
@@ -901,6 +1288,11 @@ function bindEvents() {
       e.preventDefault();
       if (searchInput) searchInput.focus();
     }
+    if (e.key === 'Escape' && state.openMenuId) {
+      state.openMenuId = null;
+      renderGrid();
+      return;
+    }
     if (e.key === 'Escape' && state.route === 'detail') {
       setState({ route: lastRoute || 'everything', detail: null });
     }
@@ -909,13 +1301,13 @@ function bindEvents() {
   // Login / signup forms
   const loginForm = $('login-form');
   if (loginForm) loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+      e.preventDefault();
     const email = $('login-email').value.trim();
     const password = $('login-password').value;
     $('login-error').textContent = '';
     try {
       await loginUser(email, password);
-      state.user = (await loadSession()).user;
+      state.user = resolveUser(await loadSession());
       setState({ route: 'everything' });
       loadAll();
     } catch (err) {
@@ -932,7 +1324,7 @@ function bindEvents() {
     $('signup-error').textContent = '';
     try {
       await signupUser(name, email, password);
-      state.user = (await loadSession()).user;
+      state.user = resolveUser(await loadSession());
       setState({ route: 'everything' });
       loadAll();
     } catch (err) {
@@ -989,8 +1381,8 @@ function handleCaptureAction(kind) {
     chrome.runtime.sendMessage({ type: 'CAPTURE_FROM_DASHBOARD', payload }, (response) => {
       if (chrome.runtime && chrome.runtime.lastError) {
         toast(chrome.runtime.lastError.message || 'Capture failed', 'error');
-        return;
-      }
+    return;
+  }
       if (response && response.ok) {
         toast('Saved', 'success');
         loadAll();
@@ -1034,10 +1426,12 @@ async function init() {
     state.route = 'login';
     state.user = null;
     renderRoute();
-    return;
-  }
-  state.user = session.user || null;
+      return;
+    }
+  state.user = resolveUser(session);
   state.route = 'everything';
+  console.log('[mnx] init: session found, user =',
+    state.user ? (state.user.email || state.user.id) : 'null');
   try {
     renderRoute();
   } catch (err) {

@@ -120,6 +120,54 @@ The variant is decided by `kindToVariant(kind, item)` (see §11).
 * Card actions (heart + more) opacity goes from 0 → 1.
 * No transform on hover (extension does not need lift animation; keeps scroll stable).
 
+### 7.0 The Favorites tab filters server-side
+
+`loadAll()` requests `GET /api/v1/items?favorite=true` when the route is
+`favorites`, and `?limit=100` otherwise.
+
+Filtering the everything-list in the client looks equivalent and is
+not. That list is capped, so a memory favorited last month is simply
+not in it — the tab rendered "No favorites yet" while the heart on its
+card sat filled. The server-side filter has no such blind spot.
+
+> **Trap:** `fetchItemsForRoute()` must stay **synchronous**. It is
+> passed straight into `fetchItems`, which destructures its argument.
+> An `async` version returns a Promise, and destructuring a Promise
+> yields `undefined` for every key, so `fetchItems` silently falls back
+> to its own defaults (`favorite=false, limit=50`) and the bug returns
+> with no error. Do not "modernise" it to `async` without adding `await`.
+
+> **Trap:** the tab re-fetch is guarded by
+> `DATA_TABS.has(next) && state.user`. `saveSession()` must therefore
+> persist `user` **alongside** the flat token fields, and `init()` reads
+> it through `resolveUser()`, which falls back to the JWT `sub` claim.
+> When `user` was dropped on write, `state.user` became `null` on every
+> reload, the guard silently skipped `loadAll()`, and no
+> `?favorite=true` request was ever issued — the tab then showed the
+> previous route's rows and looked permanently empty. Any session shape
+> that loses the identity re-creates this.
+
+Un-favoriting a card while the Favorites tab is open drops it from the
+view immediately (it is a filtered list) and re-fetches so the tab
+reconciles with the server. `apiEpoch` guards against a slow earlier
+`loadAll` overwriting a newer one when tabs are clicked quickly.
+
+### 7.1 Card actions → BE bindings
+
+Both card actions are backed by a real endpoint. Neither is a stub.
+
+| Control | Endpoint | Notes |
+|---------|----------|-------|
+| Heart | `PATCH /api/v1/items/:id` `{ isFavorite: boolean }` | Optimistic: fills red immediately, rolls back if the PATCH fails. `aria-pressed` mirrors `items.is_favorite`; the heart switches to `fill="currentColor"` when on. |
+| "…" → Open details | client-side | No request; opens the detail modal (§8). |
+| "…" → Favorite | same `PATCH` as the heart | Duplicate entry so the overflow menu is self-sufficient on touch / narrow cards where hover-reveal is unavailable. |
+| "…" → Delete | `DELETE /api/v1/items/:id` | Destructive, styled red. Confirms first, then removes the card from the list. |
+
+The overflow menu closes on `Esc`, on outside `mousedown`, and immediately
+after any entry is chosen. It is anchored to its trigger via
+`position: relative` — no portal, so it inherits the card's stacking
+context.
+
 ## 8. Detail modal
 
 Replaces the existing `reader-modal`. Two columns:
@@ -145,6 +193,50 @@ Replaces the existing `reader-modal`. Two columns:
 * Close: `×` button, `Esc` key, click backdrop.
 * `data-route="detail"` is set on `<body>` while open. Header + nav are still
   visible above (modal sits under them with `z-index: 30`).
+
+### 8.1 The TLDR panel reads the enrichment row
+
+The panel shows `item_enrichments.tldr` — the AI summary — **not** the
+captured `raw_text`. Opening a card triggers `GET /api/v1/items/:id/enrichment`
+through the service worker (`GET_ENRICHMENT` bridge message); the modal
+renders immediately from local state and re-renders when the fetch lands.
+
+Selection order, and the `data-tldr-state` each case writes:
+
+| State | Shown | Provenance label |
+|-------|-------|------------------|
+| `ready` | `enrichment.tldr` | `bạn đã viết` / model name / `heuristic` |
+| `fallback` | captured `note` / `excerpt` | `nguyên văn` |
+| `pending` | `Đang tạo tóm tắt…` | — |
+| `failed` | `Không tạo được tóm tắt.` | — |
+| `disabled` | `Tóm tắt đang tắt.` | — |
+| `empty` | `Chưa có tóm tắt.` | — |
+
+A captured body outranks `pending`: showing a spinner over text the user
+can already read is strictly worse. A missing enrichment row (404) is a
+normal async state, not an error.
+
+### 8.2 Link captures are titled from the page, not the tab
+
+The browser tab title is not a caption. On Facebook it is `(1) Facebook`
+— an unread badge plus the site name — so a link saved that way was
+unidentifiable in both the grid and the TLDR.
+
+`fetchPageTitle(url, fallback)` in the service worker reads the target
+page (it holds `host_permissions: <all_urls>`, so it is not CORS-bound
+the way a page-context fetch would be) and takes the first of:
+
+1. `og:title`
+2. `twitter:title`
+3. `<title>`
+4. first `<h1>`
+
+A leading `(12)`-style badge is stripped, HTML entities are decoded, and
+the read is bounded (6 s timeout, 400 KB cap). When the page is
+unreachable — offline, 4xx/5xx, or a hostile host like Facebook or
+Gmail that blocks a plain fetch — it returns the tab title so the
+capture still succeeds. `javascript:` and other non-HTTP schemes are
+never fetched.
 
 ## 9. Capture sheet
 
@@ -248,7 +340,7 @@ function variantToKind(variant) {
 
 | Route | Endpoint | Body / params | Response |
 |-------|----------|---------------|----------|
-| `everything`, `favorites`, `rediscover`, `reminders` | `GET /api/v1/items?limit=50&offset=0&favorite=true?` | query string | `{ data: { items, total, limit, offset } }` |
+| `everything`, `favorites`, `rediscover`, `reminders` | `GET /api/v1/items?limit=50&offset=0&favorite=true?` | query string | `{ data: { items, total, limit, offset } }` — each item carries `raw_text` and `ocr_text`, **not** `snippet` (see §13) |
 | Search | `POST /api/v1/search` | `{ q, filters: { kind[], tags[], captured_after?, captured_before? }, limit, offset }` | `{ hits: [{ id, kind, title, snippet, score, captured_at, tags }] }` |
 | Spaces | `GET /api/v1/spaces` | — | `{ data: { spaces, total } }` |
 | Space detail | `GET /api/v1/spaces/:id/items?limit=50&offset=0` | path + query | `{ data: { items, total, limit, offset } }` |
@@ -258,6 +350,23 @@ function variantToKind(variant) {
 
 All calls go through `apps/extension/api-client.js` (existing) so the auth
 refresh and 401-retry loop is shared with the popup.
+
+### 12.1 Card body text
+
+Two endpoints expose the body of a memory and they use **different fields**:
+
+| Endpoint | Body field |
+|----------|------------|
+| `GET /api/v1/items` (list) | `raw_text`, `ocr_text` |
+| `POST /api/v1/search` (hits) | `snippet` (pre-built, ~240 chars) |
+
+A renderer must therefore read `snippet ?? raw_text ?? ocr_text`. Mapping
+only `snippet` makes every list card render with a title and source but an
+empty body, because the list endpoint never sends that key.
+
+The `highlight` variant renders its body the same way as every other
+variant; the quote styling comes from the variant class, not from hiding the
+text.
 
 ## 13. Auth
 

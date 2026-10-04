@@ -39,6 +39,23 @@ describe('MemoryCard', () => {
     expect(screen.getByTestId('item-card-a3').className).toContain('highlight');
   });
 
+  it('shows the body snippet for every variant, including highlight', () => {
+    // Regression: the highlight branch used to suppress the snippet, so a
+    // selected-text card rendered title + source only.
+    render(
+      <MemoryCard
+        item={{
+          ...baseItem('a9'),
+          kind: 'link',
+          selectedText: '"All our dreams can come true…"',
+          snippet: 'The Psychology of Possibility',
+        }}
+        onOpen={vi.fn()}
+      />
+    );
+    expect(screen.getByText('The Psychology of Possibility')).toBeTruthy();
+  });
+
   it('renders an image variant with image_url', () => {
     render(
       <MemoryCard
@@ -80,5 +97,72 @@ describe('MemoryCard', () => {
     );
     await userEvent.click(screen.getByLabelText(/favorite/i));
     expect(onToggleFavorite).toHaveBeenCalledOnce();
+  });
+  it('keeps the overflow menu but drops the delete entry without a handler', async () => {
+    const user = userEvent.setup();
+    render(<MemoryCard item={baseItem('a10')} onOpen={vi.fn()} />);
+    // The "..." trigger is always present (it opens the detail view), but
+    // the destructive entry must not exist when no delete handler is given.
+    await user.click(screen.getByTestId('item-more-a10'));
+    expect(screen.queryByTestId('item-menu-delete-a10')).toBeNull();
+  });
+
+  it('opens an overflow menu with favorite + delete entries', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(
+      <MemoryCard
+        item={baseItem('a11')}
+        onOpen={vi.fn()}
+        onToggleFavorite={vi.fn()}
+        onDelete={onDelete}
+      />
+    );
+
+    // Nothing is shown until "..." is clicked.
+    expect(screen.queryByTestId('item-menu-delete-a11')).toBeNull();
+    await user.click(screen.getByTestId('item-more-a11'));
+
+    const menuDelete = screen.getByTestId('item-menu-delete-a11');
+    expect(menuDelete).toBeTruthy();
+
+    await user.click(menuDelete);
+    expect(onDelete).toHaveBeenCalledOnce();
+    // The menu must close after acting.
+    expect(screen.queryByTestId('item-menu-delete-a11')).toBeNull();
+  });
+
+  it('closes the overflow menu on Escape', async () => {
+    const user = userEvent.setup();
+    render(<MemoryCard item={baseItem('a13')} onOpen={vi.fn()} onDelete={vi.fn()} />);
+    await user.click(screen.getByTestId('item-more-a13'));
+    expect(screen.getByTestId('item-menu-delete-a13')).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByTestId('item-menu-delete-a13')).toBeNull();
+  });
+
+  it('marks the heart as pressed and filled when already favorited', () => {
+    render(
+      <MemoryCard
+        item={{ ...baseItem('a14'), is_favorite: true }}
+        onOpen={vi.fn()}
+        onToggleFavorite={vi.fn()}
+      />
+    );
+    const heart = screen.getByTestId('item-favorite-a14');
+    expect(heart.getAttribute('aria-pressed')).toBe('true');
+    expect(heart.querySelector('svg')?.getAttribute('fill')).toBe('currentColor');
+  });
+
+  it('disables the heart while the favorite request is in flight', () => {
+    render(
+      <MemoryCard
+        item={baseItem('a15')}
+        onOpen={vi.fn()}
+        onToggleFavorite={vi.fn()}
+        favoriting
+      />
+    );
+    expect((screen.getByTestId('item-favorite-a15') as HTMLButtonElement).disabled).toBe(true);
   });
 });
