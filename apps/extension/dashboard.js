@@ -671,6 +671,16 @@ async function loadAll() {
     state.items = (itemsData && itemsData.items) || [];
     state.spaces = spaces;
     state.error = null;
+    // If the user is currently viewing a detail modal, refresh the
+    // open detail's reference so it shows fresh fields (e.g. updated
+    // tags) after a save. Without this, state.detail would still
+    // point at the pre-save object after loadAll replaces state.items.
+    if (state.route === 'detail' && state.detail) {
+      const fresh = state.items.find((x) => String(x.id) === String(state.detail.id));
+      if (fresh) {
+        state.detail = Object.assign({}, state.detail, fresh);
+      }
+    }
   } catch (e) {
     state.error = e.message || String(e);
     toast(state.error, 'error');
@@ -694,11 +704,19 @@ function bindRuntime() {
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
   chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
     if (!msg || typeof msg.type !== 'string') return;
-    if (msg.type === 'RELOAD_ITEMS' || msg.type === 'ITEM_SAVED') {
-      // Only re-fetch if we are logged in. On the login route there is
-      // no session yet and loadAll() would just no-op.
-      if (!state.user) return;
-      loadAll().catch((err) => console.error('[mnx] live reload failed:', err));
+    if (msg.type === 'ITEM_SAVED') {
+      // Saved an item from somewhere (cropper, popup, context menu).
+      // Show a brief toast so the open dashboard confirms the save
+      // even if the user is on a tab other than Everything.
+      if (state.user) {
+        toast('Saved to Memories', 'success');
+        loadAll().catch((err) => console.error('[mnx] live reload failed:', err));
+      }
+    } else if (msg.type === 'RELOAD_ITEMS') {
+      // PATCH/DELETE from another surface — refresh silently.
+      if (state.user) {
+        loadAll().catch((err) => console.error('[mnx] live reload failed:', err));
+      }
     }
   });
 }
