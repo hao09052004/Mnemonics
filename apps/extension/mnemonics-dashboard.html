@@ -633,7 +633,12 @@
   .mnx-mobile-nav button > span.capture + small { margin-top: -16px; }
 
   /* ===== Route sections (hidden unless active) ===== */
-  [data-route] { display: none; }
+  /* NOTE: selector targets [data-route-section] (child <section> elements)
+     — NOT [data-route]. Body itself carries data-route, and the broad
+     selector would otherwise set body { display: none } and collapse the
+     whole document to 0×0. That bug caused the entire dashboard to render
+     blank even when login JS succeeded. */
+  [data-route-section] { display: none; }
   /* Safety net: if `dashboard.js` hasn't run yet (or failed before
      renderRoute), show the login section so the page isn't blank. */
   body:not([data-route]) .mnx-route-login,

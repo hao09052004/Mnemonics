@@ -110,4 +110,22 @@ describe('dashboard renders blank-page bug repro', () => {
     const visible = all.filter((el) => dom.window.getComputedStyle(el as Element).display !== 'none');
     expect(visible.length, 'at least one section/header/nav/main must be visible').toBeGreaterThan(0);
   });
+
+  it('<body> computed display is not "none" (regression: blank page)', () => {
+    // Regression for the 2026-10-04 incident where the CSS selector
+    // `[data-route] { display: none }` matched <body data-route="login">
+    // and collapsed the entire document to 0×0, producing a blank page.
+    // The fix restricts it to `[data-route-section]` (child <section>
+    // elements only). If anyone re-broadens that selector in the future,
+    // this test catches it before it ships.
+    //
+    // We assert on getComputedStyle().display rather than
+    // getBoundingClientRect().height because jsdom doesn't perform
+    // layout (rects are always 0×0 in headless DOM); the actual
+    // display value is what Chrome respects when painting.
+    const { dom } = loadDashboard();
+    const body = dom.window.document.body;
+    const cs = dom.window.getComputedStyle(body);
+    expect(cs.display, '<body> must not be display:none — that collapses the page').not.toBe('none');
+  });
 });
