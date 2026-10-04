@@ -163,6 +163,7 @@ async function fetchItems({ favorite = false, limit = 50, capturedAfter = null }
     const refreshed = await refreshToken();
     if (refreshed) { token = refreshed.accessToken; r = await req(token); }
   }
+  if (r.status === 401) { handleAuthFailure(); return null; }
   if (!r.ok) throw new Error('Failed to load items (HTTP ' + r.status + ')');
   const body = await r.json();
   return body.data || { items: [], total: 0, limit, offset: 0 };
@@ -183,6 +184,7 @@ async function fetchSpaces() {
     const refreshed = await refreshToken();
     if (refreshed) { token = refreshed.accessToken; r = await req(token); }
   }
+  if (r.status === 401) { handleAuthFailure(); return []; }
   if (!r.ok) return [];
   const body = await r.json();
   return (body.data && body.data.spaces) || [];
@@ -207,6 +209,7 @@ async function searchItems(q, filters) {
     const refreshed = await refreshToken();
     if (refreshed) { token = refreshed.accessToken; r = await req(token); }
   }
+  if (r.status === 401) { handleAuthFailure(); return []; }
   if (!r.ok) return [];
   const body = await r.json();
   return (body.hits || []).map((hit) => ({
@@ -234,13 +237,23 @@ async function refreshToken() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: session.refreshToken })
     });
-    if (!r.ok) { saveSession(null); return null; }
+    if (!r.ok) { handleAuthFailure(); return null; }
     const body = await r.json();
     const fresh = body.data || {};
     const next = Object.assign({}, session, fresh.session || fresh);
     saveSession(next);
     return next;
-  } catch (_) { return null; }
+  } catch (_) { handleAuthFailure(); return null; }
+}
+
+// Centralised auth-failure handler: clears the session, drops in-memory
+// state, shows a toast, and routes back to /login so the user can
+// re-authenticate instead of staring at a 401'd grid.
+function handleAuthFailure() {
+  saveSession(null);
+  state.items = []; state.spaces = []; state.detail = null; state.search.results = [];
+  setState({ route: 'login', user: null });
+  toast('Phiên đã hết hạn, vui lòng đăng nhập lại', 'error');
 }
 
 async function patchItem(itemId, patch) {
