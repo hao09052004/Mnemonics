@@ -38,7 +38,8 @@
         "api-client.js",
         "auth-client.js",
         "original-image.html",
-        "original-image.js"
+        "original-image.js",
+        "styles/*.css"
       ],
       "matches": [
         "<all_urls>"
