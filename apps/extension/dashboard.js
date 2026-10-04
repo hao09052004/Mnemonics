@@ -21,10 +21,12 @@
 
 // ----- shared constants -----------------------------------------------
 
-const MNEMONICS_API_URL =
-  (typeof window !== 'undefined' && window.MNEMONICS_API_URL) ||
-  (typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : null) ||
-  'http://localhost:4000';
+// `MNEMONICS_API_URL` is provided by `api-client.js` (declared with `var`
+// so this is a no-op redeclaration). We just expose an alias on
+// `window.MnemonicsDashboard` so internal functions don't depend on it
+// leaking through the global namespace — keeps the bundled dashboard
+// collision-free when more classic scripts get loaded onto the page.
+// eslint-disable-next-line no-redeclare
 
 // 6 memory card variants. Each maps to a CSS class suffix and an API kind set.
 const VARIANT_KINDS = {
@@ -119,7 +121,7 @@ function saveSession(session) {
 async function authPost(path, body, accessToken) {
   const headers = { 'Content-Type': 'application/json' };
   if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
-  const response = await fetch(MNEMONICS_API_URL + '/api/v1/auth/' + path, {
+  const response = await fetch(window.MNEMONICS_API_URL + '/api/v1/auth/' + path, {
     method: 'POST', headers, body: JSON.stringify(body || {})
   });
   const data = await response.json().catch(() => ({}));
@@ -151,7 +153,7 @@ async function fetchItems({ favorite = false, limit = 50, capturedAfter = null }
   if (favorite) params.set('favorite', 'true');
 
   async function req(t) {
-    return fetch(MNEMONICS_API_URL + '/api/v1/items?' + params.toString(), {
+    return fetch(window.MNEMONICS_API_URL + '/api/v1/items?' + params.toString(), {
       headers: { Authorization: 'Bearer ' + t }
     });
   }
@@ -172,7 +174,7 @@ async function fetchSpaces() {
   let token = session.accessToken;
 
   async function req(t) {
-    return fetch(MNEMONICS_API_URL + '/api/v1/spaces', {
+    return fetch(window.MNEMONICS_API_URL + '/api/v1/spaces', {
       headers: { Authorization: 'Bearer ' + t }
     });
   }
@@ -194,7 +196,7 @@ async function searchItems(q, filters) {
   if (filters && filters.kind && filters.kind.length) payload.filters = { kind: filters.kind };
 
   async function req(t) {
-    return fetch(MNEMONICS_API_URL + '/api/v1/search', {
+    return fetch(window.MNEMONICS_API_URL + '/api/v1/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
       body: JSON.stringify(payload)
@@ -227,7 +229,7 @@ async function refreshToken() {
   const session = await loadSession();
   if (!session || !session.refreshToken) return null;
   try {
-    const r = await fetch(MNEMONICS_API_URL + '/api/v1/auth/refresh', {
+    const r = await fetch(window.MNEMONICS_API_URL + '/api/v1/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: session.refreshToken })
