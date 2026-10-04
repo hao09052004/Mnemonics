@@ -955,7 +955,11 @@ function toast(message, kind) {
 // ----- init -----------------------------------------------------------
 
 async function init() {
-  bindEvents();
+  try {
+    bindEvents();
+  } catch (err) {
+    console.error('[mnx] bindEvents failed:', err);
+  }
   const session = await loadSession();
   if (!session || !session.accessToken) {
     state.route = 'login';
@@ -965,8 +969,12 @@ async function init() {
   }
   state.user = session.user || null;
   state.route = 'everything';
-  renderRoute();
-  await loadAll();
+  try {
+    renderRoute();
+  } catch (err) {
+    console.error('[mnx] initial renderRoute failed:', err);
+  }
+  loadAll().catch((err) => console.error('[mnx] loadAll failed:', err));
 }
 
 if (document.readyState === 'loading') {

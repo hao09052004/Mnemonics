@@ -634,6 +634,10 @@
 
   /* ===== Route sections (hidden unless active) ===== */
   [data-route] { display: none; }
+  /* Safety net: if `dashboard.js` hasn't run yet (or failed before
+     renderRoute), show the login section so the page isn't blank. */
+  body:not([data-route]) .mnx-route-login,
+  body:not([data-route]) .mnx-route-everything { display: block; }
   body[data-route="everything"]   .mnx-route-everything,
   body[data-route="favorites"]    .mnx-route-favorites,
   body[data-route="spaces"]       .mnx-route-spaces,
