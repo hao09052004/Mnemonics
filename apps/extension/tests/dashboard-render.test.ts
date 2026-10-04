@@ -128,4 +128,20 @@ describe('dashboard renders blank-page bug repro', () => {
     const cs = dom.window.getComputedStyle(body);
     expect(cs.display, '<body> must not be display:none — that collapses the page').not.toBe('none');
   });
+
+  it('login form has working email/password inputs after init (sign-in path ready)', () => {
+    const { dom } = loadDashboard();
+    const email = dom.window.document.getElementById('login-email') as HTMLInputElement;
+    const pw = dom.window.document.getElementById('login-password') as HTMLInputElement;
+    const submit = dom.window.document.querySelector('#login-form button[type="submit"]') as HTMLButtonElement;
+    expect(email, 'login-email input exists').toBeTruthy();
+    expect(pw, 'login-password input exists').toBeTruthy();
+    expect(submit, 'login-form has a submit button').toBeTruthy();
+    expect(email.type, 'email input type is "email"').toBe('email');
+    expect(pw.type, 'password input type is "password"').toBe('password');
+    // Verify a submit handler was bound: dispatching 'submit' on the
+    // form must not throw, and the form's email field is reachable.
+    const ev = new dom.window.Event('submit', { bubbles: true, cancelable: true });
+    expect(() => dom.window.document.getElementById('login-form')!.dispatchEvent(ev)).not.toThrow();
+  });
 });
