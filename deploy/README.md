@@ -39,7 +39,7 @@ Mnemonics production deployment configurations.
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_ANON_KEY` | Public anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (server-only) |
-| `OPENAI_API_KEY` | OpenAI API key for embeddings/tags |
+| `GEMINI_API_KEY` | Google AI Studio key (text + embeddings); omit to run on the local fallback |
 | `NODE_ENV` | production |
 | `PORT` | 4000 (or platform-assigned) |
 

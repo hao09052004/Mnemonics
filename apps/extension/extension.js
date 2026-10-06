@@ -142,6 +142,12 @@ function captureScreenshot() {
     var titleEl = document.getElementById('cap-title');
     var noteEl = document.getElementById('cap-note');
     var payload = {
+      // type is the capture kind the API needs to dispatch the right
+      // pipeline. Screenshots go through OCR + visual similarity;
+      // regular images share the same path. Putting it on the payload
+      // explicitly avoids server-side inference from filename or
+      // data-URL prefix.
+      type: 'screenshot',
       imageUrl: dataUrl,
       title: ((titleEl && titleEl.value.trim()) || currentPageTitle || 'Ảnh chụp màn hình').slice(0, 80),
       note: noteEl ? noteEl.value.trim() : '',
@@ -369,6 +375,7 @@ async function savePendingScreenshot(useCrop) {
     var token = await getAccessToken();
     if (!token) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
     await uploadImageCapture(item.imageUrl, {
+      type: 'screenshot',
       title: item.title,
       note: item.note,
       sourceUrl: item.sourceUrl,

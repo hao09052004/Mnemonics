@@ -43,9 +43,24 @@ describe('loginInputSchema', () => {
 });
 
 describe('refreshInputSchema', () => {
-  it('requires a refresh token (>= 20 chars)', () => {
-    expect(refreshInputSchema.safeParse({ refreshToken: 'short' }).success).toBe(false);
+  // Regression (2026-10-04): the schema used to require min(20) chars.
+  // Supabase issues short opaque refresh tokens (observed 12 chars, e.g.
+  // "3dvpovfjldcp"), so *every* real refresh request was rejected with
+  // 400 INVALID_AUTH_PAYLOAD. Users could never rotate a session and
+  // were logged out as soon as the access token expired. The spec says
+  // the token is opaque and must not be parsed, so the bound only has to
+  // reject empty input.
+  it('accepts a real Supabase short refresh token (12 chars)', () => {
+    expect(refreshInputSchema.safeParse({ refreshToken: '3dvpovfjldcp' }).success).toBe(true);
+  });
+
+  it('accepts a long JWT-shaped refresh token', () => {
     expect(refreshInputSchema.safeParse({ refreshToken: 'a'.repeat(30) }).success).toBe(true);
+  });
+
+  it('still rejects an empty or missing refresh token', () => {
+    expect(refreshInputSchema.safeParse({ refreshToken: '' }).success).toBe(false);
+    expect(refreshInputSchema.safeParse({}).success).toBe(false);
   });
 });
 
@@ -65,7 +80,12 @@ describe('resetInputSchema', () => {
     };
     expect(resetInputSchema.safeParse(ok).success).toBe(true);
     expect(resetInputSchema.safeParse({ ...ok, newPassword: 'weak' }).success).toBe(false);
-    expect(resetInputSchema.safeParse({ ...ok, accessToken: 'short' }).success).toBe(false);
+    // Tokens are opaque (specs/api/auth.md §2): only empty is rejected.
+    // Supabase refresh tokens are ~12 chars, so a min-length guard here
+    // would block the whole recovery flow.
+    expect(resetInputSchema.safeParse({ ...ok, accessToken: '' }).success).toBe(false);
+    expect(resetInputSchema.safeParse({ ...ok, refreshToken: '' }).success).toBe(false);
+    expect(resetInputSchema.safeParse({ ...ok, accessToken: 'short' }).success).toBe(true);
   });
 });
 

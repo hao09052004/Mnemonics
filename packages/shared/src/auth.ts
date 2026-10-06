@@ -43,11 +43,21 @@ export const loginInputSchema = z
   .strict();
 export type LoginInput = z.infer<typeof loginInputSchema>;
 
+// Supabase issues short opaque refresh tokens (observed length 12 in
+// production, e.g. "3dvpovfjldcp"), while access tokens are ~800-char
+// JWTs. `min(20)` used to guard this field and made every real
+// refresh return 400 INVALID_AUTH_PAYLOAD, so a signed-in user could
+// never rotate a session and was logged out as soon as the access token
+// expired. The spec (specs/api/auth.md §2) states these tokens are
+// "opaque ... we do not parse them at the API level", so the lower
+// bound only needs to reject empty/obviously-bogus input.
+const opaqueTokenSchema = z.string().min(1).max(8192);
+
 export const refreshInputSchema = z
   .object({
-    refreshToken: z.string().min(20).max(8192)
+    refreshToken: opaqueTokenSchema
   })
-  .strict();
+    .strict();
 export type RefreshInput = z.infer<typeof refreshInputSchema>;
 
 export const forgotInputSchema = z
@@ -57,8 +67,8 @@ export type ForgotInput = z.infer<typeof forgotInputSchema>;
 
 export const resetInputSchema = z
   .object({
-    accessToken: z.string().min(20).max(8192),
-    refreshToken: z.string().min(20).max(8192),
+    accessToken: opaqueTokenSchema,
+    refreshToken: opaqueTokenSchema,
     newPassword: passwordSchema
   })
   .strict();

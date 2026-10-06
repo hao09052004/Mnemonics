@@ -1,12 +1,93 @@
 /**
- * Design tokens for the Mnemonics web experience.
+ * Mnemonics design tokens.
  *
- * Tuned to feel warm and editorial — cream page, near-black ink, Mnemonics
- * violet as the single brand accent. All values are intentional, so a
- * component should reach for `var(--brand)` rather than inlining hex.
+ * Two themes live in the same file:
+ *   - The default `:root` block is the dark "second brain" canvas
+ *     used by every authenticated surface (/app/*).
+ *   - `[data-theme='marketing']` re-binds the same names to the warm,
+ *     editorial palette that the public marketing site has used
+ *     since M1. Existing marketing components keep working
+ *     unchanged.
+ *
+ * Tokens are intentionally narrow. Components should reach for
+ * `var(--mn-bg)` rather than inlining hex.
  */
+
 :root {
-  /* Surface palette */
+  /* ----------  Authenticated dark canvas  ---------- */
+  --mn-bg: #111318;
+  --mn-bg-elev: #161922;
+  --mn-surface: #191c25;
+  --mn-surface-2: #1f2331;
+  --mn-surface-hover: #232733;
+  --mn-overlay: rgba(7, 9, 14, 0.55);
+  --mn-toplight: radial-gradient(1200px 480px at 50% -10%, rgba(116, 87, 232, 0.10), transparent 70%);
+
+  --mn-border: rgba(255, 255, 255, 0.06);
+  --mn-border-strong: rgba(255, 255, 255, 0.12);
+
+  --mn-text: #f2f3f5;
+  --mn-text-2: #a2a9b8;
+  --mn-text-3: #707888;
+  --mn-text-inverse: #111318;
+
+  /* Brand violet — single accent. Used sparingly. */
+  --mn-brand: #7457e8;
+  --mn-brand-hover: #8167ea;
+  --mn-brand-soft: rgba(116, 87, 232, 0.16);
+  --mn-brand-tint: rgba(116, 87, 232, 0.10);
+  --mn-brand-glow: rgba(116, 87, 232, 0.35);
+
+  --mn-success: #34d399;
+  --mn-success-soft: rgba(52, 211, 153, 0.12);
+  --mn-danger: #f87171;
+  --mn-danger-soft: rgba(248, 113, 113, 0.12);
+  --mn-warn: #fbbf24;
+  --mn-warn-soft: rgba(251, 191, 36, 0.12);
+
+  /* Radii */
+  --mn-r-xs: 6px;
+  --mn-r-sm: 10px;
+  --mn-r-md: 14px;
+  --mn-r-lg: 18px;
+
+  /* Shadows */
+  --mn-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --mn-shadow-md: 0 6px 24px -8px rgba(0, 0, 0, 0.5);
+  --mn-shadow-lg: 0 24px 60px -28px rgba(0, 0, 0, 0.7);
+
+  /* Typography — Inter Variable (locally bundled). */
+  --mn-font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mn-font-display: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mn-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Type scale */
+  --mn-fs-hero: clamp(34px, 4.2vw, 56px);
+  --mn-fs-h1: 30px;
+  --mn-fs-h2: 22px;
+  --mn-fs-h3: 17px;
+  --mn-fs-card-title: 16px;
+  --mn-fs-body: 14px;
+  --mn-fs-small: 13px;
+  --mn-fs-meta: 12px;
+  --mn-fs-micro: 11px;
+
+  /* Layout */
+  --mn-rail: 64px;
+  --mn-canvas-pad: 28px;
+  --mn-canvas-max: 1800px;
+  --mn-card-pad: 14px;
+
+  /* Motion */
+  --mn-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --mn-dur-fast: 120ms;
+  --mn-dur: 180ms;
+  --mn-dur-slow: 280ms;
+
+  /* ----------  Marketing fallback  ----------
+     Kept for backwards compatibility with the public marketing site. */
   --bg: #f7f5ef;
   --bg-elevated: #fdfcf8;
   --surface: #ffffff;
@@ -16,41 +97,28 @@
   --muted-soft: #9b9892;
   --border: rgba(17, 17, 17, 0.10);
   --border-strong: rgba(17, 17, 17, 0.20);
-
-  /* Brand */
   --brand: #5b3fe4;
   --brand-hover: #4a31c9;
   --brand-soft: #ede9fe;
   --brand-tint: rgba(91, 63, 228, 0.08);
   --warm: #f6a26b;
   --warm-soft: #fde4cf;
-
-  /* Functional */
   --success: #047857;
   --success-soft: #ecfdf5;
   --danger: #b91c1c;
   --danger-soft: #fef2f2;
   --warn: #b45309;
   --warn-soft: #fef3c7;
-
-  /* Radii */
   --radius-xs: 6px;
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 24px;
   --radius-xl: 32px;
-
-  /* Shadows */
   --shadow-sm: 0 1px 2px rgba(17, 17, 17, 0.04), 0 1px 3px rgba(17, 17, 17, 0.06);
   --shadow-md: 0 4px 14px rgba(17, 17, 17, 0.06), 0 2px 4px rgba(17, 17, 17, 0.04);
   --shadow-lg: 0 24px 60px rgba(17, 17, 17, 0.10), 0 8px 20px rgba(17, 17, 17, 0.06);
-
-  /* Typography */
-  --font-sans: "Inter", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Fraunces", "Inter", Georgia, "Times New Roman", serif;
-
-  /* Layout */
+  --font-sans: var(--mn-font-sans);
+  --font-display: var(--mn-font-display);
   --header-h: 64px;
   --max-w: 1200px;
   --max-w-narrow: 760px;

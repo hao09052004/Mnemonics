@@ -8,9 +8,11 @@
  *     `image_url` (signed URL from storage when available).
  *   - Items are filtered by `user_id` — no cross-tenant leakage.
  *
- * DELETE is covered by the existing app.test.ts + supertest suite; the
- * transactional pool used by DELETE needs a real `Pool.connect`
- * callback which is impractical to fake from this scope.
+ * DELETE lives in this file too. The route opens a real transaction via
+ * `pool.connect()`, so those tests use a fake pool that models a
+ * transactional client (BEGIN / COMMIT / ROLLBACK) and records every
+ * statement — enough to prove the cleanup fan-out and atomicity without
+ * a live database.
  */
 import request from 'supertest';
 import express from 'express';
@@ -89,6 +91,62 @@ function createFakePool(rows: FakeRow[], tagMap: Record<string, string[]> = {}) 
     async connect() {
       return {
         async query() { return { rows: [], rowCount: 0 }; },
+        release() { /* no-op */ }
+      };
+    }
+  } as any;
+}
+
+interface FakePoolCall {
+  sql: string;
+  params: unknown[];
+}
+
+/**
+ * Fake pool that records every statement so the DELETE test can assert
+ * the full cleanup fan-out, and models a transactional client
+ * (BEGIN / COMMIT / ROLLBACK) so we can also prove the delete is
+ * atomic and rolls back on failure.
+ */
+function createDeleteFakePool(
+  options: {
+    /** Rows deleted by `DELETE FROM items`. */
+    itemRowsAffected?: number;
+    /** Throw on this statement to force a ROLLBACK. */
+    failOn?: string;
+  } = {}
+) {
+  const calls: FakePoolCall[] = [];
+  const { itemRowsAffected = 1, failOn } = options;
+
+  const record = (sql: string, params: unknown[] = []) => {
+    calls.push({ sql: sql.toLowerCase().trim(), params });
+    if (failOn && sql.toLowerCase().includes(failOn)) {
+      throw new Error(`forced failure on ${failOn}`);
+    }
+  };
+
+  const runTransaction = async (sql: string, params: unknown[] = []) => {
+    record(sql, params);
+    if (sql.toLowerCase().includes('delete from items')) {
+      return { rows: [], rowCount: itemRowsAffected };
+    }
+    return { rows: [], rowCount: 1 };
+  };
+
+  return {
+    calls,
+    async query<T = unknown>(sql: string, params: unknown[] = []) {
+      const lower = sql.toLowerCase().trim();
+      if (lower.startsWith('select storage_key from assets')) {
+        record(sql, params);
+        return { rows: [{ storage_key: 'u1/i1/photo.png' }, { storage_key: 'u1/i1/thumb.png' }] };
+      }
+      return runTransaction(sql, params);
+    },
+    async connect() {
+      return {
+        query: runTransaction,
         release() { /* no-op */ }
       };
     }
@@ -263,5 +321,130 @@ describe('PATCH /api/v1/items/:id (favorite)', () => {
       .set('Authorization', 'Bearer t')
       .send({ isFavorite: true });
     expect(response.status).toBe(404);
+  });
+});
+
+describe('DELETE /api/v1/items/:id', () => {
+  const owned: FakeRepoItem = {
+    id: 'i1',
+    userId: 'u1',
+    status: 'ready',
+    type: 'image',
+    title: 'Hello',
+    sourceUrl: null,
+    rawText: null,
+    ocrText: null,
+    ocrEngine: null,
+    ocrConfidence: null,
+    capturedAt: new Date('2026-09-18T09:00:00.000Z')
+  };
+
+  function makeApp(
+    pool: any,
+    repoItem: FakeRepoItem | null = owned
+  ) {
+    const repo = {
+      async findById() {
+        return repoItem ? { ...repoItem } : null;
+      }
+    };
+    const app = express();
+    app.use(express.json());
+    app.use(
+      '/api/v1',
+      createItemRouter({ pool, repository: repo as any, expectedToken: 't', developmentUserId: 'u1' })
+    );
+    return app;
+  }
+
+  it('deletes the item and every child row in one transaction', async () => {
+    const pool = createDeleteFakePool();
+    const response = await request(makeApp(pool))
+      .delete('/api/v1/items/i1')
+      .set('Authorization', 'Bearer t');
+
+    expect(response.status).toBe(204);
+
+    const sql = pool.calls.map((c) => c.sql);
+    // Transaction is opened and committed.
+    expect(sql).toContain('begin');
+    expect(sql).toContain('commit');
+    expect(sql).not.toContain('rollback');
+
+    // Every child table is cleaned so no orphan rows survive the item.
+    expect(sql).toContain('delete from item_tags where item_id = $1');
+    expect(sql).toContain('delete from item_embeddings where item_id = $1');
+    expect(sql).toContain('delete from assets where item_id = $1');
+    expect(sql).toContain('delete from jobs where item_id = $1');
+    expect(sql).toContain('delete from items where id = $1');
+  });
+
+  it('removes the image objects from storage after the DB commit', async () => {
+    const removed: string[] = [];
+    const pool = createDeleteFakePool();
+    const app = express();
+    app.use(express.json());
+    app.use(
+      '/api/v1',
+      createItemRouter({
+        pool,
+        repository: { async findById() { return { ...owned }; } } as any,
+        expectedToken: 't',
+        developmentUserId: 'u1',
+        imageStorage: {
+          async upload() { /* unused */ },
+          async remove(key: string) { removed.push(key); },
+          async createSignedUrl() { return null; }
+        } as any
+      })
+    );
+
+    const response = await request(app)
+      .delete('/api/v1/items/i1')
+      .set('Authorization', 'Bearer t');
+
+    expect(response.status).toBe(204);
+    expect(removed).toEqual(['u1/i1/photo.png', 'u1/i1/thumb.png']);
+  });
+
+  it('rolls back and does not commit when a child delete fails', async () => {
+    const pool = createDeleteFakePool({ failOn: 'delete from assets' });
+    const response = await request(makeApp(pool))
+      .delete('/api/v1/items/i1')
+      .set('Authorization', 'Bearer t');
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    const sql = pool.calls.map((c) => c.sql);
+    expect(sql).toContain('rollback');
+    expect(sql).not.toContain('commit');
+    // The item row must survive a partial failure.
+    expect(sql).not.toContain('delete from items where id = $1');
+  });
+
+  it('returns 404 when the item does not exist', async () => {
+    const pool = createDeleteFakePool();
+    const response = await request(makeApp(pool, null))
+      .delete('/api/v1/items/nope')
+      .set('Authorization', 'Bearer t');
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('ITEM_NOT_FOUND');
+  });
+
+  it('returns 403 when the caller does not own the item', async () => {
+    const pool = createDeleteFakePool();
+    const foreign: FakeRepoItem = { ...owned, userId: 'someone-else' };
+    const response = await request(makeApp(pool, foreign))
+      .delete('/api/v1/items/i1')
+      .set('Authorization', 'Bearer t');
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+    // Nothing may be deleted on a rejected request.
+    expect(pool.calls.some((c) => c.sql.startsWith('delete from items'))).toBe(false);
+  });
+
+  it('requires authentication', async () => {
+    const pool = createDeleteFakePool();
+    const response = await request(makeApp(pool)).delete('/api/v1/items/i1');
+    expect(response.status).toBe(401);
   });
 });

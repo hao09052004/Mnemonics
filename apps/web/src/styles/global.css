@@ -1,7 +1,16 @@
 /**
- * Global reset + base typography for the marketing site + dashboard.
- * Component-scoped styles live next to the components that own them.
+ * Global reset + base typography for Mnemonics.
+ *
+ * - Imports the locally bundled Inter Variable so the app does not
+ *   depend on runtime Google Fonts.
+ * - The dark "second brain" canvas is the default for the root
+ *   document. The marketing theme is re-enabled on the public site
+ *   by toggling `data-theme="marketing"` on the body element from the
+ *   marketing-only routes.
+ * - Component-scoped styles live next to the components that own them.
  */
+
+@import "@fontsource-variable/inter";
 @import "./tokens.css";
 
 *,
@@ -14,14 +23,22 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-sans);
+  background: var(--mn-bg);
+  color: var(--mn-text);
+  font-family: var(--mn-font-sans);
   font-size: 16px;
   line-height: 1.55;
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+body {
+  /* Faint top-light so the empty canvas isn't pitch-flat. Stays
+     invisible once cards are drawn. */
+  background-image: var(--mn-toplight);
+  background-repeat: no-repeat;
 }
 
 #root {
@@ -43,7 +60,26 @@ svg {
   display: block;
 }
 
-/* Marketing headings */
+/* Marketing chrome ---------------------------------------------------------- */
+
+[data-theme="marketing"] body,
+body[data-theme="marketing"] {
+  background: var(--bg);
+  color: var(--ink);
+  background-image: none;
+}
+
+[data-theme="marketing"] .mn-canvas,
+[data-theme="marketing"] .mn-rail,
+[data-theme="marketing"] .mn-search,
+[data-theme="marketing"] .mn-card {
+  /* marketing theme: revert to the light tokens used elsewhere */
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+/* Marketing headings (unchanged from M1) */
 .eyebrow {
   font-size: 12px;
   font-weight: 700;
@@ -87,6 +123,7 @@ svg {
   margin: 0 auto;
   padding: 0 24px;
 }
+
 .container-narrow {
   width: 100%;
   max-width: var(--max-w-narrow);
@@ -101,7 +138,7 @@ svg {
   padding: clamp(56px, 7vw, 96px) 0;
 }
 
-/* Buttons */
+/* Buttons (light theme — preserved for marketing) */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -114,12 +151,16 @@ svg {
   line-height: 1;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: transform var(--mn-dur) var(--mn-ease),
+    background var(--mn-dur) var(--mn-ease),
+    color var(--mn-dur) var(--mn-ease),
+    box-shadow var(--mn-dur) var(--mn-ease),
+    border-color var(--mn-dur) var(--mn-ease);
   text-decoration: none;
   white-space: nowrap;
 }
 .btn:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--mn-brand);
   outline-offset: 2px;
 }
 .btn--primary {
@@ -130,11 +171,12 @@ svg {
   background: var(--brand);
 }
 .btn--brand {
-  background: var(--brand);
+  background: var(--mn-brand);
   color: #fff;
+  border-color: var(--mn-brand);
 }
 .btn--brand:hover {
-  background: var(--brand-hover);
+  background: var(--mn-brand-hover);
 }
 .btn--outline {
   background: var(--surface);
@@ -164,7 +206,7 @@ svg {
   font-size: 13px;
 }
 
-/* Cards */
+/* Cards (light theme — preserved for marketing) */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -177,7 +219,7 @@ svg {
   border-radius: var(--radius-lg);
 }
 
-/* Reveal-on-scroll utility — only animates if motion is allowed */
+/* Reveal-on-scroll utility */
 @media (prefers-reduced-motion: no-preference) {
   .reveal {
     opacity: 0;
@@ -187,5 +229,15 @@ svg {
   .reveal.in {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Reduced motion: kill the top-light animation too */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
   }
 }

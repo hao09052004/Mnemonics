@@ -101,7 +101,7 @@ describe('POST /api/v1/captures', () => {
       .send(validCapture);
 
     expect(response.status).toBe(201);
-    expect(jobs).toEqual(['tag']);
+    expect(jobs).toEqual(['tag', 'enrich']);
   });
 
   it('enqueues OCR as the first stage for image captures', async () => {

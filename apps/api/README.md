@@ -64,7 +64,7 @@ DATABASE_URL=postgres://user:pass@host:5432/db  # Required
 SUPABASE_URL=https://xxx.supabase.co              # Required
 SUPABASE_ANON_KEY=eyJ...                          # Required
 SUPABASE_SERVICE_ROLE_KEY=eyJ...                  # Required for image upload
-OPENAI_API_KEY=sk-...                             # Required for embeddings/tags
+GEMINI_API_KEY=...                               # Optional; local Ollama fallback without it
 PORT=4000                                         # Optional, default 4000
 DEV_AUTH_TOKEN=mnemonics-dev-token                # Optional, dev only
 DEV_USER_ID=00000000-...                          # Optional, dev only
@@ -102,9 +102,9 @@ User → POST /api/v1/captures
 
 [Background worker]
         ↓
-        Process tag job (OpenAI/heuristic)
+        Process tag job (Gemini → Ollama → heuristic)
             ↓
-        Process embed job (OpenAI)
+        Process embed job (Gemini → local 1024-d → skip)
             ↓
         Mark items.status = 'ready'
 ```

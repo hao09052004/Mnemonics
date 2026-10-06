@@ -5,9 +5,9 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "audit:structure": "node scripts/audit-structure.mjs",
-    "build": "pnpm --recursive build",
+    "build": "pnpm --recursive --filter @mnemonics/shared --filter @mnemonics/database --filter @mnemonics/ai --filter @mnemonics/api --filter @mnemonics/web build",
     "typecheck": "pnpm --recursive typecheck",
-    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/api test && pnpm --filter @mnemonics/extension-tests test",
+    "test": "pnpm --filter @mnemonics/shared test && pnpm --filter @mnemonics/ai test && pnpm --filter @mnemonics/database test && pnpm --filter @mnemonics/api test && pnpm --filter @mnemonics/extension-tests test && pnpm --filter @mnemonics/web test",
     "gates:agents": "node quality-gates/runners/check-agents.mjs",
     "gates:skills": "node quality-gates/runners/check-skills.mjs",
     "gates:spec-sync": "node quality-gates/runners/check-spec-sync.mjs",
@@ -15,6 +15,8 @@
     "gates:coverage": "node quality-gates/runners/coverage.mjs",
     "gates:all": "pnpm gates:agents && pnpm gates:skills && pnpm gates:spec-sync && pnpm gates:coverage",
     "seed:skills": "node scripts/seed-skill-metas.mjs",
+    "ai:check": "pnpm exec tsx scripts/ai-check.mts",
+    "ai:check:deep": "pnpm exec tsx scripts/ai-check.mts --deep",
     "demo": "node scripts/demo-run.mjs",
     "demo:db": "docker compose -f docker-compose.demo.yml up -d",
     "demo:setup": "pnpm --filter @mnemonics/api demo:setup",
@@ -30,6 +32,7 @@
     "extension:package:test": "node --test scripts/extension-packager.test.mjs"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "vitest": "^2.1.0"
   }
 }

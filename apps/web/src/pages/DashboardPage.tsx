@@ -1,35 +1,26 @@
-/**
- * The authenticated dashboard.
- *
- * This is the same product surface the legacy App.tsx used to render
- * — the new IA puts it under /app. We:
- *   - keep all existing API calls and the ApiClient contract intact
- *   - reuse the existing SearchBar / ItemCard / ItemDetailModal /
- *     QuickCapture / TagSidebar / LoginForm / ForgotPasswordForm
- *     components unchanged
- *   - wrap the layout in a DashboardShell that pulls the design
- *     tokens in via class names
- *   - leave any "demo mode" banner behaviour in place (toggled via
- *     VITE_DEMO_MODE) because the existing tests rely on it
- */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SearchBar } from '../components/SearchBar';
-import { ItemCard } from '../components/ItemCard';
-import { ItemDetailModal } from '../components/ItemDetailModal';
-import { LoginForm } from '../components/LoginForm';
-import { QuickCapture } from '../components/QuickCapture';
-import { TagSidebar } from '../components/TagSidebar';
-import { ForgotPasswordForm } from '../components/ForgotPasswordForm';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
-import { ApiClient, ApiError, type Item, type ItemDetail, type RelatedItem, type Session } from '../lib/api-client';
-
-interface ItemsResponse {
-  items: Item[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+import { EverythingView } from '../components/dashboard/EverythingView';
+import {
+  CaptureSheet,
+  type CaptureAction,
+} from '../components/dashboard/CaptureSheet';
+import { CreateSpaceDialog } from '../components/spaces/CreateSpaceDialog';
+import { SpacePicker } from '../components/spaces/SpacePicker';
+import { hasActiveCriteria, ruleFromView } from '../lib/space-rule';
+import { LoginForm } from '../components/LoginForm';
+import { ForgotPasswordForm } from '../components/ForgotPasswordForm';
+import {
+  ApiClient,
+  type Item,
+  type Session,
+  type SpaceColor,
+  type SpaceRule,
+} from '../lib/api-client';
+import type { MemoryCardItem } from '../components/dashboard/MemoryCard';
+import { normalizeKind, type MemoryLabel } from '../lib/memory-kind';
+import type { DashboardPage as DashboardPageName } from '../components/dashboard/DashboardTopNav';
 
 interface DashboardPageProps {
   api: ApiClient;
@@ -41,427 +32,350 @@ export function DashboardPage({ api }: DashboardPageProps) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Item[] | null>(null);
-  const [filters, setFilters] = useState<{ kind?: string[]; tags?: string[] }>({});
-  const [relatedItems, setRelatedItems] = useState<Record<string, RelatedItem[]>>({});
-  const [relatedLoading, setRelatedLoading] = useState<Record<string, boolean>>({});
-  const [detailItemId, setDetailItemId] = useState<string | null>(null);
-  const [detailCache, setDetailCache] = useState<Record<string, ItemDetail>>({});
-  const [tagsRefreshKey, setTagsRefreshKey] = useState(0);
-  const [tagFilteredList, setTagFilteredList] = useState<Item[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [searchHits, setSearchHits] = useState<Item[] | null>(null);
+  const [filter, setFilter] = useState<MemoryLabel | 'all'>('all');
+  const [captureOpen, setCaptureOpen] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
+  const [favoritingIds, setFavoritingIds] = useState<ReadonlySet<string>>(new Set());
+  const [spacePickerIds, setSpacePickerIds] = useState<string[] | null>(null);
+  const [smartDialogOpen, setSmartDialogOpen] = useState(false);
+  const [smartCreating, setSmartCreating] = useState(false);
+  const [smartError, setSmartError] = useState<string | null>(null);
+  const epoch = useRef(0);
 
-  const sessionRef = useRef<Session | null>(null);
-  const requestEpoch = useRef(0);
-  const demoMode = import.meta.env.VITE_DEMO_MODE === 'true';
-
-  const clearDashboardState = useCallback(() => {
-    setItems([]);
-    setSearchResults(null);
-    setSearchQuery('');
-    setFilters({});
-    setRelatedItems({});
-    setRelatedLoading({});
-    setError(null);
-  }, []);
-
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
+  /**
+   * The criteria a Space would be built from right now. Derived rather
+   * than stored so it can never drift from what the search actually ran.
+   */
+  const currentRule = useMemo(() => ruleFromView(query, filter), [query, filter]);
+  const canSaveAsSpace = hasActiveCriteria(currentRule);
 
   useEffect(() => {
     const stored = api.loadStoredSession();
     if (!stored) return;
-    if (api.isAccessTokenExpired(stored) && stored.refreshToken) {
-      api.refreshSession(stored).then((refreshed) => {
-        if (refreshed) setSession(refreshed);
-        else api.saveSession(null);
-      });
-    } else {
-      setSession(stored);
-    }
+    setSession(stored);
   }, [api]);
 
   const loadList = useCallback(async () => {
-    if (!sessionRef.current) return;
-    const epoch = ++requestEpoch.current;
+    if (!session) return;
+    const e = ++epoch.current;
     setLoading(true);
     setError(null);
-
     try {
       const token = await api.getValidAccessToken();
       if (!token) {
-        setSession(null);
+        setError('TOKEN_EXPIRED');
         return;
       }
-      const result: ItemsResponse = await api.listItems(token, { limit: 50 });
-      if (epoch !== requestEpoch.current) return;
-      setItems(result.items);
+      const r = await api.listItems(token, { limit: 50 });
+      if (e !== epoch.current) return;
+      setItems(r.items);
+      setSearchHits(null);
     } catch (err) {
-      if (epoch !== requestEpoch.current) return;
+      if (e !== epoch.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load items');
     } finally {
-      if (epoch === requestEpoch.current) setLoading(false);
+      if (e === epoch.current) setLoading(false);
     }
-  }, [api]);
+  }, [api, session]);
 
-  const runSearch = useCallback(async () => {
-    if (!sessionRef.current || !searchQuery) return;
-    const epoch = ++requestEpoch.current;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const token = await api.getValidAccessToken();
-      if (!token) {
-        setSession(null);
-        return;
-      }
-      const result = await api.search(
-        {
-          q: searchQuery,
-          filters: { kind: filters.kind, tags: filters.tags },
-          limit: 50
-        },
-        token
-      );
-      if (epoch !== requestEpoch.current) return;
-      setSearchResults(result.hits);
-    } catch (err) {
-      if (epoch !== requestEpoch.current) return;
-      setError(err instanceof Error ? err.message : 'Failed to search');
-    } finally {
-      if (epoch === requestEpoch.current) setLoading(false);
-    }
-  }, [api, searchQuery, filters.kind, filters.tags]);
-
-  useEffect(() => {
-    if (!session) return;
-    if (searchQuery) return;
-    loadList();
-  }, [session, searchQuery, filters.kind?.join('|'), filters.tags?.join('|'), loadList]);
-
-  useEffect(() => {
-    if (!session || !searchQuery) {
-      setSearchResults(null);
-      return;
-    }
-    runSearch();
-  }, [session, searchQuery, runSearch]);
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (!query) loadList();
-  };
-
-  const handleCaptured = useCallback(
-    async (itemId: string) => {
-      setSearchQuery('');
-      setSearchResults(null);
-      requestEpoch.current += 1;
+  const runSearch = useCallback(
+    async (q: string) => {
+      if (!session) return;
+      const e = ++epoch.current;
       setLoading(true);
       setError(null);
+      try {
+        const token = await api.getValidAccessToken();
+        if (!token) {
+          setError('TOKEN_EXPIRED');
+          return;
+        }
+        const r = await api.search({ q, limit: 50 }, token);
+        if (e !== epoch.current) return;
+        setSearchHits(r.hits);
+      } catch (err) {
+        if (e !== epoch.current) return;
+        setError(err instanceof Error ? err.message : 'Search failed');
+      } finally {
+        if (e === epoch.current) setLoading(false);
+      }
+    },
+    [api, session]
+  );
+
+  useEffect(() => {
+    if (session && !query) loadList();
+  }, [session, query, loadList]);
+
+  /**
+   * Delete a memory. Confirms first (destructive + irreversible, so we
+   * never fire it on a single stray click), calls `DELETE /items/:id`,
+   * then drops the row from local state so the card disappears without
+   * a refetch. The BE deletes the item and every child row
+   * (enrichments, embeddings, tags, assets, jobs) in one transaction.
+   */
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (deletingIds.has(id)) return;
+
+      const target =
+        items.find((it) => String(it.id) === id) ??
+        (searchHits ?? []).find((it) => String(it.id) === id);
+      const label = target?.title || 'this memory';
+      if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+
+      setDeletingIds((prev) => new Set(prev).add(id));
+      try {
+        const token = await api.getValidAccessToken();
+        if (!token) {
+          setError('TOKEN_EXPIRED');
+          return;
+        }
+        await api.deleteItem(id, token);
+        // Remove from whichever list is currently driving the view.
+        setItems((prev) => prev.filter((it) => String(it.id) !== id));
+        setSearchHits((prev) =>
+          prev ? prev.filter((it) => String(it.id) !== id) : prev
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'Failed to delete memory'
+        );
+      } finally {
+        setDeletingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [api, deletingIds, items, searchHits]
+  );
+
+  /**
+   * Flip `items.is_favorite`. Optimistic: the heart fills immediately and
+   * reverts if the PATCH fails, because a favorite toggle is a low-stakes
+   * action and waiting on the round-trip makes the card feel dead.
+   */
+  const handleToggleFavorite = useCallback(
+    async (id: string) => {
+      if (favoritingIds.has(id)) return;
+
+      const current =
+        items.find((it) => String(it.id) === id) ??
+        (searchHits ?? []).find((it) => String(it.id) === id);
+      if (!current) return;
+      const next = !current.is_favorite;
+
+      const patch = (list: Item[]) =>
+        list.map((it) =>
+          String(it.id) === id ? { ...it, is_favorite: next } : it
+        );
+
+      setFavoritingIds((prev) => new Set(prev).add(id));
+      setItems(patch);
+      setSearchHits((prev) => (prev ? patch(prev) : prev));
 
       try {
         const token = await api.getValidAccessToken();
         if (!token) {
-          setSession(null);
+          setError('TOKEN_EXPIRED');
           return;
         }
-
-        for (let attempt = 0; attempt < 16; attempt += 1) {
-          const result: ItemsResponse = await api.listItems(token, { limit: 50 });
-          setItems(result.items);
-          const captured = result.items.find((item) => String(item.id) === String(itemId));
-          if (captured?.status === 'ready' || captured?.status === 'failed') {
-            setTagsRefreshKey((key) => key + 1);
-            return;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+        await api.updateItem(id, { isFavorite: next }, token);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Không thể cập nhật memory mới.');
+        // Roll the heart back so the UI never lies about the DB.
+        setItems((prev) => patch(prev).map((it) => ({ ...it, is_favorite: !next })));
+        setSearchHits((prev) =>
+          prev ? patch(prev).map((it) => ({ ...it, is_favorite: !next })) : prev
+        );
+        setError(
+          err instanceof Error ? err.message : 'Failed to update favorite'
+        );
       } finally {
-        setLoading(false);
+        setFavoritingIds((prev) => {
+          const nextSet = new Set(prev);
+          nextSet.delete(id);
+          return nextSet;
+        });
       }
     },
-    [api]
+    [api, favoritingIds, items, searchHits]
   );
 
-  const handleLoadRelated = useCallback(
-    async (itemId: string) => {
-      if (!sessionRef.current || relatedLoading[itemId]) return;
-      setRelatedLoading((current) => ({ ...current, [itemId]: true }));
-
+  /**
+   * Freeze the current search into a Smart Space.
+   *
+   * The rule is sent as-is; the server stores criteria and resolves
+   * them through the same search service, so the Space is a live view
+   * rather than a snapshot of today's results.
+   */
+  const handleCreateSmartSpace = useCallback(
+    async (input: { name: string; description: string; color: SpaceColor }) => {
+      if (!canSaveAsSpace) return;
+      setSmartCreating(true);
+      setSmartError(null);
       try {
         const token = await api.getValidAccessToken();
-        if (!token) {
-          setSession(null);
-          return;
-        }
-        const related = await api.getRelatedItems(itemId, token, 5);
-        setRelatedItems((current) => ({ ...current, [itemId]: related }));
+        if (!token) throw new Error('Session expired');
+        const space = await api.createSmartSpace(
+          {
+            name: input.name,
+            ...(input.description ? { description: input.description } : {}),
+            color: input.color,
+            rule: currentRule
+          },
+          token
+        );
+        setSmartDialogOpen(false);
+        navigate(`/app/spaces/${space.id}`);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Không thể tải ký ức liên quan.');
+        setSmartError(
+          err instanceof Error ? err.message : 'Could not create Smart Space'
+        );
       } finally {
-        setRelatedLoading((current) => ({ ...current, [itemId]: false }));
+        setSmartCreating(false);
       }
     },
-    [api, relatedLoading]
+    [api, canSaveAsSpace, currentRule, navigate]
   );
 
-  const handleSelectTag = useCallback(
-    async (normalizedTag: string | null) => {
-      if (!sessionRef.current) return;
+  const visible: MemoryCardItem[] = (searchHits ?? items).map((it) => ({
+    id: String(it.id),
+    kind: it.kind,
+    title: it.title,
+    // `/search` returns a pre-built `snippet`; `GET /items` returns the
+    // stored `raw_text` / `ocr_text` columns instead. Both feed the same
+    // card body, so fall back instead of rendering an empty card.
+    snippet: it.snippet ?? it.raw_text ?? it.ocr_text ?? '',
+    source_url: it.source_url,
+    image_url: it.image_url,
+    tags: it.tags,
+    captured_at: it.captured_at,
+    status: it.status,
+    is_favorite: it.is_favorite,
+  }));
 
-      if (normalizedTag === null) {
-        setFilters((current) => ({ ...current, tags: undefined }));
-        setTagFilteredList(null);
-        return;
-      }
-
-      setFilters((current) => ({ ...current, tags: [normalizedTag] }));
-      setSearchQuery('');
-
-      const token = await api.getValidAccessToken();
-      if (!token) {
-        setSession(null);
-        return;
-      }
-      try {
-        const result = await api.itemsByTag(normalizedTag, token);
-        setTagFilteredList(result.items);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Không thể lọc theo tag.');
-      }
-    },
-    [api]
-  );
-
-  const handleOpenDetail = useCallback((itemId: string) => {
-    setDetailItemId(itemId);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailItemId(null);
-  }, []);
-
-  const handleDetailSaved = useCallback((updated: ItemDetail) => {
-    setDetailCache((current) => ({ ...current, [updated.id]: updated }));
-    setItems((current) => current.map((item) => (
-      item.id === updated.id ? { ...item, title: updated.title } : item
-    )));
-    setSearchResults((current) => current
-      ? current.map((item) => (item.id === updated.id ? { ...item, title: updated.title } : item))
-      : current);
-    setTagFilteredList((current) => current
-      ? current.map((item) => (item.id === updated.id ? { ...item, title: updated.title } : item))
-      : current);
-  }, []);
-
-  const handleLogin = (newSession: Session) => {
-    setSession(newSession);
-    api.saveSession(newSession);
-    clearDashboardState();
-  };
-
-  const handleLogout = () => {
-    const currentSession = sessionRef.current;
-    requestEpoch.current++;
-    setSession(null);
-    api.saveSession(null);
-    clearDashboardState();
-    if (currentSession?.accessToken) {
-      api.logout(currentSession.accessToken).catch(() => undefined);
+  const handleNavigate = (page: DashboardPageName) => {
+    if (page === 'Everything') navigate('/app');
+    else if (page === 'Spaces') navigate('/app/spaces');
+    else if (page === 'Rediscover') navigate('/app/rediscover');
+    else if (page === 'Reminders') navigate('/app/reminders');
+    else if (page === 'Settings') navigate('/app/settings');
+    else if (page === 'Favorites') {
+      // The new dashboard surfaces favorites via a chip filter, not a
+      // separate top-nav destination. No-op keeps the contract honest.
     }
-    navigate('/');
   };
 
-  const handleDelete = async (id: string) => {
-    if (!sessionRef.current) return;
-    const epoch = ++requestEpoch.current;
-    setItems((current) => current.filter((item) => item.id !== id));
-    if (searchResults) setSearchResults((current) => current ? current.filter((item) => item.id !== id) : current);
-
-    try {
-      const token = await api.getValidAccessToken();
-      if (!token) {
-        setSession(null);
-        return;
-      }
-      await api.deleteItem(id, token);
-      if (epoch !== requestEpoch.current) return;
-      setTagsRefreshKey((key) => key + 1);
-      if (tagFilteredList) setTagFilteredList((current) => current ? current.filter((item) => item.id !== id) : current);
-      if (!searchQuery) loadList();
-    } catch (err) {
-      if (epoch !== requestEpoch.current) return;
-      if (err instanceof ApiError && err.status === 404) return;
-      setError(err instanceof Error ? err.message : 'Failed to delete');
-      loadList();
+  const handleCaptureAction = (a: CaptureAction) => {
+    // Minimal: open the dashboard quick-note flow. Real capture flows
+    // (image upload, link pasting) reuse the existing routes; here we
+    // just reset the query so the user sees the new card.
+    if (a === 'note' || a === 'link') {
+      setQuery('');
+      setSearchHits(null);
     }
   };
 
   if (!session) {
     if (authView === 'forgot') {
-      return <ForgotPasswordForm api={api} onCancel={() => setAuthView('login')} onResetRequested={() => undefined} />;
+      return (
+        <ForgotPasswordForm
+          api={api}
+          onCancel={() => setAuthView('login')}
+          onResetRequested={() => undefined}
+        />
+      );
     }
-    return <LoginForm api={api} onLogin={handleLogin} onForgotPassword={() => setAuthView('forgot')} />;
+    return (
+      <LoginForm
+        api={api}
+        onLogin={(s) => {
+          setSession(s);
+          api.saveSession(s);
+        }}
+        onForgotPassword={() => setAuthView('forgot')}
+      />
+    );
   }
-
-  const displayItems: Item[] = searchQuery
-    ? (searchResults ?? [])
-    : tagFilteredList !== null
-      ? tagFilteredList
-      : items;
-  const activeTag = filters.tags?.[0] ?? null;
-  const readyCount = items.filter((item) => item.status === 'ready').length;
 
   return (
     <DashboardShell
       user={session.user}
-      onLogout={handleLogout}
-      readyCount={readyCount}
-      demoMode={demoMode}
+      active="Everything"
+      onNavigate={handleNavigate}
+      onCapture={() => setCaptureOpen(true)}
+      onLogout={() => {
+        api.saveSession(null);
+        setSession(null);
+        navigate('/');
+      }}
+      demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
     >
-      <QuickCapture api={api} session={session} onCaptured={handleCaptured} />
-      <SearchBar onSearch={handleSearch} initialQuery={searchQuery} loading={loading} />
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 240px) minmax(0, 1fr)',
-          gap: 20,
-          alignItems: 'start'
-        }}
-        className="mnemonics-dashboard-grid"
+      <EverythingView
+        items={visible}
+        loading={loading}
+        error={error}
+        query={query}
+        onQueryChange={setQuery}
+        onSearch={runSearch}
+        filter={filter}
+        onFilterChange={setFilter}
+        onOpen={() => undefined}
+        onCapture={() => setCaptureOpen(true)}
+        onDelete={handleDelete}
+        deletingIds={deletingIds}
+        onToggleFavorite={handleToggleFavorite}
+        favoritingIds={favoritingIds}
+        onAddToSpace={(ids) => setSpacePickerIds(ids)}
       >
-        <TagSidebar
+        {/* Only offered once a search or filter is active. With no
+            criteria the stored rule would match every memory, which is
+            just Everything under a different name. */}
+        {canSaveAsSpace ? (
+          <button
+            type="button"
+            className="ghost"
+            data-testid="save-as-space"
+            onClick={() => {
+              setSmartError(null);
+              setSmartDialogOpen(true);
+            }}
+          >
+            Save as Space
+          </button>
+        ) : null}
+      </EverythingView>
+
+      {spacePickerIds ? (
+        <SpacePicker
           api={api}
-          accessToken={session.accessToken}
-          selectedTag={activeTag}
-          onSelect={handleSelectTag}
-          refreshKey={tagsRefreshKey}
+          itemIds={spacePickerIds}
+          onClose={() => setSpacePickerIds(null)}
+          onAdded={() => setError(null)}
         />
+      ) : null}
 
-        <div>
-          <div style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select
-              value={filters.kind?.[0] || 'all'}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFilters({ ...filters, kind: value === 'all' ? undefined : [value] });
-              }}
-              style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)' }}
-            >
-              <option value="all">Tất cả loại</option>
-              <option value="link">Link</option>
-              <option value="text">Text</option>
-              <option value="image">Image</option>
-              <option value="screenshot">Screenshot</option>
-            </select>
-
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-              {searchQuery
-                ? `Đang tìm “${searchQuery}”`
-                : activeTag
-                  ? `Đang lọc theo tag #${activeTag}`
-                  : `${displayItems.length} memories đang hiển thị`}
-            </span>
-
-            {activeTag && (
-              <button
-                type="button"
-                data-testid="clear-tag-filter"
-                onClick={() => handleSelectTag(null)}
-                style={{
-                  fontSize: 11,
-                  padding: '4px 10px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  background: 'var(--surface)',
-                  cursor: 'pointer',
-                  color: 'var(--muted)'
-                }}
-              >
-                Bỏ lọc
-              </button>
-            )}
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              style={{
-                padding: 12,
-                marginBottom: 16,
-                background: 'var(--danger-soft)',
-                border: '1px solid #fecaca',
-                borderRadius: 10,
-                color: 'var(--danger)'
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          {loading && displayItems.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 52, color: 'var(--muted)' }}>Đang tải kiến thức...</div>
-          ) : displayItems.length === 0 ? (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: 52,
-                color: 'var(--muted)',
-                background: 'var(--surface)',
-                border: '1px dashed var(--border-strong)',
-                borderRadius: 14
-              }}
-            >
-              {searchQuery ? 'Không tìm thấy kết quả' : activeTag ? 'Chưa có memory nào với tag này' : 'Chưa có memory nào được lưu'}
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 16
-              }}
-            >
-              {displayItems.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  item={item}
-                  relatedItems={relatedItems[String(item.id)] || []}
-                  relatedLoading={Boolean(relatedLoading[String(item.id)])}
-                  onLoadRelated={() => handleLoadRelated(String(item.id))}
-                  onDelete={() => handleDelete(item.id)}
-                  onOpen={() => handleOpenDetail(item.id)}
-                  onSelectTag={(tag) => handleSelectTag(tag)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {detailItemId && (
-        <ItemDetailModal
-          api={api}
-          itemId={detailItemId}
-          accessToken={session.accessToken}
-          initial={detailCache[detailItemId] ?? null}
-          onClose={handleCloseDetail}
-          onSaved={handleDetailSaved}
+      {smartDialogOpen ? (
+        <CreateSpaceDialog
+          mode="smart"
+          rule={currentRule}
+          onClose={() => setSmartDialogOpen(false)}
+          onSubmit={handleCreateSmartSpace}
+          busy={smartCreating}
+          error={smartError}
         />
-      )}
+      ) : null}
 
-      <style>{`
-        @media (max-width: 860px) {
-          .mnemonics-dashboard-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
+      <CaptureSheet
+        open={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onAction={handleCaptureAction}
+      />
     </DashboardShell>
   );
 }

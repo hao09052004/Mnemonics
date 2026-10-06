@@ -15,7 +15,11 @@ async function exec(sql: string, params: unknown[] = []) {
 }
 
 function vector(axis: number) {
-  const values = new Array(1536).fill(0);
+  // 1024-dimensional unit vector, matching the column width after
+  // migration 017. Earlier demos used 1536 but the embedder column
+  // is now vector(1024) and the dimensions trigger refuses anything
+  // else.
+  const values = new Array(1024).fill(0);
   values[axis] = 1;
   return '[' + values.join(',') + ']';
 }
@@ -145,7 +149,7 @@ async function seedDemo() {
     await exec(
       `
         INSERT INTO item_embeddings (item_id, model, dimensions, embedding)
-        VALUES ($1, 'demo-embedding', 1536, $2::vector)
+        VALUES ($1, 'demo-embedding', 1024, $2::vector)
         ON CONFLICT (item_id) DO UPDATE SET
           model = EXCLUDED.model,
           dimensions = EXCLUDED.dimensions,

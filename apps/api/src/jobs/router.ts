@@ -7,21 +7,27 @@
 import express, { type Application } from 'express';
 import type { Pool } from 'pg';
 import { JobQueue } from './queue.js';
-import { OcrHandler } from './handlers/ocr.js';
+import { OcrHandler, makeOcrStorageKeyResolver } from './handlers/ocr.js';
 import { TagHandler } from './handlers/tag.js';
 import { EmbedHandler } from './handlers/embed.js';
-import type { ItemRepository } from '@mnemonics/database';
+import { UnderstandingHandler } from './handlers/enrich.js';
+import type { ItemRepository, SpaceRepository, EnrichmentRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ImageStorage } from '../storage.js';
+import type { AiService } from '@mnemonics/ai';
 import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from '../auth.js';
 
 export interface JobRouterDeps {
   pool: Pool;
   repository: ItemRepository;
+  spaceRepository?: SpaceRepository;
+  enrichmentRepository?: EnrichmentRepository;
   supabase?: SupabaseClient;
   authSupabase?: SupabaseClient;
+  imageStorage: ImageStorage;
+  ai: AiService;
   expectedToken?: string;
   developmentUserId?: string;
-  openAiKey?: string;
 }
 
 export function createJobRouter(deps: JobRouterDeps): {
@@ -31,11 +37,14 @@ export function createJobRouter(deps: JobRouterDeps): {
   const {
     pool,
     repository,
+    spaceRepository,
+    enrichmentRepository,
     supabase,
     authSupabase,
+    imageStorage,
+    ai,
     expectedToken = 'mnemonics-dev-token',
-    developmentUserId = '00000000-0000-4000-8000-000000000001',
-    openAiKey
+    developmentUserId = '00000000-0000-4000-8000-000000000001'
   } = deps;
 
   // Create queue
@@ -44,14 +53,38 @@ export function createJobRouter(deps: JobRouterDeps): {
   });
 
   // Create handlers
-  const ocrHandler = new OcrHandler(queue, repository, openAiKey);
-  const tagHandler = new TagHandler(queue, repository, openAiKey);
-  const embedHandler = new EmbedHandler(queue, repository, supabase, openAiKey, pool);
+  const ocrHandler = new OcrHandler({
+    queue,
+    repository,
+    imageStorage,
+    ai,
+    resolveAssetKey: makeOcrStorageKeyResolver(pool),
+  });
+  const tagHandler = new TagHandler({ queue, repository, ai });
+  const embedHandler = new EmbedHandler({
+    queue,
+    repository,
+    ai,
+    supabase,
+    pool,
+  });
+  const enrichmentHandler = enrichmentRepository
+    ? new UnderstandingHandler({
+        queue,
+        enrichments: enrichmentRepository,
+        imageStorage,
+        ai,
+        pool
+      })
+    : null;
 
   // Register job handlers using EventEmitter
   queue.registerHandler('ocr', (job) => ocrHandler.handle(job));
   queue.registerHandler('tag', (job) => tagHandler.handle(job));
   queue.registerHandler('embed', (job) => embedHandler.handle(job));
+  if (enrichmentHandler) {
+    queue.registerHandler('enrich', (job) => enrichmentHandler.handle(job as unknown as { id: string; itemId: string; userId: string; payload: Record<string, unknown> }));
+  }
 
   // Create router
   const router = express.Router() as Application;
@@ -92,7 +125,7 @@ export function createJobRouter(deps: JobRouterDeps): {
     res: { json: (data: unknown) => void; status: (code: number) => { json: (data: unknown) => void } }
   ) => {
     const { itemId, type } = req.params;
-    const validTypes = ['ocr', 'tag', 'embed'];
+    const validTypes = ['ocr', 'tag', 'embed', 'enrich'];
 
     if (!validTypes.includes(type)) {
       res.status(400).json({ error: { code: 'INVALID_JOB_TYPE', message: `Job type must be one of: ${validTypes.join(', ')}` } });
@@ -107,7 +140,7 @@ export function createJobRouter(deps: JobRouterDeps): {
     }
 
     const job = await queue.create({
-      type: type as 'ocr' | 'tag' | 'embed',
+      type: type as 'ocr' | 'tag' | 'embed' | 'enrich',
       itemId,
       userId: item.userId,
       payload: req.body || {}

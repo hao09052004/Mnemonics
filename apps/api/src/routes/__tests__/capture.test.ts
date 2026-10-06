@@ -70,12 +70,9 @@ describe('capture route', () => {
         type: 'text'
       })
     });
-    expect(createJob).toHaveBeenCalledTimes(1);
-    expect(createJob).toHaveBeenCalledWith(
-      'tag',
-      '00000000-0000-4000-8000-000000000010',
-      USER_ID
-    );
+    expect(createJob).toHaveBeenCalledTimes(2);
+    expect(createJob).toHaveBeenNthCalledWith(1, 'tag', '00000000-0000-4000-8000-000000000010', USER_ID);
+    expect(createJob).toHaveBeenNthCalledWith(2, 'enrich', '00000000-0000-4000-8000-000000000010', USER_ID);
   });
 
   it('is idempotent for an already known client request id', async () => {

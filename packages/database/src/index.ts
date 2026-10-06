@@ -21,7 +21,16 @@ export type StoredItem = {
   ocrText?: string | null;
   ocrEngine?: string | null;
   ocrConfidence?: number | null;
+  ocrLanguage?: string | null;
+  ocrProcessedAt?: Date | null;
+  ocrErrorCode?: string | null;
   capturedAt: Date;
+};
+
+export type OcrQuotaRow = {
+  userId: string;
+  quotaDate: string; // YYYY-MM-DD
+  callsUsed: number;
 };
 
 export interface ItemRepository {
@@ -30,9 +39,24 @@ export interface ItemRepository {
   createPendingItem(input: NewItem): Promise<StoredItem>;
   createPendingImageItem(input: NewImageItem): Promise<StoredItem>;
   updateStatus(id: string, status: ItemStatus): Promise<void>;
-  updateOcrText(id: string, ocrText: string, options?: { engine?: string; confidence?: number }): Promise<void>;
+  updateOcrText(
+    id: string,
+    ocrText: string,
+    options?: {
+      engine?: string;
+      confidence?: number;
+      language?: string;
+      errorCode?: string;
+    }
+  ): Promise<void>;
   updateTags(id: string, tags: string[]): Promise<void>;
+  /** Read the names of all tags attached to an item. Empty array if none. */
+  getTagsForItem(id: string): Promise<string[]>;
   saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void>;
+  /** Read today's OCR quota row for a user. Returns null if no row exists. */
+  getOcrQuotaForDate(userId: string, isoDate: string): Promise<OcrQuotaRow | null>;
+  /** Atomically increment today's counter and return the new value. */
+  bumpOcrQuotaForDate(userId: string, isoDate: string): Promise<number>;
 }
 
 export function createItemRepository(pool: Pool): ItemRepository {
@@ -42,7 +66,11 @@ export function createItemRepository(pool: Pool): ItemRepository {
         `SELECT id, user_id AS "userId", status, type, title,
                 source_url AS "sourceUrl", raw_text AS "rawText",
                 ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
-                ocr_confidence AS "ocrConfidence", captured_at AS "capturedAt"
+                ocr_confidence AS "ocrConfidence",
+                ocr_language AS "ocrLanguage",
+                ocr_processed_at AS "ocrProcessedAt",
+                ocr_error_code AS "ocrErrorCode",
+                captured_at AS "capturedAt"
          FROM items WHERE id = $1`,
         [id]
       );
@@ -54,7 +82,11 @@ export function createItemRepository(pool: Pool): ItemRepository {
         `SELECT id, user_id AS "userId", status, type, title,
                 source_url AS "sourceUrl", raw_text AS "rawText",
                 ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
-                ocr_confidence AS "ocrConfidence", captured_at AS "capturedAt"
+                ocr_confidence AS "ocrConfidence",
+                ocr_language AS "ocrLanguage",
+                ocr_processed_at AS "ocrProcessedAt",
+                ocr_error_code AS "ocrErrorCode",
+                captured_at AS "capturedAt"
          FROM items
          WHERE user_id = $1 AND client_request_id = $2`,
         [userId, clientRequestId]
@@ -70,7 +102,11 @@ export function createItemRepository(pool: Pool): ItemRepository {
          RETURNING id, user_id AS "userId", status, type, title,
                    source_url AS "sourceUrl", raw_text AS "rawText",
                    ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
-                   ocr_confidence AS "ocrConfidence", captured_at AS "capturedAt"`,
+                   ocr_confidence AS "ocrConfidence",
+                   ocr_language AS "ocrLanguage",
+                   ocr_processed_at AS "ocrProcessedAt",
+                   ocr_error_code AS "ocrErrorCode",
+                   captured_at AS "capturedAt"`,
         [
           userId,
           capture.type,
@@ -85,7 +121,9 @@ export function createItemRepository(pool: Pool): ItemRepository {
     },
 
     async createPendingImageItem({ userId, capture, itemId }) {
-      if (capture.type !== 'image') throw new Error('Image repository requires an image capture');
+      if (capture.type !== 'image' && capture.type !== 'screenshot') {
+        throw new Error('Image repository requires an image or screenshot capture');
+      }
 
       const client = await pool.connect();
       try {
@@ -93,12 +131,16 @@ export function createItemRepository(pool: Pool): ItemRepository {
         const itemResult = await client.query<StoredItem>(
           `INSERT INTO items
             (id, user_id, type, title, source_url, raw_text, captured_at, status, client_request_id)
-           VALUES ($1, $2, 'image', $3, $4, $5, $6, 'pending', $7)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
            RETURNING id, user_id AS "userId", status, type, title,
                      source_url AS "sourceUrl", raw_text AS "rawText",
                      ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
-                     ocr_confidence AS "ocrConfidence", captured_at AS "capturedAt"`,
-          [itemId, userId, capture.title, capture.sourceUrl ?? null, capture.selectedText ?? null, capture.capturedAt ?? new Date(), capture.clientRequestId]
+                     ocr_confidence AS "ocrConfidence",
+                     ocr_language AS "ocrLanguage",
+                     ocr_processed_at AS "ocrProcessedAt",
+                     ocr_error_code AS "ocrErrorCode",
+                     captured_at AS "capturedAt"`,
+          [itemId, userId, capture.type, capture.title, capture.sourceUrl ?? null, capture.selectedText ?? null, capture.capturedAt ?? new Date(), capture.clientRequestId]
         );
         await client.query(
           `INSERT INTO assets (item_id, storage_key, mime_type, size_bytes)
@@ -122,13 +164,68 @@ export function createItemRepository(pool: Pool): ItemRepository {
       );
     },
 
-    async updateOcrText(id: string, ocrText: string, options?: { engine?: string; confidence?: number }): Promise<void> {
+    async updateOcrText(
+      id: string,
+      ocrText: string,
+      options?: {
+        engine?: string;
+        confidence?: number;
+        language?: string;
+        errorCode?: string;
+      }
+    ): Promise<void> {
       await pool.query(
         `UPDATE items
-         SET ocr_text = $2, ocr_engine = $3, ocr_confidence = $4, updated_at = NOW()
+         SET ocr_text = $2,
+             ocr_engine = $3,
+             ocr_confidence = $4,
+             ocr_language = $5,
+             ocr_error_code = $6,
+             ocr_processed_at = COALESCE(ocr_processed_at, NOW()),
+             updated_at = NOW()
          WHERE id = $1`,
-        [id, ocrText, options?.engine ?? null, options?.confidence ?? null]
+        [
+          id,
+          ocrText,
+          options?.engine ?? null,
+          options?.confidence ?? null,
+          options?.language ?? null,
+          options?.errorCode ?? null,
+        ]
       );
+    },
+
+    async getOcrQuotaForDate(userId: string, isoDate: string): Promise<OcrQuotaRow | null> {
+      const result = await pool.query<{
+        user_id: string;
+        quota_date: Date;
+        calls_used: number;
+      }>(
+        `SELECT user_id, quota_date, calls_used
+         FROM ocr_quota
+         WHERE user_id = $1::uuid AND quota_date = $2::date`,
+        [userId, isoDate]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      const d = row.quota_date instanceof Date ? row.quota_date : new Date(row.quota_date);
+      const ymd = d.toISOString().slice(0, 10);
+      return { userId: row.user_id, quotaDate: ymd, callsUsed: row.calls_used };
+    },
+
+    async bumpOcrQuotaForDate(userId: string, isoDate: string): Promise<number> {
+      // INSERT … ON CONFLICT DO UPDATE … RETURNING gives us the
+      // post-increment value in a single round-trip, which is what
+      // every quota tracker needs.
+      const result = await pool.query<{ calls_used: number }>(
+        `INSERT INTO ocr_quota (user_id, quota_date, calls_used, updated_at)
+         VALUES ($1::uuid, $2::date, 1, NOW())
+         ON CONFLICT (user_id, quota_date)
+         DO UPDATE SET calls_used = ocr_quota.calls_used + 1, updated_at = NOW()
+         RETURNING calls_used`,
+        [userId, isoDate]
+      );
+      return result.rows[0]?.calls_used ?? 0;
     },
 
     async updateTags(id: string, tags: string[]): Promise<void> {
@@ -188,6 +285,18 @@ export function createItemRepository(pool: Pool): ItemRepository {
       }
     },
 
+    async getTagsForItem(id: string): Promise<string[]> {
+      const result = await pool.query<{ name: string }>(
+        `SELECT t.name
+         FROM tags t
+         JOIN item_tags it ON it.tag_id = t.id
+         WHERE it.item_id = $1
+         ORDER BY t.name`,
+        [id]
+      );
+      return result.rows.map((row) => row.name);
+    },
+
     async saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void> {
       const vectorLiteral = '[' + embedding.join(',') + ']';
 
@@ -208,3 +317,43 @@ export function createItemRepository(pool: Pool): ItemRepository {
 export function createPool(databaseUrl: string) {
   return new Pool({ connectionString: databaseUrl });
 }
+
+export {
+  createSpaceRepository,
+  type SpaceRepository,
+  type Space,
+  type SpaceSummary,
+  type SpaceType,
+  type SpaceColor,
+  SPACE_COLORS,
+  isSpaceColor,
+  type SpaceItem,
+  type SpacePreviewItem,
+  type CreateSpaceInput,
+  type UpdateSpaceInput
+} from './spaces.js';
+
+export {
+  runSearch,
+  resolveSmartSpaceIds,
+  hasMeaningfulCriteria,
+  normalizeTag,
+  SEARCH_KINDS,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  type SearchRequest,
+  type SearchFilters,
+  type SearchKind,
+  type SearchHit,
+  type SearchResponse,
+  type SearchDeps,
+  type EmbeddingLike
+} from './search-service.js';
+
+export {
+  createEnrichmentRepository,
+  type EnrichmentRepository,
+  type EnrichmentStatus,
+  type ItemEnrichment,
+  type TldrSource
+} from './enrichments.js';

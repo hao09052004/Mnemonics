@@ -74,6 +74,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build workspace dependencies
+        # Every job gets a fresh runner, so the published `exports` of
+        # each workspace package (which point at dist/) do not exist yet.
+        # Without this, vitest cannot resolve @mnemonics/database and
+        # @mnemonics/ai when apps/api's specs import their types.
+        run: pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build
+
       - name: Bootstrap Supabase-compatible test schemas
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -236,6 +243,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        # gates:coverage runs the apps/api suite, which imports
+        # @mnemonics/database and @mnemonics/ai. Their `exports` point
+        # at dist/, which does not exist on a fresh runner.
+        run: pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build
 
       - name: Run all quality gates
         run: pnpm gates:all

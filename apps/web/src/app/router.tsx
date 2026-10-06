@@ -1,7 +1,5 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
 import { useMemo } from 'react';
-import { ApiClient } from '../lib/api-client';
-import { productConfig } from '../config/product';
+import { Routes, Route } from 'react-router-dom';
 import { Header } from '../components/marketing/Header';
 import { Footer } from '../components/marketing/Footer';
 import { HomePage } from '../pages/HomePage';
@@ -10,40 +8,59 @@ import { LoginPage } from '../pages/LoginPage';
 import { SignupPage } from '../pages/SignupPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { SpacesPage } from '../pages/SpacesPage';
+import { SpaceDetailPage } from '../pages/SpaceDetailPage';
+import { RediscoverPage } from '../pages/RediscoverPage';
+import { RemindersStubPage } from '../pages/RemindersStubPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { ApiClient } from '../lib/api-client';
+import { productConfig } from '../config/product';
 
 interface AppRouterProps {
   api: ApiClient;
 }
 
 /**
- * Top-level router. Renders the marketing chrome (header + footer)
- * on public pages and a bare shell on the authenticated dashboard.
+ * Top-level router.
  *
- * The ApiClient is created once with the env-aware base URL and
- * passed down — this is the only place that knows about
- * `VITE_API_URL` end-to-end.
+ * Public routes (marketing + auth) keep the marketing chrome.
+ * Authenticated dashboard routes are now bare (no Header/Footer);
+ * their own DashboardShell renders the top nav.
  */
 export function AppRouter({ api }: AppRouterProps) {
-  const location = useLocation();
-  const isDashboard = location.pathname.startsWith('/app');
-
   return (
     <div className="mnemonics-app-root">
-      {!isDashboard && <Header />}
-      <main>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/browser-extension" element={<BrowserExtensionPage />} />
-          <Route path="/login" element={<LoginPage api={api} />} />
-          <Route path="/signup" element={<SignupPage api={api} />} />
-          <Route path="/reset-password" element={<ResetPasswordPage api={api} />} />
-          <Route path="/app" element={<DashboardPage api={api} />} />
-          <Route path="/app/*" element={<DashboardPage api={api} />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </main>
-      {!isDashboard && <Footer />}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <>
+              <Header />
+              <HomePage />
+              <Footer />
+            </>
+          }
+        />
+        <Route
+          path="/browser-extension"
+          element={
+            <>
+              <Header />
+              <BrowserExtensionPage />
+              <Footer />
+            </>
+          }
+        />
+        <Route path="/login" element={<LoginPage api={api} />} />
+        <Route path="/signup" element={<SignupPage api={api} />} />
+        <Route path="/reset-password" element={<ResetPasswordPage api={api} />} />
+        <Route path="/app" element={<DashboardPage api={api} />} />
+        <Route path="/app/spaces" element={<SpacesPage api={api} />} />
+        <Route path="/app/spaces/:id" element={<SpaceDetailPage api={api} />} />
+        <Route path="/app/rediscover" element={<RediscoverPage api={api} />} />
+        <Route path="/app/reminders" element={<RemindersStubPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
     </div>
   );
 }

@@ -7,13 +7,14 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "typecheck": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage",
-    "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && tsx scripts/demo-setup.mts",
-    "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts"
+    "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-setup.mts",
+    "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts"
   },
   "dependencies": {
+    "@mnemonics/ai": "workspace:*",
     "@mnemonics/database": "workspace:*",
     "@mnemonics/shared": "workspace:*",
     "@supabase/supabase-js": "^2.57.4",
@@ -21,6 +22,7 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "multer": "^2.0.2",
+    "sharp": "^0.34.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

@@ -190,4 +190,109 @@ describe('JobQueue', () => {
 
     expect(job.maxAttempts).toBe(5);
   });
+
+  describe('reapStaleJobs (regression 2026-10-04)', () => {
+    it('re-queues jobs abandoned in processing so items can reach ready', async () => {
+      const captured: { sql: string; params: any[] }[] = [];
+      const pool = {
+        query: async (sql: string, params: any[]) => {
+          captured.push({ sql, params });
+          // Two abandoned rows: one with attempts left, one exhausted.
+          if (sql.includes("status = 'processing'") && sql.includes('RETURNING id')) {
+            return { rows: [{ id: 'a' }, { id: 'b' }], rowCount: 2 };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+      } as any;
+
+      const reaper = new JobQueue(pool);
+      const reaped = await reaper.reapStaleJobs(1000);
+
+      expect(reaped).toBe(2);
+      const sql = captured[0].sql;
+      // Only genuinely abandoned rows, and only while still 'processing'.
+      expect(sql).toContain("WHERE status = 'processing'");
+      expect(sql).toContain('updated_at < NOW()');
+      // Exhausted jobs are failed rather than retried forever.
+      expect(sql).toContain("THEN 'failed' ELSE 'pending'");
+      reaper.stop();
+    });
+
+    it('exhausted jobs are failed rather than re-queued forever', async () => {
+      let sqlSeen = '';
+      const pool = {
+        query: async (sql: string) => {
+          sqlSeen = sql;
+          return { rows: [{ id: 'x' }], rowCount: 1 };
+        }
+      } as any;
+
+      const reaper = new JobQueue(pool);
+      await reaper.reapStaleJobs(1000);
+
+      expect(sqlSeen).toContain('attempts >= max_attempts');
+      expect(sqlSeen).toContain("'failed'");
+      reaper.stop();
+    });
+
+    it('the poll loop reaps but a reaper failure never stops job processing', async () => {
+      const seen: string[] = [];
+      let reapCalls = 0;
+      let processed = 0;
+      let status = 'pending';
+      const dbJob = {
+        id: 'job-1',
+        type: 'tag',
+        item_id: 'item-1',
+        user_id: 'user-1',
+        payload: {},
+        status,
+        attempts: 0,
+        max_attempts: 3,
+        error: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        completed_at: null
+      };
+
+      const pool = {
+        query: async (sql: string) => {
+          if (sql.includes("status = 'processing'") && sql.includes('RETURNING id')) {
+            reapCalls += 1;
+            seen.push('reap');
+            throw new Error('reaper exploded');
+          }
+          if (sql.includes('WHERE status = \'pending\'')) {
+            seen.push('getPending');
+            return { rows: status === 'pending' ? [dbJob] : [], rowCount: 1 };
+          }
+          if (sql.includes("SET status = 'processing'")) {
+            status = 'processing';
+            return { rows: [dbJob], rowCount: 1 };
+          }
+          if (sql.includes("SET status = 'completed'")) {
+            status = 'completed';
+            return { rows: [dbJob], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+      } as any;
+
+      const resilient = new JobQueue(pool);
+      resilient.registerHandler('tag', async () => {
+        processed += 1;
+        await resilient.markCompleted('job-1');
+      });
+
+      await resilient.processOnce();
+
+      expect(reapCalls).toBe(1);
+      expect(seen).toContain('reap');
+      expect(seen).toContain('getPending');
+      // The whole point: a reaper error must not abort the queue.
+      expect(processed).toBe(1);
+      expect(status).toBe('completed');
+      resilient.stop();
+    });
+  });
 });
