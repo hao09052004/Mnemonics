@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Historical implementation plan.** This plan describes the work that produced
+> the current Figma-style dashboard and the Rediscover + Reminders stubs.
+> Some details — most notably the `Rediscover` / `Reminders` stub pages — were
+> *intentionally* left as "Coming soon" placeholders because the BE has no
+> tables for them yet. For the current Spaces contract (Manual + Smart, no
+> Suggested Spaces), see [`../spaces.md`](../spaces.md). For current
+> implementation status, see [`../m3-m4-status.md`](../m3-m4-status.md).
+
 **Goal:** Replace the authenticated dashboard UI in `apps/web/` with the Figma reference implementation from `figma-ui-reference/`, mapped 1:1 onto the existing `apps/api/` REST contract. Leave marketing/auth pages untouched.
 
 **Architecture:** Component-by-component rewrite under `apps/web/src/components/dashboard/` and `apps/web/src/pages/`. Single source of truth: `apps/web/src/styles/dashboard.css`. Single data-layer helper: `apps/web/src/lib/memory-kind.ts`. All existing `apps/web/src/lib/api-client.ts` methods are reused; nothing in `apps/api/` changes.
