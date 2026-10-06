@@ -94,7 +94,18 @@ function setState(patch) {
 
 function loadSession() {
   return new Promise((resolve) => {
-    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem('mnemonics_session') : null;
+    // `localStorage` raises `SecurityError` on origins jsdom treats
+    // as opaque (e.g. `chrome-extension://…` under Linux CI). The
+    // `typeof` guard alone is not enough — the property exists, but
+    // calling `getItem` throws. Fall through to `chrome.storage.local`
+    // so a test that drives the dashboard from JSDOM still resolves a
+    // session, and so a future browser policy cannot reject the load.
+    let raw = null;
+    try {
+      raw = typeof localStorage !== 'undefined'
+        ? localStorage.getItem('mnemonics_session')
+        : null;
+    } catch (_) { /* opaque origin: no localStorage */ }
     if (raw) {
       try {
         const s = JSON.parse(raw);
@@ -172,10 +183,15 @@ function saveSession(session) {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
     chrome.storage.local.set({ mnemonics_session: stored || null });
   }
-  if (typeof localStorage !== 'undefined') {
-    if (stored) localStorage.setItem('mnemonics_session', JSON.stringify(stored));
-    else localStorage.removeItem('mnemonics_session');
-  }
+  // Mirror the session into localStorage for hosts (test runners,
+  // local dev pages) where chrome.storage is unavailable. Same caveat
+  // as the read: opaque origins raise SecurityError on access.
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (stored) localStorage.setItem('mnemonics_session', JSON.stringify(stored));
+      else localStorage.removeItem('mnemonics_session');
+    }
+  } catch (_) { /* opaque origin: skip mirror */ }
 }
 
 async function authPost(path, body, accessToken) {
