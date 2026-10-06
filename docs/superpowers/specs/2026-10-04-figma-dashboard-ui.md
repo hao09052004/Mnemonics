@@ -1,8 +1,15 @@
 # Figma-style Dashboard UI — Design Spec
 
-> **Status:** draft, awaiting user review
+> **Status:** Implemented (see [`../../dashboard-redesign.md`](../../dashboard-redesign.md) and the implementation plan in [`../plans/2026-10-04-figma-dashboard-ui.md`](../plans/2026-10-04-figma-dashboard-ui.md))
 > **Date:** 2026-10-04
 > **Scope:** Web dashboard SPA (`apps/web/`) — authenticated routes only
+>
+> **Historical design spec.** Some details (notably `Rediscover` and
+> `Reminders` stubs) intentionally remain "Coming soon" because the BE
+> has no tables for them yet. For the current Spaces contract (Manual +
+> Smart, no Suggested Spaces), see [`../../spaces.md`](../../spaces.md).
+> For current implementation status, see
+> [`../../m3-m4-status.md`](../../m3-m4-status.md).
 
 ## 1. Goal
 

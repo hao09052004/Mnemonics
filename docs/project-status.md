@@ -1,12 +1,29 @@
 # Project Status
 
+> **HISTORICAL SNAPSHOT — 2026-09-18.** This document is preserved as a
+> record of the project state at that date. It is **not** a current
+> status and **must not** be treated as one.
+>
+> The current sources of truth are:
+> - [`README.md`](../README.md) — product brief
+> - [`docs/spaces.md`](spaces.md) — current Spaces contract (Manual + Smart, no Suggested Spaces)
+> - [`docs/ai-architecture.md`](ai-architecture.md) — AI provider architecture
+> - [`docs/memory-understanding.md`](memory-understanding.md) — TLDR / OCR / image-description concepts
+> - [`docs/m3-m4-status.md`](m3-m4-status.md) — current implementation status (post-PR #9)
+> - and the code itself.
+>
+> The items "missing for P0" listed below were all shipped before
+> 2026-10-04. See the linked docs for the current contract.
+
+---
+
 Audit date: 2026-09-18
 
-## Current level
+## Current level (as of 2026-09-18, now obsolete)
 
 The repository now has a working capture API foundation in addition to the functional local Chrome extension prototype. It is still not the complete P0 SaaS implementation described in the root README.
 
-## Implemented
+## Implemented (as of 2026-09-18, now obsolete)
 
 - Manifest V3 extension shell and popup.
 - Capture of page metadata, links, selections and images through local storage.
@@ -20,7 +37,10 @@ The repository now has a working capture API foundation in addition to the funct
 - Focused shared/API tests covering auth, validation, pending captures, duplicate requests and image data URL rejection.
 - Direct image upload from the extension cropper to API -> Supabase Storage + PostgreSQL `assets`; final images no longer use `chrome.storage.local`.
 
-## Missing for P0
+## Missing for P0 (as of 2026-09-18, now obsolete — all shipped)
+
+> Listed here only to preserve the historical record. Every item below
+> has since been implemented; do not use this list as a roadmap.
 
 - Production Node.js/Express authentication and user accounts. The current API uses a development bearer-token boundary.
 - Server-side authentication, access tokens and refresh flow.
@@ -32,7 +52,7 @@ The repository now has a working capture API foundation in addition to the funct
 - User-isolated server queries and integration/E2E tests.
 - Production validation, rate limiting, CORS policy and secret management.
 
-## Recommended next milestone
+## Recommended next milestone (historical)
 
 Add production authentication/token exchange and connect the remaining link/text capture actions to the API. After that, add the processing worker for OCR, tags and embeddings.
 

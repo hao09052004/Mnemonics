@@ -74,11 +74,14 @@ pnpm test
 
 The current state:
 
-* `pnpm gates:agents` — 12/12 agents ✓
-* `pnpm gates:skills` — 51/51 skills ✓
-* `pnpm gates:spec-sync` — all referenced paths resolve ✓
-* `pnpm gates:coverage` — `apps/api/src/auth/` ≥ 80 % lines/functions ✓
-* `pnpm test` — API + extension unit suite (CI currently executes 102 API tests plus extension tests) ✓
+* `pnpm gates:agents` — every role file passes the agent contract
+* `pnpm gates:skills` — every skill passes the frontmatter contract
+* `pnpm gates:spec-sync` — all referenced paths resolve
+* `pnpm gates:coverage` — `apps/api/src/auth/` ≥ 80 % lines/functions
+* `pnpm test` — runs the workspace test suites for `@mnemonics/shared`,
+  `@mnemonics/ai`, `@mnemonics/database`, `@mnemonics/api`,
+  `@mnemonics/extension-tests`, and `@mnemonics/web`. CI is the source
+  of exact pass / fail counts; this README does not pin them.
 
 
 ## 3.5 Local product demo (no Supabase account required)

@@ -6,7 +6,7 @@
 ## Endpoint
 
 ```
-POST /api/search
+POST /api/v1/search
 Authorization: Bearer <jwt>
 Content-Type: application/json
 ```
@@ -18,7 +18,7 @@ Content-Type: application/json
   "q": "string",                       // required, 1..512 chars
   "filters": {
     "tags": ["string"],                // AND
-    "kind": ["page", "selection", "image", "screenshot"],
+    "kind": ["link", "text", "image", "screenshot"],
     "captured_after":  "RFC3339",
     "captured_before": "RFC3339"
   },

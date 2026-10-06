@@ -1,9 +1,18 @@
 # Plan: Extension Dashboard (Figma-style vanilla JS)
 
-**Status**: pending → in-progress → done.
+**Status**: implemented (see `specs/api/dashboard-extension.md`).
 **Owner**: frontend-engineer (vanilla JS, no React/Tailwind).
 **Targets**: `apps/extension/mnemonics-dashboard.html`, `apps/extension/dashboard.js`,
 `apps/extension/styles/tokens.css`.
+
+> **Historical implementation plan.** This plan describes how the current
+> Figma-style extension dashboard was built. Some details (most notably
+> the `Reminders` view and the `Upload Document` chip) were intentionally
+> left as disabled / stubbed states because the BE has no `document` kind
+> and no `reminders` table yet. For the current Spaces contract (Manual +
+> Smart, no Suggested Spaces), see [`../spaces.md`](../spaces.md). For
+> current implementation status, see
+> [`../m3-m4-status.md`](../m3-m4-status.md).
 
 ---
 

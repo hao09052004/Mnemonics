@@ -92,10 +92,12 @@
 ### 12. Spaces consistency
 - Spaces page and Space detail page now use the same dark shell,
   same `MemoryCard`, same filter bar, same search.
-- SpaceCard has a brand-violet top accent for dynamic spaces; manual
+- SpaceCard has a brand-violet top accent for smart spaces; manual
   uses a neutral hairline accent.
-- Suggested-Space gradient uses `--mn-brand-soft → --mn-surface` so
-  it stays inside the dark palette.
+- Suggested-Space gradients are not part of the current surface:
+  Suggested Spaces were removed in migration
+  `018_spaces_v2_smart_rules.sql`. Smart Spaces are saved searches,
+  not `AI`-generated clusters, so they reuse the existing palette.
 
 ### 13. AddToSpacePopover
 - Dark surface, hairline border, brand CTA — sits cleanly over a
@@ -163,14 +165,13 @@
 
 ## Tests + gates
 - `pnpm typecheck` → all packages green
-- `pnpm test` → **294 passed**, 1 skipped
-  - extension: 16
-  - shared: 10
-  - web: **55** (was 50, +5 MemoryCard smoke)
-  - ai: 78 + 1 skipped
-  - api: 135
+- `pnpm test` → runs the workspace test suites for `@mnemonics/shared`,
+  `@mnemonics/ai`, `@mnemonics/database`, `@mnemonics/api`,
+  `@mnemonics/extension-tests`, and `@mnemonics/web`. CI is the source of
+  exact pass / fail counts; this snapshot deliberately does not pin them.
 - `pnpm build` → all packages green
-- `pnpm gates:all` → 4/4 green
+- `pnpm gates:all` → `gates:agents`, `gates:skills`, `gates:spec-sync`,
+  and `gates:coverage` green
 
 ---
 
@@ -186,7 +187,7 @@
 Card hover: actions appear in the bottom-right corner.
 Image cards: image goes edge-to-edge with the card's rounded corners.
 Highlight cards: subtle left-border quote style (not "mymind"-styled).
-Spaces: dynamic spaces get a violet rule, manual get neutral.
+Spaces: smart spaces get a violet rule, manual get neutral.
 Empty state: "Trí nhớ của bạn bắt đầu từ đây" + a single violet CTA.
 Loading: 8-12 mixed-height skeletons, no giant horizontal bars.
 

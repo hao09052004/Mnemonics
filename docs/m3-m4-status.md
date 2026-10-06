@@ -1,124 +1,119 @@
-# Mnemonics — M3 / M4 Implementation Status
+# Mnemonics — Current Status (after Spaces v2 / PR #9)
 
-> Snapshot after the most recent work session. Use this as the entry
-> point for manual testing and as a checklist for the next session.
+> Authoritative source of truth for the current state of the codebase is
+> the code itself and the canonical docs below. This file is a living
+> snapshot; if anything here disagrees with the linked docs, the linked
+> docs win.
+>
+> Supersedes the earlier "M3 / M4" snapshot that referenced the Suggested
+> Spaces / `space_suggestions` feature — that feature was removed in
+> migration `018_spaces_v2_smart_rules.sql`. See
+> [`docs/spaces.md`](spaces.md) for the current Spaces contract.
+
+## Canonical current documentation
+
+| Topic | File |
+|-------|------|
+| Spaces contract (manual + smart + observations) | [`docs/spaces.md`](spaces.md) |
+| AI provider architecture | [`docs/ai-architecture.md`](ai-architecture.md) |
+| Memory Understanding (OCR / TLDR / image description) | [`docs/memory-understanding.md`](memory-understanding.md) |
+| Product brief | [`README.md`](../README.md) |
+| Architecture spec | [`specs/0001-system-overview.md`](../specs/0001-system-overview.md) |
 
 ---
 
-## 1. What ships now
-
-### Feature A — Server-Backed Spaces ✅
+## 1. Spaces (v2) — current
 
 | Area | Status |
 |---|---|
-| Database migrations (`014_spaces.sql`, `015_item_enrichments.sql`) | ✅ |
-| `SpaceRepository`, `EnrichmentRepository` (`packages/database`) | ✅ |
-| Dynamic-space rule engine (`matchDynamicSpace`) | ✅ |
-| Suggested-space generator (`generateSpaceSuggestions`) | ✅ |
-| REST API (`/api/v1/spaces`, `/api/v1/items/:id/enrichment`, `/api/v1/items/:id/tldr`) | ✅ |
-| Manual + Dynamic Spaces in web (`/app/spaces`, `/app/spaces/:id`) | ✅ |
-| `AddToSpacePopover` | ✅ |
-| Ownership isolation everywhere | ✅ |
-| Tests (38 unit + 7 e2e) | ✅ |
+| `spaces` / `space_items` (manual membership persisted) | ✅ |
+| `spaces.rule` (smart Space, saved `SearchRequest`) | ✅ |
+| Dynamic membership — `resolveSmartSpaceIds` re-executes the saved query on every read | ✅ |
+| Smart Space + save-search-as-Space (`POST /api/v1/spaces/from-search`) | ✅ |
+| Curated `color` palette (`violet`, `blue`, `teal`, `sage`, `amber`, `rose`, `slate`) enforced by SQL `CHECK` | ✅ |
+| Manual-only `space_items` invariant enforced by trigger `space_items_require_manual_space` | ✅ |
+| `updated_at` maintained by trigger `spaces_touch_updated_at` | ✅ |
+| Ownership isolation (route + repository + RLS) | ✅ |
+| Web UI: `/app/spaces`, `/app/spaces/:id`, multi-select add, save-search-as-Space | ✅ |
+| Tests: `packages/database/src/__tests__/spaces.test.ts`, `apps/api/src/routes/__tests__/spaces.test.ts`, `apps/web/src/components/spaces/__tests__/*`, `apps/web/src/pages/__tests__/spaces-pages.test.tsx`, `apps/api/scripts/e2e-pipeline.mts` (scenarios A + B) | ✅ |
 
-### Feature B — Memory Understanding ✅
+> Migration lineage (Spaces): `014_spaces.sql` (historical, with `space_rules` and `space_suggestions`) → `018_spaces_v2_smart_rules.sql` (current; renames `dynamic` → `smart`, drops `space_rules` and `space_suggestions`, replaces per-row rules with a saved `SearchRequest`, adds the colour column, and installs the membership trigger).
+
+## 2. Suggested Spaces — removed
+
+- `space_suggestions` table — dropped in migration 018.
+- `apps/api/src/spaces/suggestions.ts` (AI clustering) — removed.
+- `/api/v1/spaces/suggestions`, `/api/v1/spaces/suggestions/refresh`, `DELETE /api/v1/spaces/suggestions/:id` — **not** part of the v2 API.
+
+If you find any active reference to these endpoints in documentation or
+tests, it is stale and should be removed.
+
+## 3. Memory Understanding — current
 
 | Area | Status |
 |---|---|
-| `item_enrichments` schema (caption, tldr, status, source, prompt_version) | ✅ |
-| `LocalImageDescriptionProvider` (Transformers.js) | ✅ |
-| `DeterministicTldrProvider` (Vietnamese + English) | ✅ |
-| `OllamaTldrProvider` (optional, FREE) | ✅ |
-| Async pipeline: `ocr → tag → embed → enrich` | ✅ |
-| Embedding text builder uses `Title + TLDR + Caption + Content + OCR` | ✅ |
+| `item_enrichments` (caption, tldr, status, source, prompt_version) | ✅ |
+| `LocalImageDescriptionProvider` (Transformers.js, `Xenova/vit-gpt2-image-captioning`) | ✅ |
+| `DeterministicTldrProvider` (Vietnamese + English, no model) | ✅ |
+| `OllamaTldrProvider` (optional local LLM upgrade, with deterministic fallback) | ✅ |
+| Async pipeline: `ocr → tag → embed → enrich` (enrich is the TLDR / image-description pass) | ✅ |
+| Embedding text builder uses `Title + TLDR + Description + Content + OCR` | ✅ |
 | Lexical search boosts `tldr` ('A') and `caption` ('C') | ✅ |
 | Manual-TLDR protection (`tldr_source = 'user'`) | ✅ |
-| `ItemDetailModal` (two-column, TLDR editor, collapsible OCR, image description) | ✅ |
+| 1024-d embedding column (`vector(1024)`) shared by Gemini + Ollama `bge-m3` | ✅ |
+| ItemDetailModal (two-column, TLDR editor, collapsible OCR / image description) | ✅ |
 | Failure UX ("Image description is temporarily unavailable." + Retry) | ✅ |
 | Lazy / singleton model loading + concurrency cap | ✅ |
-| Tests (78 unit + integration) | ✅ |
 
-### UX refinements added in this session
+> **Not implemented:** Ollama Vision (no `OllamaImageDescriptionProvider`). The only image-description provider is local Transformers.js (`local`).
 
-- **Dashboard card** with sticky `TLDR` line for fast scan.
-- **ItemDetailModal**:
-  - Two-column layout
-  - Compact TLDR with copy / edit / regenerate
-  - Collapsible OCR ("Show all" / "Hide")
-  - Collapsible AI image description
-  - Related memories, removable from the list
-  - "Add to Space" popover reachable from detail header
-- **Spaces overview**:
-  - "My Spaces" cards with memory count, last-updated, hover preview
-  - "Suggested Spaces" with Accept / Dismiss
-  - Empty-state nudge
-- **Space detail**:
-  - Header with edit pencil, memory count
-  - Internal search (semantic + keyword, falls back to client-side filter)
-  - Grid of memory cards
-  - "Remove from Space" with inline confirm
-  - "Add Memory" popover to drop more items in
-- **AddToSpacePopover**:
-  - Search by name, recents list, "Create new Space" inline
-  - Check-mark feedback on success
-
-### Taste-skill alignment
-
-We deliberately followed `vendor/taste-skill/skills/redesign-skill/SKILL.md`:
-
-- Quiet typography, 1px hairline dividers, no glow / no shadow stacks.
-- 4 / 8 / 12 / 16 px spacing scale.
-- Soft, semantic motion (`transition: 150–200ms ease-out`).
-- No emoji icons inside product UI (text labels or thin SVGs only).
-- Hover states and focus rings are explicit and high-contrast.
-- Cards have visible top accent (color hint by item type).
-- AI states use plain language: "Understanding image…" → "Ready".
-
----
-
-## 2. New / changed routes
+## 4. Other current endpoints (Spaces API, verified against `apps/api/src/routes/spaces.ts`)
 
 ```
-GET    /api/v1/spaces
-POST   /api/v1/spaces
+GET    /api/v1/spaces                 ?withCounts=1   live smart counts + previews
+POST   /api/v1/spaces                                    manual or smart
+POST   /api/v1/spaces/from-search                        smart, rule guaranteed
 GET    /api/v1/spaces/:id
-PATCH  /api/v1/spaces/:id
-DELETE /api/v1/spaces/:id
-POST   /api/v1/spaces/:id/items
-DELETE /api/v1/spaces/:id/items/:itemId
-GET    /api/v1/spaces/:id/items
-POST   /api/v1/spaces/suggestions/refresh
-GET    /api/v1/spaces/suggestions
-DELETE /api/v1/spaces/suggestions/:id
-
-GET    /api/v1/items/:id/enrichment
-PATCH  /api/v1/items/:id/tldr
-POST   /api/v1/items/:id/tldr/regenerate
+PATCH  /api/v1/spaces/:id                                 name / colour / rule
+DELETE /api/v1/spaces/:id                                 memories survive
+GET    /api/v1/spaces/:id/items                           manual: persisted | smart: computed
+POST   /api/v1/spaces/:id/items        { itemIds[] }     manual only, idempotent
+DELETE /api/v1/spaces/:id/items/:itemId                  membership only
 ```
+
+> A Smart Space that is asked for `POST /items` returns `422 SPACE_NOT_MANUAL` (a smart Space decides its own membership).
 
 Web routes:
 
 ```
-/app/spaces                  → SpacesPage (My + Suggested)
+/app/spaces                  → SpacesPage (My Spaces, manual + smart)
 /app/spaces/:id              → SpaceDetailPage
 /app/memories/:id            → ItemDetailModal (overlay, two-column)
 ```
 
----
-
-## 3. Database migrations (apply in order)
+## 5. Database migrations (apply in order)
 
 ```
-014_spaces.sql               — spaces, space_items, space_rules, space_suggestions
-015_item_enrichments.sql     — item_enrichments (caption, tldr, status, source)
+014_spaces.sql                       — historical base migration (created spaces,
+                                       space_items, space_rules, space_suggestions).
+015_item_enrichments.sql             — enrichment foundation (caption, tldr,
+                                       summary, per-step status, ownership trigger).
+016_allow_enrich_job.sql             — adds the `enrich` job type to the jobs
+                                       CHECK constraint.
+017_embedding_dimensions_1024.sql    — moves `item_embeddings` from vector(1536)
+                                       to vector(1024) so a SINGLE column serves
+                                       both Gemini and Ollama `bge-m3`.
+018_spaces_v2_smart_rules.sql        — current canonical Spaces migration:
+                                         • space_type 'dynamic' → 'smart'
+                                         • spaces.rule JSONB (a SearchRequest)
+                                         • spaces.color with curated CHECK
+                                         • manual-only space_items trigger
+                                         • spaces.updated_at trigger
+                                         • drops space_rules and space_suggestions
+                                         • RLS recreated on spaces / space_items
 ```
 
-If you previously created a `spaces` table from the M1 prototype, run a
-manual `DROP TABLE` first; the canonical schema is in `014_spaces.sql`.
-
----
-
-## 4. New env variables (see `.env.example`)
+## 6. AI configuration defaults (see `.env.example`)
 
 ```
 AI_FREE_ONLY=true
@@ -134,89 +129,45 @@ OCR_PROVIDER=local
 OCR_LOCAL_FALLBACK=true
 OCR_SPACE_API_KEY=
 GEMINI_API_KEY=
-GEMINI_VISION_MODEL=
 LOCAL_AI_MAX_CONCURRENCY=1
 IMAGE_AI_MAX_DIMENSION=1024
 IMAGE_AI_TIMEOUT_MS=30000
 ```
 
----
+The configured embedding dimensions are **1024** (Gemini `outputDimensionality=1024` and Ollama `bge-m3`). The column is `vector(1024)`. Do not mix dimensions — the SQL trigger `enforce_item_embedding_dimensions` rejects a row whose `dimensions` value disagrees with the column width.
 
-## 5. Quality gates
+## 7. Quality gates (live command set, not historical numbers)
 
+Run from the repository root and let CI be the source of counts:
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm gates:all
 ```
-pnpm typecheck        ✅  all 6 packages
-pnpm test             ✅  289 passed, 1 skipped
-pnpm build            ✅  all 5 packages
-pnpm gates:all        ✅  4/4 gates green
-pnpm ai:check         ✅  FREE-ONLY mode
-```
 
----
+> Per-package test runs are defined in `package.json` (`pnpm test`). The
+> number of tests is not a contract — it drifts with each merge. The
+> exact counts in this snapshot were frozen at audit time and **must
+> not be carried forward** into future status docs without a fresh
+> run.
 
-## 6. Manual test checklist
+## 8. Stubs / placeholders (current state)
 
-Use this list in the browser to confirm UX:
+- **Rediscover** (`/app/rediscover`) — route exists, page renders "Coming soon". No backend resurfacing logic; not implemented in this milestone.
+- **Reminders** (`/app/reminders`) — route exists, page renders "Coming soon. The API for this page is not in v1." No backend reminder table.
+- **Document capture** — chip is rendered (and in the extension, the Capture sheet entry exists) but the backend has no `document` kind yet. It is disabled in the UI with a "Coming soon" tooltip/toast.
+- **Ollama Vision** — no `OllamaImageDescriptionProvider`. The only image-description path is `LocalImageDescriptionProvider` (Transformers.js).
 
-1. **Capture an image**
-   - Screenshot capture → status `Understanding image…` for 3–6 s.
-   - Card on the dashboard shows TLDR after status flips to `Ready`.
-   - Open the card → modal has TLDR editor, collapsible OCR & image description.
+## 9. Known limitations
 
-2. **Capture a text note**
-   - Card shows TLDR + tags.
-   - Modal: TLDR edit → saves; clicking "Regenerate" asks for confirmation.
+- `LocalImageDescriptionProvider` downloads the model on first use; the first OCR+caption run can take 10–30 s depending on the connection.
+- Smart Spaces resolve on every read; with many smart Spaces on `/app/spaces`, the page resolves them sequentially to avoid hammering the pgvector index.
 
-3. **Create a Manual Space**
-   - `/app/spaces` → "New Space" → name + icon.
-   - Card appears under "My Spaces".
+## 10. Next session candidates (NOT yet implemented)
 
-4. **Create a Dynamic Space**
-   - Same modal, switch to "Dynamic" tab → add a `type = image` rule.
-   - Item count updates automatically as matching items become `ready`.
-
-5. **Suggested Spaces**
-   - After 3+ captures, click "Refresh suggestions".
-   - At least one cluster appears with `Create Space` / `Dismiss`.
-
-6. **Add-to-Space popover**
-   - From a card menu or from the modal header.
-   - Search an existing Space, or create inline.
-
-7. **Search inside a Space**
-   - Inside `/app/spaces/:id`, type a keyword.
-   - Empty state message appears if no matches.
-
-8. **Remove a memory from a Space**
-   - Hover a card → "Remove from Space" → confirm.
-
-9. **Edit TLDR**
-   - Open modal → click pencil → save.
-   - Re-open the same item; TLDR is preserved, badge shows "Your edit".
-
-10. **Disable cloud AI**
-    - In `.env` set `AI_FREE_ONLY=true`, no `GEMINI_API_KEY`.
-    - Restart API. Everything must still work.
-
----
-
-## 7. Known limitations
-
-- `LocalImageDescriptionProvider` downloads the model on first use; the
-  first OCR+caption run can take 10–30 s depending on the connection.
-- The in-memory similarity link in the e2e test is best-effort
-  (`Unhandled fake pool query: …`) — items still go `ready` because the
-  embed handler already marks the item before the similarity pass.
-- Suggested Spaces use a deterministic title generator (top-3 keywords
-  + topic). It is intentionally boring; replace with a local LLM call
-  (e.g. Ollama) when one is available.
-
----
-
-## 8. Next session candidates
-
-- Server-side preset rules ("favorite in last 30 days") in the dynamic
-  Space rule editor.
-- Bulk-apply suggestions ("Add 3 similar memories to this Space").
+- Server-side preset rules ("favorite in last 30 days") in the smart Space rule editor.
+- Bulk-apply suggestions (n/a: suggestions were removed; the next thing in this direction is a deterministic in-app recategorisation helper, not a LLM).
 - Time-of-day / "memory of the day" panel driven by `tldr`.
-- Per-user CLIP visual similarity for image Spaces.
+- Per-user visual similarity for image Spaces (requires a real visual embedding space — currently no provider writes `item_visual_embeddings`).
