@@ -12,6 +12,9 @@ import { SpacesPage } from '../pages/SpacesPage';
 import { SpaceDetailPage } from '../pages/SpaceDetailPage';
 import { RediscoverPage } from '../pages/RediscoverPage';
 import { RemindersStubPage } from '../pages/RemindersStubPage';
+import { FavoritesPage } from '../pages/FavoritesPage';
+import { ClustersPage } from '../pages/ClustersPage';
+import { ClusterDetailPage } from '../pages/ClusterDetailPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { ApiClient } from '../lib/api-client';
 import { productConfig } from '../config/product';
@@ -55,8 +58,11 @@ export function AppRouter({ api }: AppRouterProps) {
         <Route path="/signup" element={<SignupPage api={api} />} />
         <Route path="/reset-password" element={<ResetPasswordPage api={api} />} />
         <Route path="/app" element={<DashboardPage api={api} />} />
+        <Route path="/app/favorites" element={<FavoritesPage api={api} />} />
         <Route path="/app/spaces" element={<SpacesPage api={api} />} />
         <Route path="/app/spaces/:id" element={<SpaceDetailPage api={api} />} />
+        <Route path="/app/clusters" element={<ClustersPage api={api} />} />
+        <Route path="/app/clusters/:id" element={<ClusterDetailPage api={api} />} />
         <Route path="/app/rediscover" element={<RediscoverPage api={api} />} />
         <Route path="/app/reminders" element={<RemindersStubPage />} />
         <Route path="*" element={<NotFoundPage />} />

@@ -79,7 +79,7 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
         const result = await pool.query<Record<string, unknown>>(
           `SELECT id, type, title, source_url, raw_text, ocr_text,
                   status, client_request_id, captured_at, created_at, updated_at,
-                  is_favorite,
+                  is_favorite, page_count,
                   (SELECT storage_key FROM assets WHERE assets.item_id = items.id LIMIT 1) AS asset_storage_key
            FROM items
            WHERE user_id = $1
@@ -146,6 +146,7 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           created_at: row.created_at,
           updated_at: row.updated_at,
           is_favorite: row.is_favorite === true,
+          page_count: row.page_count ?? null,
           tags: tagsByItem.get(String(row.id)) ?? [],
           image_url: await signedUrlFor(row.asset_storage_key as string | null)
         })));
@@ -178,7 +179,11 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
       try {
         const userId = req.userId!;
         const item = await pool.query<Record<string, unknown>>(
-          `SELECT * FROM items WHERE id = $1 AND user_id = $2`,
+          `SELECT id, type, title, source_url, raw_text, ocr_text,
+                  status, client_request_id, captured_at, created_at, updated_at,
+                  is_favorite, page_count, ocr_engine, ocr_language, ocr_confidence,
+                  ocr_processed_at, ocr_error_code
+             FROM items WHERE id = $1 AND user_id = $2`,
           [String(req.params.id), userId]
         );
 
@@ -195,11 +200,48 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           [String(req.params.id)]
         );
 
+        // Pull the asset row (storage key + mime + filename) so the
+        // dashboard can render the original-document actions
+        // (open/download) for document memories without a second
+        // round-trip.
+        const assetRow = await pool.query<Record<string, unknown>>(
+          `SELECT storage_key, mime_type, size_bytes, original_filename
+             FROM assets WHERE item_id = $1
+             ORDER BY created_at DESC LIMIT 1`,
+          [String(req.params.id)]
+        );
+        const assetResult = assetRow.rows[0] ?? null;
+        let signedUrl: string | null = null;
+        if (
+          assetResult?.storage_key &&
+          imageStorage &&
+          typeof imageStorage.createSignedUrl === 'function'
+        ) {
+          try {
+            signedUrl = await imageStorage.createSignedUrl(
+              String(assetResult.storage_key),
+              60 * 60
+            );
+          } catch {
+            signedUrl = null;
+          }
+        }
+
         const result = item.rows[0];
         res.json({
           item: {
             ...result,
-            tags: tags.rows.map(t => t.name)
+            tags: tags.rows.map((t) => t.name),
+            ...(assetResult
+              ? {
+                  asset: {
+                    mime_type: assetResult.mime_type ?? null,
+                    size_bytes: assetResult.size_bytes ?? null,
+                    original_filename: assetResult.original_filename ?? null
+                  }
+                }
+              : {}),
+            signed_url: signedUrl
           }
         });
       } catch (error) {

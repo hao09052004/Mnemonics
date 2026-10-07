@@ -593,3 +593,125 @@
 .space-color-picker__dot.is-active {
   border: 2px solid var(--mn-text);
 }
+
+/* ===== Content clusters =========================================
+ *
+ * Reuses the same surface tokens, the same --mn-purple accent, and
+ * the same MemoryCard grid as the rest of the dashboard. The card
+ * shape is intentionally close to a Space card so the user can
+ * tell the two apart by what they DO, not by how they look.
+ */
+
+.mnx-clusters {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.mnx-clusters__card {
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-r-lg, 12px);
+  padding: 18px 18px 16px;
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mnx-clusters__card:hover {
+  border-color: var(--mn-border-strong);
+  transform: translateY(-1px);
+}
+
+.mnx-clusters__card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mnx-clusters__card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--mn-text);
+  margin: 0;
+}
+
+.mnx-clusters__count {
+  font-size: 12px;
+  color: var(--mn-muted);
+  white-space: nowrap;
+}
+
+.mnx-clusters__card-summary {
+  font-size: 13px;
+  color: var(--mn-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.mnx-clusters__previews {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.mnx-clusters__preview {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--mn-secondary);
+  padding: 4px 8px;
+  background: var(--mn-elevated);
+  border-radius: var(--mn-r-sm, 6px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mnx-clusters__preview--empty {
+  color: var(--mn-muted);
+  font-style: italic;
+}
+
+.mnx-clusters__preview-kind {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--mn-purple-text);
+  background: var(--mn-purple-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.mnx-clusters__preview-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mnx-clusters__card-foot {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--mn-muted);
+}
+
+.mnx-clusters__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mnx-clusters__unclustered {
+  margin: 24px 0 0;
+  font-size: 13px;
+  color: var(--mn-muted);
+  text-align: center;
+}
+

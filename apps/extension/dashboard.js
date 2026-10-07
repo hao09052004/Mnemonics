@@ -51,6 +51,12 @@ const state = {
   user: null,
   items: [],
   spaces: [],
+  // Content clusters. Populated by `loadClusters()` and rendered by
+  // `renderClusters()`. The web dashboard and the extension must
+  // show the SAME clusters — neither client recomputes locally
+  // (spec §12, §32).
+  clusters: [],
+  clusterDetail: null, // { id, items: string[] }
   search: { query: '', inFlight: false, hits: null },
   filter: { variant: 'all', favoritesOnly: false },
   detail: null,
@@ -554,23 +560,44 @@ function itemMatchesVariant(item, variant) {
 // ----- top-level render dispatch --------------------------------------
 
 function renderRoute() {
-  document.body.dataset.route = state.route;
-  // Show top nav and mobile nav only when authed
-  document.querySelectorAll('[data-when="authed"]').forEach((el) => {
-    el.hidden = !state.user;
-  });
+  // A render that throws silently (e.g. a missing DOM node, an
+  // unexpected `state.user` shape) used to leave the entire grid
+  // area blank with no signal. Catch it here and surface the error
+  // through the existing cards-error panel so the user at least
+  // sees a retry button.
+  try {
+    document.body.dataset.route = state.route;
+    // Show top nav and mobile nav only when authed
+    document.querySelectorAll('[data-when="authed"]').forEach((el) => {
+      el.hidden = !state.user;
+    });
 
-  if (state.route === 'login') { renderLogin(); return; }
-  if (state.route === 'everything' || state.route === 'favorites' || state.route === 'rediscover') {
-    renderGrid(); return;
+    if (state.route === 'login') { renderLogin(); return; }
+    if (state.route === 'everything' || state.route === 'favorites' || state.route === 'rediscover') {
+      renderGrid(); return;
+    }
+    if (state.route === 'spaces') { renderSpaces(); return; }
+    if (state.route === 'clusters') { renderClusters(); return; }
+    if (state.route === 'cluster-detail') { renderClusterDetail(); return; }
+    if (state.route === 'reminders') { renderReminders(); return; }
+    if (state.route === 'settings') { renderSettings(); return; }
+    if (state.route === 'detail') { renderDetail(); return; }
+    if (state.route === 'capture') { /* no-op; CSS handles it */ return; }
+
+    highlightActiveTab();
+  } catch (err) {
+    console.error('[mnx] renderRoute(' + state.route + ') threw:', err);
+    const cards = $('cards-container');
+    if (cards) cards.innerHTML = '';
+    const empty = $('cards-empty'); if (empty) empty.hidden = true;
+    const errEl = $('cards-error');
+    if (errEl) {
+      errEl.hidden = false;
+      const msg = $('cards-error-message');
+      if (msg) msg.textContent = 'Something went wrong rendering this view. ' +
+        (err && err.message ? err.message : (err && err.name) || 'Unknown error');
+    }
   }
-  if (state.route === 'spaces') { renderSpaces(); return; }
-  if (state.route === 'reminders') { renderReminders(); return; }
-  if (state.route === 'settings') { renderSettings(); return; }
-  if (state.route === 'detail') { renderDetail(); return; }
-  if (state.route === 'capture') { /* no-op; CSS handles it */ return; }
-
-  highlightActiveTab();
 }
 
 // ----- nav + tab highlighting -----------------------------------------
@@ -627,6 +654,42 @@ function renderGrid() {
   }
   skel.hidden = true;
 
+  // A failed request must look different from "the server returned
+  // zero rows". Silently falling into the "No favorites yet" copy
+  // was the exact bug that made the favourites tab look permanently
+  // empty after a network hiccup or 5xx.
+  const errEl = $('cards-error');
+  const diag = $('cards-diagnostic');
+  // Diagnostic line is always visible on the favourites route so a
+  // silent failure (render throw, missing user, etc.) is still
+  // diagnosable. Without this the grid used to be completely blank
+  // with no signal that anything had gone wrong.
+  if (diag) {
+    const rows = Array.isArray(state.items) ? state.items.length : 0;
+    const favRows = Array.isArray(state.items)
+      ? state.items.filter((x) => x.isFavorite).length
+      : 0;
+    diag.hidden = false;
+    diag.textContent =
+      'route=' + state.route +
+      '; variant=' + state.filter.variant +
+      '; server rows=' + rows +
+      '; favorited=' + favRows +
+      '; query=' + (state.lastItemsQuery || '(none)') +
+      '; user=' + ((state.user && (state.user.email || state.user.id)) || 'null');
+  }
+  if (state.error && items.length === 0) {
+    cards.innerHTML = '';
+    empty.hidden = true;
+    if (errEl) {
+      errEl.hidden = false;
+      const msg = $('cards-error-message');
+      if (msg) msg.textContent = state.error;
+    }
+    return;
+  }
+  if (errEl) { errEl.hidden = true; }
+
   if (filtered.length === 0) {
     cards.innerHTML = '';
     empty.hidden = false;
@@ -645,25 +708,11 @@ function renderGrid() {
     // Shown on every empty route (not just favorites) because the
     // symptom — an empty grid with no console output — is the same
     // whether the query was wrong or the session was missing.
-    const diag = $('cards-diagnostic');
-    if (diag) {
-      const rows = Array.isArray(state.items) ? state.items.length : 0;
-      const favRows = Array.isArray(state.items)
-        ? state.items.filter((x) => x.isFavorite).length
-        : 0;
-      diag.hidden = false;
-      diag.textContent =
-        'Diagnostics — route=' + state.route +
-        '; variant=' + state.filter.variant +
-        '; server rows=' + rows +
-        '; favorited=' + favRows +
-        '; query=' + (state.lastItemsQuery || '(none)') +
-        '; user=' + ((state.user && (state.user.email || state.user.id)) || 'null');
-    }
     return;
   }
-  const diagOk = $('cards-diagnostic');
-  if (diagOk) { diagOk.hidden = true; diagOk.textContent = ''; }
+  // Diagnostic is always-on (set above) on this route, so we don't
+  // need to touch it again here. The empty panel can stay as the
+  // user-facing copy.
   empty.hidden = true;
   cards.innerHTML = filtered.map(renderCard).join('');
 }
@@ -765,6 +814,145 @@ function renderSpaces() {
       <p>${escapeHtml(s.item_count || 0)} memories · updated ${escapeHtml(formatRelative(s.updated_at))}</p>
     </button>
   `).join('');
+}
+
+// ----- CLUSTERS -------------------------------------------------------
+// The clusters view is a thin shell over the canonical cluster API.
+// There is no client-side clustering here on purpose: a divergent
+// implementation would violate spec §12 (web + extension parity) and
+// §32 (no extension-only clustering).
+
+async function loadClusters() {
+  const token = await getAccessToken();
+  if (!token) {
+    state.clusters = [];
+    return;
+  }
+  try {
+    const r = await window.listClustersFromApi(token);
+    state.clusters = (r && r.data && r.data.clusters) || [];
+    state.clusterUnclustered = (r && r.data && r.data.unclusteredCount) || 0;
+  } catch (e) {
+    state.clusters = [];
+    state.clusterError = (e && e.message) || 'Could not load groups.';
+  }
+}
+
+function renderClusters() {
+  highlightActiveTab();
+  const host = $('clusters-host');
+  if (!host) return;
+  if (state.clusterLoading) {
+    host.innerHTML = `<p style="color:var(--muted);font-size:13px">Loading groups…</p>`;
+    return;
+  }
+  if (state.clusterError) {
+    host.innerHTML = `
+      <div class="mnx-empty" data-action="cluster-error">
+        <div class="mnx-empty__inner">
+          <div class="mnx-empty__mark"><span></span><span></span><span></span></div>
+          <h1>Groups are unavailable right now</h1>
+          <p>${escapeHtml(state.clusterError)}</p>
+          <button class="primary" data-action="cluster-retry">Try again</button>
+        </div>
+      </div>`;
+    return;
+  }
+  if (!state.clusters.length) {
+    host.innerHTML = `
+      <div class="mnx-empty">
+        <div class="mnx-empty__inner">
+          <div class="mnx-empty__mark"><span></span><span></span><span></span></div>
+          <h1>No groups yet</h1>
+          <p>Save more memories on a similar topic to see them cluster here.</p>
+        </div>
+      </div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="mnx-clusters__head">
+      <h1>Groups</h1>
+      <p>${state.clusterUnclustered ? state.clusterUnclustered + ' memories are not in any group yet.' : ''}</p>
+      <button class="mnx-button mnx-button--ghost" data-action="cluster-refresh">Refresh groups</button>
+    </div>
+    <ul class="mnx-clusters" data-testid="clusters-list">
+      ${state.clusters.map((c) => `
+        <li class="mnx-clusters__card" data-cluster-id="${escapeHtml(c.id)}" data-testid="cluster-card-${escapeHtml(c.id)}">
+          <div class="mnx-clusters__card-head">
+            <h2 class="mnx-clusters__card-title">${escapeHtml(c.title || 'Untitled group')}</h2>
+            <span class="mnx-clusters__count">${c.itemCount || 0} memories</span>
+          </div>
+          ${c.summary ? `<p class="mnx-clusters__card-summary">${escapeHtml(c.summary)}</p>` : ''}
+          <div class="mnx-clusters__previews">
+            ${(c.representativeItems || []).slice(0, 3).map((p) => `
+              <div class="mnx-clusters__preview">
+                <span class="mnx-clusters__preview-kind">${escapeHtml(p.kind || '')}</span>
+                <span class="mnx-clusters__preview-title">${escapeHtml(p.title || '')}</span>
+              </div>
+            `).join('')}
+            ${(!c.representativeItems || c.representativeItems.length === 0) ? `
+              <div class="mnx-clusters__preview mnx-clusters__preview--empty">Preview unavailable</div>
+            ` : ''}
+          </div>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+}
+
+function renderClusterDetail() {
+  highlightActiveTab();
+  const host = $('cluster-detail-host');
+  if (!host) return;
+  const detail = state.clusterDetail;
+  if (!detail) {
+    host.innerHTML = `<p style="color:var(--muted);font-size:13px">Loading group…</p>`;
+    return;
+  }
+  const items = (detail.items || []).map((id) => state.items.find((i) => String(i.id) === String(id))).filter(Boolean);
+  host.innerHTML = `
+    <div class="mnx-everything__header">
+      <h1 class="mnx-everything__title">${escapeHtml(detail.title || 'Untitled group')}</h1>
+      <p class="mnx-everything__subtitle">${items.length} ${items.length === 1 ? 'memory' : 'memories'}</p>
+      <div class="mnx-clusters__actions">
+        <button class="primary" data-action="cluster-save-as-space">Save as Space</button>
+      </div>
+    </div>
+    <div class="mnx-memory-grid" data-testid="cluster-items">
+      ${items.length === 0 ? '<p style="color:var(--muted);font-size:13px">This group has no memories yet.</p>' : ''}
+      ${items.map((it) => `
+        <button class="mnx-card" data-memory-id="${escapeHtml(String(it.id))}" data-action="open-memory">
+          <div class="mnx-card__body">
+            <div class="mnx-card__top"><span class="mnx-eyebrow">${escapeHtml(it.kind || 'text')}</span></div>
+            <h3>${escapeHtml(it.title || 'Untitled')}</h3>
+          </div>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function openClusterDetail(id) {
+  state.route = 'cluster-detail';
+  state.clusterDetail = null;
+  renderRoute();
+  const token = await getAccessToken();
+  if (!token) return;
+  try {
+    const r = await window.getClusterFromApi(id, token);
+    const d = (r && r.data) || {};
+    const memberItems = (d.items || []).map((mid) => state.items.find((i) => String(i.id) === String(mid))).filter(Boolean);
+    const firstTitle = memberItems[0] ? memberItems[0].title : null;
+    state.clusterDetail = {
+      id,
+      title: firstTitle,
+      items: d.items || []
+    };
+    renderRoute();
+  } catch (e) {
+    state.clusterDetail = { id, title: null, items: [], error: e && e.message };
+    renderRoute();
+  }
 }
 
 function formatRelative(ts) {
@@ -1048,6 +1236,20 @@ async function loadAll() {
     state.lastItemsQuery = 'limit=' + GRID_PAGE_SIZE
       + (requestedRoute === 'favorites' ? '&favorite=true' : '');
     if (myEpoch !== apiEpoch) return;   // superseded by a newer loadAll
+    // A 401 that survives token refresh returns `null` from
+    // fetchItems. The dashboard used to silently treat that as
+    // "the server has zero rows" and showed "No favourites yet",
+    // which is exactly what users with an expired access token saw.
+    // Surface the auth failure as an error so the error panel
+    // appears instead of the misleading empty state.
+    if (itemsData === null) {
+      state.items = [];
+      state.spaces = Array.isArray(spaces) ? spaces : [];
+      state.error = 'Your session has expired. Sign in again to load favourites.';
+      state.loading = false;
+      renderRoute();
+      return;
+    }
     const rawItems = (itemsData && itemsData.items) || [];
     // The API speaks snake_case (`is_favorite`); the dashboard renders
     // camelCase. Normalise once, here, instead of every read site.
@@ -1113,16 +1315,26 @@ function bindEvents() {
   // grid (everything / favorites / rediscover / spaces / space-detail).
   // Without this re-fetch, switching tabs after a save would show
   // stale items until manual reload.
-  const DATA_TABS = new Set(['everything', 'favorites', 'rediscover', 'spaces', 'space-detail']);
+  const DATA_TABS = new Set(['everything', 'favorites', 'rediscover', 'spaces', 'space-detail', 'clusters']);
   document.body.addEventListener('click', (e) => {
     const tab = e.target.closest('[data-route-tab]');
     if (tab) {
       e.preventDefault();
       const next = tab.dataset.routeTab;
       setState({ route: next });
-      if (DATA_TABS.has(next) && state.user) loadAll().catch((err) => console.error('[mnx] tab reload failed:', err));
-    return;
-  }
+      if (DATA_TABS.has(next) && state.user) {
+        if (next === 'clusters') {
+          state.clusterLoading = true;
+          renderRoute();
+          loadClusters()
+            .catch((err) => console.error('[mnx] cluster load failed:', err))
+            .finally(() => { state.clusterLoading = false; renderRoute(); });
+        } else {
+          loadAll().catch((err) => console.error('[mnx] tab reload failed:', err));
+        }
+      }
+      return;
+    }
     const goHome = e.target.closest('[data-action="go-home"]');
     if (goHome) {
         e.preventDefault();
@@ -1132,6 +1344,81 @@ function bindEvents() {
     }
     const goSettings = e.target.closest('[data-action="go-settings"]');
     if (goSettings) { e.preventDefault(); setState({ route: 'settings' }); return; }
+
+    // Retry the favorites fetch when the error state is showing.
+    const retryFav = e.target.closest('[data-action="retry-favorites"]');
+    if (retryFav) {
+      e.preventDefault();
+      state.error = null;
+      if (state.user) loadAll().catch((err) => console.error('[mnx] favorites retry failed:', err));
+      return;
+    }
+
+    // Cluster card click → open detail.
+    const clusterCard = e.target.closest('[data-cluster-id]');
+    if (clusterCard && state.route === 'clusters') {
+      e.preventDefault();
+      openClusterDetail(clusterCard.dataset.clusterId);
+      return;
+    }
+
+    // Cluster refresh action.
+    const clusterRefresh = e.target.closest('[data-action="cluster-refresh"]');
+    if (clusterRefresh) {
+      e.preventDefault();
+      (async () => {
+        state.clusterLoading = true;
+        renderRoute();
+        const token = await getAccessToken();
+        if (token) {
+          try { await window.refreshClustersFromApi(token); } catch (err) { console.warn('[mnx] cluster refresh failed:', err); }
+        }
+        await loadClusters();
+        state.clusterLoading = false;
+        renderRoute();
+      })();
+      return;
+    }
+
+    // Cluster error retry.
+    const clusterRetry = e.target.closest('[data-action="cluster-retry"]');
+    if (clusterRetry) {
+      e.preventDefault();
+      state.clusterError = null;
+      state.clusterLoading = true;
+      renderRoute();
+      loadClusters()
+        .catch((err) => console.error('[mnx] cluster retry failed:', err))
+        .finally(() => { state.clusterLoading = false; renderRoute(); });
+      return;
+    }
+
+    // Save cluster as Space.
+    const saveAsSpace = e.target.closest('[data-action="cluster-save-as-space"]');
+    if (saveAsSpace && state.clusterDetail) {
+      e.preventDefault();
+      (async () => {
+        const token = await getAccessToken();
+        if (!token) return;
+        try {
+          await window.saveClusterAsSpaceFromApi(state.clusterDetail.id, token, {});
+          // Bounce back to spaces tab so the new space is visible.
+          setState({ route: 'spaces' });
+          loadAll().catch((err) => console.error('[mnx] space reload after save failed:', err));
+        } catch (err) {
+          console.warn('[mnx] save cluster as space failed:', err);
+        }
+      })();
+      return;
+    }
+
+    // Open a memory card inside a cluster detail view.
+    const openMem = e.target.closest('[data-memory-id][data-action="open-memory"]');
+    if (openMem && state.route === 'cluster-detail') {
+      e.preventDefault();
+      openDetail(openMem.dataset.memoryId);
+      return;
+    }
 
     // Detail close
     if (e.target.closest('[data-action="close-detail"]')) {
@@ -1380,7 +1667,10 @@ function updateSearchMeta() {
 
 function handleCaptureAction(kind) {
   setState({ route: lastRoute || 'everything' });
-  if (kind === 'document') return; // disabled in spec
+  if (kind === 'document') {
+    openDocumentCapturePicker();
+    return;
+  }
   if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.runtime) {
     toast('Capture requires the extension popup', 'error');
     return;
@@ -1407,6 +1697,76 @@ function handleCaptureAction(kind) {
       }
     });
   });
+}
+
+/**
+ * Open the system file picker scoped to PDF/TXT/Markdown and POST the
+ * chosen file to `/api/v1/captures/document`. The dashboard never
+ * stores the bytes; chrome.storage.local is not touched here, so a
+ * 20 MiB PDF cannot bloat the extension's storage budget. The server
+ * response is the save boundary — we do not fabricate a memory card
+ * on the client.
+ */
+function openDocumentCapturePicker() {
+  // Reuse a single input element across clicks. Creating one each
+  // time leaks DOM nodes if the user cancels repeatedly, and the
+  // browser recycles the same picker permission.
+  let input = document.getElementById('document-capture-input');
+  if (!input) {
+    input = document.createElement('input');
+    input.id = 'document-capture-input';
+    input.type = 'file';
+    input.accept = '.pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown';
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+  }
+  // Always clear `value` so the same file can be re-picked after
+  // cancellation (browsers refuse to fire `change` otherwise).
+  input.value = '';
+  input.onchange = function () {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    uploadDocumentToCapture(file);
+  };
+  input.click();
+}
+
+function uploadDocumentToCapture(file) {
+  const accessToken = state.session && state.session.accessToken;
+  if (!accessToken) {
+    toast('Please sign in first', 'error');
+    return;
+  }
+  if (typeof window.uploadDocumentCapture !== 'function') {
+    toast('Document upload unavailable', 'error');
+    return;
+  }
+  // Best-effort default title from the filename. The user can rename
+  // it later via PATCH /items/:id, mirroring the web flow.
+  const defaultTitle = String(file.name || 'document').replace(/\.[^.]+$/, '').slice(0, 200);
+  const form = new FormData();
+  form.append('file', file, file.name || 'document');
+  form.append('type', 'document');
+  form.append('title', defaultTitle);
+  form.append('sourceUrl', '');
+  form.append('capturedAt', new Date().toISOString());
+  form.append('clientRequestId',
+    (crypto.randomUUID && crypto.randomUUID())
+      || (String(Date.now()) + '-' + Math.random().toString(36).slice(2))
+  );
+  toast('Uploading ' + (file.name || 'document') + '…', 'success');
+  Promise.resolve(window.uploadDocumentCapture(form, accessToken))
+      .then(function (body) {
+        toast('Saved', 'success');
+        loadAll();
+        return body;
+      })
+      .catch(function (err) {
+        const message = err && err.message ? err.message : 'Upload failed';
+        toast(message, 'error');
+      });
 }
 
 // ----- toast ----------------------------------------------------------

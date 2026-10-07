@@ -58,6 +58,33 @@ mnemonics-csp-fixed/
     └── superpowers/                    github.com/obra/superpowers
 ```
 
+## 2.1 Features at a glance
+
+- **Capture** — Browser extension captures text, links, screenshots,
+  images, and documents. Files are stored in Supabase; the API is
+  the save boundary.
+- **Understand** — OCR (Tesseract + Gemini Vision fallback),
+  auto-tagging (Gemini / local LLM), deterministic TLDRs, captions
+  for images.
+- **Search** — keyword + semantic via pgvector; the result set is
+  fused with a per-row RRF score. Smart Spaces reuse the same
+  code path.
+- **Spaces** — Manual and Smart Spaces coexist; the user picks the
+  shape that fits.
+- **Content Clusters** — automatically group memories by topic.
+  See [`docs/content-clusters.md`](docs/content-clusters.md).
+- **Favourites** — heart any memory; the Favorites tab filters
+  `is_favorite = true`.
+- **Web + Extension parity** — both clients hit the same backend
+  endpoints. No client-side cluster recomputation, no
+  extension-only heuristics.
+
+Human-facing documentation lives under [`docs/`](docs/):
+[`content-clusters.md`](docs/content-clusters.md),
+[`document-capture.md`](docs/document-capture.md),
+[`spaces.md`](docs/spaces.md), [`ai-architecture.md`](docs/ai-architecture.md),
+[`memory-understanding.md`](docs/memory-understanding.md).
+
 ## 3. Daily commands
 
 ```bash
@@ -127,8 +154,13 @@ Demo account:
 3. Open the Chrome extension from `chrome://extensions`, load the `apps/extension` directory as an unpacked extension, then open the dashboard inside the extension and choose **Dùng tài khoản demo**.
 4. Capture a short text snippet from a webpage. The extension sends the capture to the API with a stable `clientRequestId`.
 5. Return to the dashboard and search for the captured content. The asynchronous `tag → embed → ready` pipeline makes the item searchable.
-6. Use **Ý liên quan** on a ready memory to demonstrate the knowledge-graph / vector-relation path.
-7. Load `apps/extension` as an unpacked Chrome extension, sign in with the demo account, capture a real page, then return to the dashboard to show server reconciliation.
+6. (Optional) Upload a PDF / TXT / Markdown document from either the
+   dashboard's **Upload Document** button or the extension's
+   **Upload Document** chip — the file goes through the same
+   `extract_document → tag → embed → enrich` pipeline. See
+   [`docs/document-capture.md`](docs/document-capture.md).
+7. Use **Ý liên quan** on a ready memory to demonstrate the knowledge-graph / vector-relation path.
+8. Load `apps/extension` as an unpacked Chrome extension, sign in with the demo account, capture a real page, then return to the dashboard to show server reconciliation.
 8. Validate the whole pipeline from the command line:
 
 ```bash

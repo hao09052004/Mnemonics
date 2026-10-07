@@ -38,6 +38,36 @@ The API stores bytes in the private `mnemonics-assets` Supabase Storage bucket a
 metadata in Postgres. A failed request is reported to the user and is not
 persisted as a local capture or retry record.
 
+## Document captures
+
+`POST /api/v1/captures/document` accepts `multipart/form-data`:
+
+- `file`: PDF, **TXT**, or **Markdown**, at most 20 MB.
+- `title`: capture title.
+- `sourceUrl`, `capturedAt`: optional metadata.
+- `clientRequestId`: stable UUID reused when the same in-memory save is retried.
+
+The API stores bytes in the same private `mnemonics-assets` Supabase
+Storage bucket as images (`<user_id>/<item_id>/<safe-filename>`) and
+records the asset metadata (mime type, `size_bytes`,
+`original_filename`) on the `assets` row. A `document` item is created in
+the same transaction. The capture is durable the moment the HTTP
+response is sent — text extraction is async and runs in the
+`extract_document` job.
+
+Errors:
+- `415` for unsupported MIME or filename extension.
+- `413` for files over `DOCUMENT_UPLOAD_MAX_BYTES` (20 MB).
+- `400` if no file field is present.
+- `503` if the document storage backend is not configured.
+
+The original file is later accessible to the owning user via a short-lived
+signed URL issued by the same `/api/v1/items/:id` route that already
+returns image URLs. The client never embeds service-role credentials.
+
+See `docs/document-capture.md` for the full pipeline, failure
+semantics, and scanned-PDF behaviour.
+
 ## Dashboard reads
 
 `GET /api/v1/items?limit=50&offset=0` is the authoritative extension dashboard

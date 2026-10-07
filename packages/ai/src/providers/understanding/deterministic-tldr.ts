@@ -115,6 +115,16 @@ function buildVietnamese(input: TldrInput): string {
     } else {
       parts.push(firstClause(title || 'Ghi chú nhanh.'));
     }
+  } else if (input.type === 'document') {
+    if (raw) {
+      parts.push(`${firstClause(raw)}.`);
+    } else if (ocr) {
+      parts.push(`Tài liệu chứa nội dung: ${firstClause(ocr)}.`);
+    } else if (title) {
+      parts.push(`Tài liệu: ${firstClause(title)}.`);
+    } else {
+      parts.push('Một tài liệu đã được lưu.');
+    }
   }
 
   return joinSentences(parts, MAX_SENTENCES);
@@ -134,6 +144,11 @@ function buildEnglish(input: TldrInput): string {
   if (input.type === 'link') {
     const subject = raw || title || 'a page';
     return cap(`Page from ${host ?? 'web'}: ${firstClause(subject)}.`, MAX_CHARS);
+  }
+  if (input.type === 'document') {
+    if (raw) return cap(`Document content: ${firstClause(raw)}.`, MAX_CHARS);
+    if (title) return cap(`Saved document: ${firstClause(title)}.`, MAX_CHARS);
+    return cap('A document was saved.', MAX_CHARS);
   }
   if (raw) return cap(`${firstClause(raw)}.`, MAX_CHARS);
   return cap(firstClause(title || 'A short note.'), MAX_CHARS);

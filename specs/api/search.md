@@ -18,7 +18,7 @@ Content-Type: application/json
   "q": "string",                       // required, 1..512 chars
   "filters": {
     "tags": ["string"],                // AND
-    "kind": ["link", "text", "image", "screenshot"],
+    "kind": ["link", "text", "image", "screenshot", "document"],
     "captured_after":  "RFC3339",
     "captured_before": "RFC3339"
   },

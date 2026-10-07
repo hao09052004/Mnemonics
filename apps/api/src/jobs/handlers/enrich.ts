@@ -212,7 +212,7 @@ export class UnderstandingHandler {
         ocrText,
         rawText,
         sourceUrl: item.source_url,
-        type: (item.type as 'link' | 'text' | 'image' | 'screenshot' | 'note') ?? 'link',
+        type: (item.type as 'link' | 'text' | 'image' | 'screenshot' | 'note' | 'document') ?? 'link',
         locale: 'vi'
       });
       await this.deps.enrichments.setTldr(job.itemId, job.userId, {
@@ -242,7 +242,7 @@ export class UnderstandingHandler {
           ocrText,
           rawText,
           sourceUrl: item.source_url,
-          type: (item.type as 'link' | 'text' | 'image' | 'screenshot' | 'note') ?? 'link',
+          type: (item.type as 'link' | 'text' | 'image' | 'screenshot' | 'note' | 'document') ?? 'link',
           locale: 'vi'
         });
         const result = await fallback;

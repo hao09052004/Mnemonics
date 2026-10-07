@@ -35,7 +35,7 @@ export const dashboardSummarySchema = z.object({
 });
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 
-export const captureTypes = ['link', 'text', 'image', 'screenshot'] as const;
+export const captureTypes = ['link', 'text', 'image', 'screenshot', 'document'] as const;
 export type CaptureType = (typeof captureTypes)[number];
 
 export const itemStatuses = ['pending', 'processing', 'ready', 'failed'] as const;
@@ -50,6 +50,27 @@ const imageReferenceSchema = z.object({
   }),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
   sizeBytes: z.number().int().positive().max(10 * 1024 * 1024)
+}).strict();
+
+/**
+ * Document reference for the `document` capture shape. Like the image
+ * reference, the storage key is a placeholder at validation time and is
+ * rewritten by the multipart route after the bytes are uploaded to object
+ * storage. The MIME type is locked to a closed list of supported document
+ * kinds so the route does not have to second-guess the client.
+ */
+export const documentMimeTypes = [
+  'application/pdf',
+  'text/plain',
+  'text/markdown'
+] as const;
+export type DocumentMimeType = (typeof documentMimeTypes)[number];
+
+export const documentReferenceSchema = z.object({
+  storageKey: z.string().trim().min(1).max(512),
+  mimeType: z.enum(documentMimeTypes),
+  sizeBytes: z.number().int().positive().max(20 * 1024 * 1024),
+  originalFilename: z.string().trim().min(1).max(255).optional()
 }).strict();
 
 export const captureInputSchema = z.discriminatedUnion('type', [
@@ -88,6 +109,19 @@ export const captureInputSchema = z.discriminatedUnion('type', [
     title: z.string().trim().min(1).max(500),
     sourceUrl: sourceUrlSchema,
     image: imageReferenceSchema,
+    selectedText: z.string().trim().max(100_000).optional(),
+    capturedAt: capturedAtSchema,
+    clientRequestId: z.string().uuid()
+  }).strict(),
+  // `document` captures an uploaded PDF / TXT / Markdown file. The
+  // route is multipart-only, so the storage key is a placeholder at
+  // schema-validation time and gets rewritten before the item is
+  // inserted (mirrors how `image` / `screenshot` work).
+  z.object({
+    type: z.literal('document'),
+    title: z.string().trim().min(1).max(500),
+    sourceUrl: sourceUrlSchema,
+    document: documentReferenceSchema,
     selectedText: z.string().trim().max(100_000).optional(),
     capturedAt: capturedAtSchema,
     clientRequestId: z.string().uuid()

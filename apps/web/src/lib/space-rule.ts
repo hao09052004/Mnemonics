@@ -57,11 +57,13 @@ export function ruleFromView(query: string, filter: MemoryLabel | 'all'): SpaceR
  * asking for it would produce a Space that can never match anything.
  */
 export function filterToKind(
-  filter: MemoryLabel | 'all'
-): 'link' | 'text' | 'image' | 'screenshot' | null {
-  if (filter === 'all') return null;
-  const [kind] = labelToKinds(filter);
-  return (kind as 'link' | 'text' | 'image' | 'screenshot' | undefined) ?? null;
+    filter: MemoryLabel | 'all'
+): 'link' | 'text' | 'image' | 'screenshot' | 'document' | null {
+    if (filter === 'all') return null;
+    const [kind] = labelToKinds(filter);
+    return (
+      kind as 'link' | 'text' | 'image' | 'screenshot' | 'document' | undefined
+    ) ?? null;
 }
 
 /** The server-facing request shape, for reference at call sites. */

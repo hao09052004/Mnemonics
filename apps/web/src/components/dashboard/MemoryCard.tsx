@@ -18,6 +18,10 @@ export interface MemoryCardItem {
   captured_at?: string | null;
   is_favorite?: boolean;
   status?: string;
+  /** `document`-only. Surfaced on the card as "PDF · 12 pages". */
+  page_count?: number | null;
+  /** Pre-built asset blob for document cards (mime type, size, filename). */
+  asset?: { mime_type?: string | null; size_bytes?: number | null; original_filename?: string | null } | null;
 }
 
 interface MemoryCardProps {
@@ -269,6 +273,7 @@ export function MemoryCard({
         </div>
 
         <h3>{item.title}</h3>
+        {label === 'document' ? <DocumentMeta item={item} /> : null}
         {item.snippet ? <p>{item.snippet}</p> : null}
 
         <div className="meta">
@@ -302,4 +307,48 @@ function formatDate(iso?: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+}
+
+/**
+ * Document-specific subtitle row. Examples:
+ *   PDF · 18 pages · 2.4 MB
+ *   TXT · 12 KB
+ *   Markdown · 4 KB
+ *
+ * While the item is still being processed the row collapses to
+ * "Processing document…" so the user isn't shown "PDF · 0 pages · 0 B".
+ */
+function DocumentMeta({ item }: { item: MemoryCardItem }) {
+  const mime = item.asset?.mime_type ?? null;
+  const sizeBytes = item.asset?.size_bytes ?? null;
+  const pageCount = item.page_count ?? null;
+
+  const isProcessing = item.status === 'pending' || item.status === 'processing';
+  if (isProcessing) {
+    return (
+      <p className="card-meta-document" data-testid={`item-status-${item.id}`}>
+        Processing document…
+      </p>
+    );
+  }
+
+  const parts: string[] = [];
+  if (mime === 'application/pdf') parts.push('PDF');
+  else if (mime === 'text/plain') parts.push('TXT');
+  else if (mime === 'text/markdown') parts.push('Markdown');
+  if (pageCount && pageCount > 0) parts.push(`${pageCount} page${pageCount === 1 ? '' : 's'}`);
+  if (sizeBytes && sizeBytes > 0) parts.push(formatBytes(sizeBytes));
+
+  if (parts.length === 0) return null;
+  return (
+    <p className="card-meta-document" data-testid={`item-document-meta-${item.id}`}>
+      {parts.join(' · ')}
+    </p>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }

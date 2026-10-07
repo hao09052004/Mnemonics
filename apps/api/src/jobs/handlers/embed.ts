@@ -14,6 +14,7 @@
 
 import type { JobQueue } from "../queue.js";
 import type { ItemRepository } from "@mnemonics/database";
+import { createClusterRepository } from "@mnemonics/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pool } from "pg";
 import type { AiService } from "@mnemonics/ai";
@@ -167,6 +168,36 @@ export class EmbedHandler {
         // Graph enrichment is best-effort: a graph outage must not turn
         // a successfully embedded, searchable item back into a failed job.
         console.warn("[EmbedHandler] Similarity linking failed:", graphError);
+      }
+
+      // Fire-and-forget cluster refresh. A cluster computation is
+      // not a save boundary (spec §21 — "Memory must become ready
+      // independently"), so a slow refresh cannot keep this item
+      // out of search. The user's clusters simply catch up on the
+      // next dashboard load. We log the outcome so a long tail
+      // shows up in monitoring.
+      //
+      // The cluster refresh needs a real pg-compatible pool (it runs
+      // a transaction). Test pools are often fakes without `.connect`
+      // — in that case we skip the refresh entirely and log at
+      // debug level so a CI run is not drowned in stderr noise.
+      if (typeof (this.pool as { connect?: unknown }).connect !== 'function') {
+        // Test-only stub. Nothing to do.
+      } else {
+        try {
+          const clusterRepo = createClusterRepository();
+          const result = await clusterRepo.refresh(job.userId, { pool: this.pool });
+          console.log(
+            `[EmbedHandler] Clusters refreshed for user ${job.userId}: ` +
+              `clusters=${result.clusterCount} unclustered=${result.unclusteredCount} ` +
+              `eligible=${result.eligibleItemCount} durationMs=${result.durationMs}`
+          );
+        } catch (clusterError) {
+          console.warn(
+            `[EmbedHandler] Cluster refresh failed for user ${job.userId}:`,
+            clusterError
+          );
+        }
       }
     }
 

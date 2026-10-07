@@ -30,7 +30,7 @@ export interface EmbeddingLike {
 }
 
 /** Content kinds the product exposes as filters. */
-export const SEARCH_KINDS = ['link', 'text', 'image', 'screenshot'] as const;
+export const SEARCH_KINDS = ['link', 'text', 'image', 'screenshot', 'document'] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 
 /**
