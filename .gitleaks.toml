@@ -1,0 +1,46 @@
+# Gitleaks configuration.
+#
+# The default ruleset is intentionally kept; this file only adds a
+# few allowlist entries for SAFE placeholders so the scanner does
+# not flag every review of `.env.example` or test fixtures that use
+# a clearly synthetic token.
+#
+# IMPORTANT: never add a real credential to an allowlist. If a
+# rule fires on a value you wrote, rotate the secret, do not
+# suppress the rule.
+
+title = "Mnemonics"
+
+[allowlist]
+description = "Safe placeholders in docs and tests"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.demo$''',
+  '''\.env\.e2e$''',
+  '''README\.md$''',
+  '''apps/api/README\.md$''',
+  '''docs/security/supabase-credential-remediation\.md$''',
+  # Synthetic test fixture used by the secret-scanning regression
+  # test. The value is generated locally and prefixed "TEST_" so
+  # it cannot be confused with a real Supabase credential.
+  '''apps/api/src/.*/__tests__/.*secret-scan\.test\.ts$'''
+]
+stopwords = [
+  "replace_me",
+  "your-project",
+  "<service-role-jwt>",
+  "<jwt>",
+  "<project-ref>"
+]
+
+[allowlist.regexes]
+# Tokens that look like JWTs but are clearly synthetic — e.g. the
+# placeholders used in documentation start with "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ..."
+# followed by "...placeholder" or a project ref starting with
+# "your-project-". This is a defense-in-depth allowlist, not a way
+# to silence real findings.
+regexes = [
+  '''eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.placeholder''',
+  '''eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+''',
+  '''TEST_SCAN_FINDING_[A-Za-z0-9_]+'''
+]

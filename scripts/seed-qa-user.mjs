@@ -2,11 +2,34 @@
  * Create a verified Supabase user for QA testing of the auth facade.
  * Uses the service-role admin endpoint so we bypass email verification and
  * avoid the IP-level rate limit on /auth/v1/signup.
+ *
+ * Required environment:
+ *   SUPABASE_URL                  e.g. https://<project>.supabase.co
+ *   SUPABASE_SERVICE_ROLE_KEY     service-role JWT
+ *
+ * Hardcoded service-role credentials were removed after a P0
+ * secret-exposure incident. The previously committed key is
+ * considered compromised; this script fails fast when the env
+ * variables are missing rather than carrying a fallback.
  */
 import { randomBytes } from 'node:crypto';
 
-const SUPABASE_URL = 'https://jtmowwtmjtmceihzvreu.supabase.co';
-const SERVICE_ROLE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0bW93d3RtanRtY2VpaHp2cmV1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTY5OTU1NSwiZXhwIjoyMTA1Mjc1NTU1fQ.qR4sYBGCorwywXdfXgxMUSjpAIs4ELnirhgwpB63FPQ';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('SUPABASE_URL is not configured.');
+  console.error('Set it before running, e.g.:');
+  console.error('  SUPABASE_URL=https://<project>.supabase.co node scripts/seed-qa-user.mjs');
+  process.exit(1);
+}
+if (!SERVICE_ROLE) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY is not configured.');
+  console.error('Set it before running, e.g.:');
+  console.error('  SUPABASE_SERVICE_ROLE_KEY=<jwt> node scripts/seed-qa-user.mjs');
+  process.exit(1);
+}
+
 const PASSWORD = 'MnemonicsDev#2026';
 const email = `mnemo+${Date.now()}@protonmail.com`;
 
