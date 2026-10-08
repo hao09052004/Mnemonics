@@ -382,6 +382,98 @@ explanation that includes the re-rank score.
 
 ---
 
+## §50–§59. M6 spec — cluster quality benchmark
+
+The cluster algorithm was rewritten in M3 without a numerical
+baseline to compare against. A silent regression — a small
+change that drops 3% of components or raises the unclustered
+fraction by 1.5× — would ship without anyone noticing.
+M6 turns the existing `cluster-benchmark.test.ts` from a
+single deterministic test into a CI gate that fails the
+build when cluster quality drifts beyond a fixed tolerance.
+
+**§50.** The benchmark is run on every `pnpm test` and
+`pnpm gates:all` invocation. It is **not** skipped.
+
+**§51.** The benchmark is a pure function that takes a
+synthetic edge list and a node list, runs the v2 algorithm
+(`mutualEdges`, `connectedComponents`, `pruneBridges`),
+and returns three numbers:
+
+  * `componentCount` — the number of connected components
+    after mutual-kNN + bridge pruning, on the synthetic
+    fixture;
+  * `unclusteredFraction` — the fraction of nodes that
+    are in components of size 1 (i.e. the "noise" /
+    unclustered mass), `0 ≤ unclusteredFraction ≤ 1`;
+  * `meanIntraClusterCosine` — the mean cosine similarity
+    of the edges inside each non-trivial component,
+    averaged across components. `0 ≤ mean ≤ 1`.
+
+**§52.** The fixture is the existing M3 benchmark (6-node
+Finance, 6-node RL, 1 bridge), plus a new "lonely" node with
+no edges. Total: 14 nodes.
+
+**§53.** Acceptance thresholds (the build fails when any
+is missed):
+
+  * `componentCount >= 2` (the fixture's two dense topics
+    must remain separate after pruning);
+  * `unclusteredFraction <= 0.30` (the lonely node + the
+    bridge count as unclustered, so 2 / 14 ≈ 0.143 is the
+    expected value; the threshold is 2× the expected);
+  * `meanIntraClusterCosine >= 0.78` (the M3 weight
+    threshold, applied to the intra-component edges).
+
+**§54.** The benchmark prints the three numbers and a
+`delta` line to stdout on every run, in the form:
+
+    [cluster-benchmark] { componentCount: 2, unclusteredFraction: 0.143, meanIntraClusterCosine: 0.875, deltas: { componentCount: 0, unclusteredFraction: 0, meanIntraClusterCosine: 0 } }
+
+The `deltas` block is the absolute drift from the pinned
+baseline. The pinned baseline is committed next to the
+benchmark as a constant in the test file.
+
+**§55.** A regression in any of the three numbers is a
+hard failure. The test is named
+`Cluster quality benchmark (Milestone 6 §50–§55)` so the
+failure shows up with the right attribution in CI logs.
+
+**§56.** The benchmark is **deterministic** across runs
+and machines. There is no randomness, no time-of-day
+dependency, no wall-clock, no DB.
+
+**§57.** The benchmark does not assert on the bridge's
+attachment. A bridge that attaches to one side is a valid
+outcome; what matters is that the two topics are separate
+and the components' internal coherence is high.
+
+**§58.** The benchmark does not require a real `pg.Pool`.
+It is a pure in-memory test of the cluster algorithm.
+The integration test of the SQL CTE in
+`packages/database/src/__tests__/clusters.test.ts` is
+unchanged and stays separate.
+
+**§59.** A small paragraph is added to
+`quality-gates/gates/03-test-coverage.md` pointing at the
+benchmark. The gate is *coverage* (the existing rule), not
+*benchmark*; the paragraph is documentation for the
+reviewer, not a new gate rule.
+
+---
+
+## §60–§69. M7 spec — search result explainability
+
+TBD — written when M7 is the active milestone.
+
+---
+
+## §70–§79. M8 spec — embedding-model migration path
+
+TBD — written when M8 is the active milestone.
+
+---
+
 ## 3. Re-order / replace / drop — what the user can change
 
 The four milestones above are a default scope, not a contract.
