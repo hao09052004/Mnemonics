@@ -213,7 +213,46 @@ export async function runSearch(
     LEX_WEIGHT,
     SEM_WEIGHT
   );
-  const paged = fused.slice(offset, offset + limit);
+
+  // M5 re-rank gate. Default OFF. When ON, the RRF-fused hit list
+  // is re-ranked with a second-pass cosine against the query
+  // embedding, blended at RERANK_ALPHA. Cardinality is preserved;
+  // only the order changes.
+  //
+  // Note: in this milestone no leg returns per-hit embeddings in
+  // `fused`, so when re-rank is on it falls through to its no-op
+  // path (cosine = 0 for every hit). This is intentional: M5 ships
+  // the *infrastructure* and the unit-tested semantics. Surfacing
+  // per-hit embeddings through the legs is a future change that
+  // M7 (explainability) is the natural home for — when M7 adds
+  // per-hit embeddings to the response, the re-rank step becomes
+  // live automatically. The unit tests in
+  // `packages/database/src/__tests__/search-rerank.test.ts` pin
+  // the blend math regardless.
+  const rerankEnabled = process.env.SEARCH_RERANK_ENABLED === 'true';
+  let queryEmbeddingForRerank: number[] | null = null;
+  if (rerankEnabled && q && deps.embeddings) {
+    try {
+      queryEmbeddingForRerank = (await deps.embeddings.embedOne(q)) ?? null;
+    } catch {
+      queryEmbeddingForRerank = null;
+    }
+  }
+  const finalHits = rerankEnabled
+    ? rerankHits(
+        fused.map((row) => ({
+          id: row.id,
+          score: row.score,
+          embedding: null,         // see note above; populated by a future leg change
+          lexical: 0,
+          vector: 0,
+          rrf: row.score
+        })),
+        { queryEmbedding: queryEmbeddingForRerank }
+      )
+    : fused;
+
+  const paged = finalHits.slice(offset, offset + limit);
 
   return {
     hits: paged.map((item) => {
