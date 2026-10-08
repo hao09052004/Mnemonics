@@ -171,6 +171,11 @@ interface RankedRow {
   chunkPageEnd?: number | null;
   /** Position of the matched chunk inside its parent document. */
   chunkIndex?: number | null;
+  /** M5 — per-hit embedding, when the leg returned one. null
+   *  for legs that do not return a vector. The re-rank step
+   *  reads this; if all hits have null, the re-rank is a
+   *  no-op. */
+  embedding?: number[] | null;
 }
 
 export interface SearchDeps {
@@ -238,18 +243,8 @@ export async function runSearch(
       queryEmbeddingForRerank = null;
     }
   }
-  const finalHits = rerankEnabled
-    ? rerankHits(
-        fused.map((row) => ({
-          id: row.id,
-          score: row.score,
-          embedding: null,         // see note above; populated by a future leg change
-          lexical: 0,
-          vector: 0,
-          rrf: row.score
-        })),
-        { queryEmbedding: queryEmbeddingForRerank }
-      )
+  const finalHits: RankedRow[] = rerankEnabled
+    ? (rerankHits(fused, { queryEmbedding: queryEmbeddingForRerank }) as RankedRow[])
     : fused;
 
   const paged = finalHits.slice(offset, offset + limit);
@@ -697,8 +692,17 @@ function normalizeKindList(kinds: SearchKind[] | string[] | undefined): string[]
  *
  * Identity when the query embedding is null (lexical-only path)
  * or when no hit carries an embedding. Cardinality is preserved.
+ *
+ * Generic over the hit type so the caller (which already has a
+ * typed fused list of `RankedRow[]`) does not have to re-shape
+ * its data to call this. The input must carry `id`, `score`,
+ * and `embedding: number[] | null` fields; the function returns
+ * the same type with the `score` field replaced.
  */
-export function rerankHits(hits: RerankHit[], opts: RerankOptions): RerankHit[] {
+export function rerankHits<T extends { id: string; score: number; embedding?: number[] | null }>(
+  hits: T[],
+  opts: RerankOptions
+): T[] {
   if (opts.queryEmbedding === null) return hits;
   const q = opts.queryEmbedding;
   const qNorm = l2norm(q);
@@ -716,7 +720,7 @@ export function rerankHits(hits: RerankHit[], opts: RerankOptions): RerankHit[] 
   return scored
     .map(({ hit, cosine }) => ({
       ...hit,
-      score: (1 - RERANK_ALPHA) * hit.rrf + RERANK_ALPHA * cosine
+      score: (1 - RERANK_ALPHA) * hit.score + RERANK_ALPHA * cosine
     }))
     .sort((a, b) => b.score - a.score);
 }
