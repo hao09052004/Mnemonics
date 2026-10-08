@@ -43,3 +43,14 @@ on success.
 2. Add unit tests targeting the uncovered branches.
 3. If the threshold is unreachable for a file, open an ADR to lower it
    **for that file only**, with justification.
+
+## Related regression gates
+
+`packages/database/src/__tests__/cluster-benchmark.test.ts`
+is a separate regression gate that pins three cluster
+quality numbers (`componentCount`, `unclusteredFraction`,
+`meanIntraClusterCosine`) and fails the build on a
+non-zero drift from the baseline. It is not a coverage
+rule and is not enforced by this gate; it lives next to
+the algorithm it pins. See `docs/m6-cluster-benchmark.md`
+for the contract.
