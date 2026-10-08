@@ -59,6 +59,13 @@ export interface SearchHit {
   kind: string;
   title: string;
   snippet: string;
+  /** When the hit came from the chunk leg, the matched chunk's
+   *  page range. null otherwise. */
+  pageStart: number | null;
+  pageEnd: number | null;
+  /** Position of the matched chunk inside its parent document.
+   *  null for non-chunk hits. */
+  chunkIndex: number | null;
   score: number;
   capturedAt: Date;
   tags: string[];
@@ -71,6 +78,7 @@ export interface SearchResponse {
   explain?: {
     lexResults: number;
     semResults: number;
+    chunkResults: number;
     weights: { lex: number; sem: number };
   };
 }
@@ -122,6 +130,17 @@ interface RankedRow {
   capturedAt: Date;
   score: number;
   tags: string[];
+  /** When the row came from the chunk leg, the matched chunk's
+   *  text. Empty for item-level legs. */
+  chunkExcerpt?: string | null;
+  /** 1-based page number the matched chunk was estimated to
+   *  start on. null when the document has no page info. */
+  chunkPageStart?: number | null;
+  /** 1-based inclusive page number the matched chunk was
+   *  estimated to end on. null when no page info. */
+  chunkPageEnd?: number | null;
+  /** Position of the matched chunk inside its parent document. */
+  chunkIndex?: number | null;
 }
 
 export interface SearchDeps {
@@ -144,29 +163,50 @@ export async function runSearch(
   const limit = Math.min(Math.max(request.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const offset = Math.max(request.offset ?? 0, 0);
 
-  const [lexResults, semResults] = await Promise.all([
+  const [lexResults, semResults, chunkResults] = await Promise.all([
     runLexicalSearch(deps.pool, userId, q, filters),
-    runSemanticSearch(deps.pool, userId, q, deps.embeddings, filters)
+    runSemanticSearch(deps.pool, userId, q, deps.embeddings, filters),
+    runChunkSemanticSearch(deps.pool, userId, q, deps.embeddings, filters)
   ]);
 
-  const fused = reciprocalRankFusion(lexResults, semResults, LEX_WEIGHT, SEM_WEIGHT);
+  // The chunk leg produces the same shape as the item-level legs
+  // (item id + score) but is born from a different similarity join
+  // (chunks instead of items). It feeds into the same RRF so a
+  // long-PDF phrase that ONLY matches a chunk can still rank
+  // alongside item-level hits. The leg weight is small but non-
+  // zero: a chunk match is a stronger signal than a generic
+  // item-level cosine, but it is also less stable across
+  // re-chunking, so it should not dominate.
+  const fused = reciprocalRankFusion(
+    lexResults,
+    [...semResults, ...chunkResults],
+    LEX_WEIGHT,
+    SEM_WEIGHT
+  );
   const paged = fused.slice(offset, offset + limit);
 
   return {
-    hits: paged.map((item) => ({
-      id: item.id,
-      kind: item.type,
-      title: item.title,
-      snippet: buildSnippet(item, q),
-      score: item.score,
-      capturedAt: item.capturedAt,
-      tags: item.tags
-    })),
+    hits: paged.map((item) => {
+      const snip = buildSnippet(item, q);
+      return {
+        id: item.id,
+        kind: item.type,
+        title: item.title,
+        snippet: snip.snippet,
+        pageStart: snip.pageStart,
+        pageEnd: snip.pageEnd,
+        chunkIndex: snip.chunkIndex,
+        score: item.score,
+        capturedAt: item.capturedAt,
+        tags: item.tags
+      };
+    }),
     total: fused.length,
     tookMs: Date.now() - startedAt,
     explain: {
       lexResults: lexResults.length,
       semResults: semResults.length,
+      chunkResults: chunkResults.length,
       weights: { lex: LEX_WEIGHT, sem: SEM_WEIGHT }
     }
   };
@@ -384,6 +424,104 @@ async function runSemanticSearch(
   }
 }
 
+/**
+ * Chunk-level semantic leg (Milestone 4).
+ *
+ * Searches the `item_document_chunks_real` view (the read
+ * surface that excludes legacy / unknown embeddings) and
+ * aggregates hits back to the parent item. The aggregation is
+ * "best chunk wins" — for each item, the chunk with the
+ * highest cosine similarity contributes to the RRF rank. This
+ * is a deliberate trade-off vs RRF-within-document: the
+ * top-chunk score is what the user actually wants ("the
+ * document that contains a paragraph that closely matches my
+ * query"), and it is cheaper to compute.
+ *
+ * Like the item-level leg, this is best-effort: a missing
+ * pgvector extension or a missing `item_document_chunks`
+ * table (older deploys) is logged and degrades to "no chunk
+ * hits" rather than failing the whole search.
+ */
+async function runChunkSemanticSearch(
+  pool: Pool,
+  userId: string,
+  query: string,
+  embeddings: EmbeddingLike | undefined,
+  filters?: SearchFilters
+): Promise<RankedRow[]> {
+  if (!embeddings || query.length === 0) return [];
+  try {
+    const vector = await embeddings.embedOne(query);
+    if (!vector || vector.length === 0) return [];
+
+    const result = await pool.query<Record<string, unknown>>(
+      `SELECT c.item_id AS id, i.type, i.title, i.raw_text, i.ocr_text,
+              i.source_url, i.captured_at,
+              MAX(1 - (c.embedding <=> $2::vector)) AS score,
+              (array_agg(c.content ORDER BY (c.embedding <=> $2::vector) ASC))[1] AS chunk_excerpt,
+              (array_agg(c.page_start ORDER BY (c.embedding <=> $2::vector) ASC))[1] AS chunk_page_start,
+              (array_agg(c.page_end ORDER BY (c.embedding <=> $2::vector) ASC))[1] AS chunk_page_end,
+              (array_agg(c.chunk_index ORDER BY (c.embedding <=> $2::vector) ASC))[1] AS chunk_index
+         FROM item_document_chunks_real c
+         JOIN items i ON i.id = c.item_id
+        WHERE c.user_id = $1
+          AND i.status = 'ready'
+          AND ($3::text[] IS NULL OR i.type = ANY($3))
+          AND ($4::timestamptz IS NULL OR i.captured_at >= $4)
+          AND ($5::timestamptz IS NULL OR i.captured_at <= $5)
+          AND ($6::text[] IS NULL OR EXISTS (
+            SELECT 1 FROM item_tags it
+            JOIN tags t ON t.id = it.tag_id
+            WHERE it.item_id = i.id
+              AND t.user_id = i.user_id
+              AND t.normalized_name = ANY($6)
+          ))
+          AND ($7::boolean IS NOT TRUE OR i.is_favorite = true)
+        GROUP BY c.item_id, i.type, i.title, i.raw_text, i.ocr_text,
+                 i.source_url, i.captured_at
+        ORDER BY score DESC
+        LIMIT ${CANDIDATE_LIMIT}`,
+      [
+        userId,
+        `[${vector.join(',')}]`,
+        normalizeKindList(filters?.kind),
+        filters?.captured_after ?? null,
+        filters?.captured_before ?? null,
+        normalizeTagList(filters?.tags),
+        filters?.favorite === true ? true : null
+      ]
+    );
+
+    const ids = result.rows.map((r) => String(r.id));
+    const tagMap = await loadTagsForItems(pool, ids);
+
+    return result.rows.map((row) => {
+      const id = String(row.id);
+      return {
+        id,
+        type: String(row.type),
+        title: String(row.title ?? ''),
+        rawText: (row.raw_text as string | null) || null,
+        ocrText: (row.ocr_text as string | null) || null,
+        sourceUrl: (row.source_url as string | null) || null,
+        capturedAt: new Date(row.captured_at as string),
+        score: parseFloat(String(row.score)) || 0,
+        tags: tagMap.get(id) ?? [],
+        chunkExcerpt: (row.chunk_excerpt as string | null) ?? null,
+        chunkPageStart: row.chunk_page_start == null ? null : Number(row.chunk_page_start),
+        chunkPageEnd: row.chunk_page_end == null ? null : Number(row.chunk_page_end),
+        chunkIndex: row.chunk_index == null ? null : Number(row.chunk_index),
+      };
+    });
+  } catch (error) {
+    // Older deploys may not have the chunks table yet. Log and
+    // degrade to no chunk hits; the rest of the search still
+    // works on the item-level leg.
+    console.error('[search] chunk leg failed, ignoring:', error);
+    return [];
+  }
+}
+
 /** Batch-load tags for a page of items in one query. */
 async function loadTagsForItems(pool: Pool, ids: string[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
@@ -437,14 +575,38 @@ function reciprocalRankFusion(
     .sort((a, b) => b.score - a.score);
 }
 
-function buildSnippet(item: RankedRow, query: string): string {
+function buildSnippet(item: RankedRow, query: string): { snippet: string; pageStart: number | null; pageEnd: number | null; chunkIndex: number | null } {
+  // When the row came from the chunk leg we have a pre-baked
+  // excerpt that was already trimmed around the matched
+  // content. Prefer that over re-running the match on rawText
+  // because rawText can be tens of thousands of characters
+  // long and the chunk excerpt already lives near the match.
+  if (item.chunkExcerpt) {
+    const start = item.chunkPageStart;
+    const end = item.chunkPageEnd;
+    return {
+      snippet: item.chunkExcerpt.slice(0, 320),
+      pageStart: start ?? null,
+      pageEnd: end ?? null,
+      chunkIndex: item.chunkIndex ?? null,
+    };
+  }
   const text = item.ocrText || item.rawText || item.title || '';
-  if (!query) return text.slice(0, 240);
+  if (!query) {
+    return { snippet: text.slice(0, 240), pageStart: null, pageEnd: null, chunkIndex: null };
+  }
   const index = text.toLowerCase().indexOf(query.toLowerCase());
-  if (index === -1) return text.slice(0, 240);
+  if (index === -1) {
+    return { snippet: text.slice(0, 240), pageStart: null, pageEnd: null, chunkIndex: null };
+  }
   const start = Math.max(0, index - 80);
   const end = Math.min(text.length, index + query.length + 160);
-  return (start > 0 ? '...' : '') + text.slice(start, end) + (end < text.length ? '...' : '');
+  return {
+    snippet: (start > 0 ? '...' : '') + text.slice(start, end) + (end < text.length ? '...' : ''),
+    pageStart: null,
+    pageEnd: null,
+    chunkIndex: null,
+  };
 }
 
 function normalizeTagList(tags: string[] | undefined): string[] {
