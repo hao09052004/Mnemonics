@@ -32,13 +32,6 @@ stopwords = [
   "<jwt>",
   "<project-ref>"
 ]
-
-[allowlist.regexes]
-# Tokens that look like JWTs but are clearly synthetic — e.g. the
-# placeholders used in documentation start with "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ..."
-# followed by "...placeholder" or a project ref starting with
-# "your-project-". This is a defense-in-depth allowlist, not a way
-# to silence real findings.
 regexes = [
   '''eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.placeholder''',
   '''eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+''',
