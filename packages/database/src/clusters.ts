@@ -32,6 +32,14 @@
  */
 
 import type { Pool, PoolClient } from 'pg';
+import {
+  mutualEdges,
+  connectedComponents as connectedComponentsPure,
+  pruneBridges,
+  DEFAULT_BRIDGE_RATIO,
+  DEFAULT_MUTUAL_K,
+  type EdgeInput
+} from './cluster-algorithm.js';
 
 /** Minimum number of items in a cluster for it to be reported. */
 export const DEFAULT_MIN_CLUSTER_SIZE = 3;
@@ -181,12 +189,30 @@ export function collectSignals(
 }
 
 /**
- * Build a deterministic 2..5 word cluster title.
+ * Build a deterministic 2..4 word cluster title.
  *
- * Title quality filter (spec §26, §45): a cluster is "content-based"
- * iff at least one signal is specific (length >= 5 chars, not a
- * stopword, not a single word of low information). The caller passes
- * the signals; this function picks the words and verifies quality.
+ * v2 upgrade: instead of a keyword dump ("A & B & C & D"), we
+ * look for topic-coherent phrases:
+ *
+ *  - We try the top tag first (if its length is meaningful). The
+ *    top tag is the single most discriminating signal in the
+ *    cluster because tags are user-curated, not extracted from
+ *    narrative prose.
+ *  - We pair it with the second tag that is NOT a substring or
+ *    superstring of the first. The pair reads as "Topic A & Topic
+ *    B", which is a useful disambiguation when the cluster
+ *    straddles two sub-topics of the same field.
+ *  - If tags are sparse, we fall back to the top two
+ *    non-stopword, non-trivial tokens from the titles / TLDRs.
+ *  - As a last resort, we accept a single long token (>= 6 chars)
+ *    as the title. This avoids the empty "Untitled" fallback
+ *    for narrow clusters with a single clear topic.
+ *
+ * The function is pure and deterministic; the same members
+ * produce the same title. The cluster is never blocked on
+ * LLM-based naming: spec §31 forbids depending on a paid model,
+ * and the local Ollama path runs after this function has
+ * already produced a stable fallback.
  */
 export function buildClusterTitle(
   signals: ClusterTextSignals,
@@ -200,42 +226,60 @@ export function buildClusterTitle(
     (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
   );
 
-  // Prefer tag-based words: they tend to be topical, not narrative.
-  // If the corpus is sparse on tags, fall through to tokens.
-  const candidates: { word: string; weight: number; source: 'tag' | 'token' }[] = [];
-  for (const [word, weight] of tagEntries) {
-    if (word.length < 3) continue;
-    if (candidates.length >= TITLE_KEYWORDS) break;
-    candidates.push({ word, weight, source: 'tag' });
+  // 1) Try a tag + tag pair. Both must be at least 3 chars and
+  //    not a string-prefix of each other (so "barrier" + "barrier
+  //    function" would be collapsed, but "barrier" + "reward" stay
+  //    distinct).
+  const usableTags = tagEntries
+    .map(([w]) => w)
+    .filter((w) => w.length >= 3);
+  if (usableTags.length >= 2) {
+    const first = usableTags[0];
+    const second = usableTags.find(
+      (w) => w !== first && !w.startsWith(first) && !first.startsWith(w)
+    );
+    if (second) {
+      return `${capitalise(first)} ${capitalise(second)}`;
+    }
+    return capitalise(first);
   }
-  for (const [word, weight] of tokenEntries) {
-    if (word.length < 4) continue;
-    if (candidates.some((c) => c.word === word)) continue;
-    if (candidates.length >= TITLE_KEYWORDS) break;
-    candidates.push({ word, weight, source: 'token' });
-  }
-
-  if (candidates.length < 2) {
-    return null;
-  }
-
-  // Quality filter: at least one word of length >= 5 ensures the
-  // title is not built from "the", "and", short verbs.
-  const hasLong = candidates.some((c) => c.word.length >= 5);
-  if (!hasLong) {
-    return null;
+  if (usableTags.length === 1) {
+    return capitalise(usableTags[0]);
   }
 
-  // Capitalise each word. Keep diacritics from the original by
-  // looking the word up in tagEntries (which retained the un-folded
-  // form is not stored — but folding is mostly a no-op for ASCII
-  // English, the only language where capitalisation changes the
-  // visible title). For Vietnamese, lower-case is the canonical form.
-  const title = candidates
-    .slice(0, TITLE_KEYWORDS)
-    .map((c) => c.word.charAt(0).toUpperCase() + c.word.slice(1))
-    .join(' & ');
-  return title;
+  // 2) Token fallback: top two non-trivial tokens. "Trivial" here
+  //    means short (< 5 chars) and present in the stopword set,
+  //    or pure digits. We prefer longer words because they carry
+  //    more topical signal.
+  const usableTokens = tokenEntries
+    .map(([w]) => w)
+    .filter((w) => w.length >= 5 && !STOPWORDS.has(w) && !/^\d+$/.test(w));
+  if (usableTokens.length >= 2) {
+    return `${capitalise(usableTokens[0])} ${capitalise(usableTokens[1])}`;
+  }
+  if (usableTokens.length === 1) {
+    return capitalise(usableTokens[0]);
+  }
+
+  // 3) Last resort: medium-length token (>= 4 chars). Better than
+  //    a blank header on a sparse cluster.
+  const mediumTokens = tokenEntries
+    .map(([w]) => w)
+    .filter((w) => w.length >= 4 && !STOPWORDS.has(w));
+  if (mediumTokens.length > 0) {
+    return capitalise(mediumTokens[0]);
+  }
+
+  return null;
+}
+
+function capitalise(word: string): string {
+  if (!word) return word;
+  // Lowercase is the canonical form for Vietnamese; for English
+  // we capitalise the first letter and keep the rest as the
+  // tag/title contributed it. Diacritics are preserved (the
+  // folded form is used only for matching, not for display).
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /** Public shape of the cluster DB row. */
@@ -351,140 +395,155 @@ export interface ClusterItemSummary {
   rank: number;
 }
 
-const ALGORITHM_VERSION = 'cc-on-edges-v1';
+const ALGORITHM_VERSION = 'cc-mutual-bridges-v1';
+const LEGACY_ALGORITHM_VERSION = 'cc-on-edges-v1';
 
 /**
- * Run the connected-components pass.
+ * Algorithm version stamped on every cluster row. Bumping this
+ * invalidates every existing cluster for the user on the next
+ * refresh — the `algorithmVersion` comparison in the route
+ * layer signals "stale snapshot" so the UI can offer a refresh
+ * rather than showing clusters from an old algorithm run.
+ */
+export const CLUSTER_ALGORITHM_VERSION = ALGORITHM_VERSION;
+
+/**
+ * Run the v2 clustering pass: mutual-kNN gate + bridge pruning.
  *
- * Reads the curated `item_edges` graph and groups items whose edges
- * form a connected component of at least `minSize`. The whole
- * computation lives in one SQL statement: a recursive CTE that walks
- * the graph, plus a second statement that joins the components with
- * item metadata to compute titles, representatives, and tags.
+ * The v1 algorithm (connected components on every edge above the
+ * threshold) suffered from single-link chaining: a weak bridge
+ * between two unrelated topics would merge them. v2 adds:
+ *
+ *   1. **Mutual-kNN gate**: keep only edges where the two items
+ *      are each in the other's top-K nearest neighbours. This
+ *      filters out one-way noise (an isolated item that is
+ *      "close" to many items but has no true peers).
+ *   2. **Bridge pruning**: after connected components are
+ *      formed, drop intra-cluster edges whose weight is below
+ *      `BRIDGE_RATIO * internalAverage`. This may split a
+ *      component into two or more honest topics.
+ *
+ * The whole pipeline is two SQL queries (load edges, load
+ * metadata) plus pure-JS algorithm code in `cluster-algorithm.ts`.
+ * The SQL portion is unchanged from v1 because the gate is
+ * applied AFTER the edges are loaded; this keeps the v2 change
+ * additive and easy to test without database state.
  */
 async function computeComponents(
   client: Pool | PoolClient,
   userId: string,
   config: ClusterConfig
 ): Promise<ClusterCandidate[]> {
-  // Step 1: connected components via recursive CTE.
-  // We work with the directed edge rows but the algorithm is
-  // effectively undirected because auto-link writes both (a,b) and
-  // (b,a). The classic "min-root" pattern assigns every node a
-  // canonical component id = min(root) over all walks that reach it.
-  // Walking only into strictly higher ids (b > root) is what makes
-  // the recursion terminate without cycle detection: the path is
-  // strictly increasing, so it can be at most N-1 edges long.
-  const componentsResult = await client.query<{
-    component_id: string;
-    item_id: string;
+  // Step 1: load the relevant edges. The v1 SQL already filters
+  // by user, edge type, and threshold. We just need the data in
+  // a flat list.
+  const edgesResult = await client.query<{
+    from_item_id: string;
+    to_item_id: string;
+    weight: number;
   }>(
-    `WITH RECURSIVE
-     edges_undirected AS (
-       SELECT from_item_id AS a, to_item_id AS b
-         FROM item_edges
-        WHERE user_id = $1
-          AND edge_type = 'similar'
-          AND weight >= $2
-       UNION
-       SELECT to_item_id, from_item_id
-         FROM item_edges
-        WHERE user_id = $1
-          AND edge_type = 'similar'
-          AND weight >= $2
-     ),
-     walk(node_id, root) AS (
-       -- Seed: every edge endpoint is its own root.
-       SELECT a, a FROM edges_undirected
-       UNION
-       SELECT b, b FROM edges_undirected
-       UNION
-       -- Recursive step: from any node we've reached, walk to a
-       -- strictly-higher neighbour. The min(root) at the end is
-       -- the canonical id of the connected component.
-       SELECT e.b, w.root
-         FROM walk w
-         JOIN edges_undirected e ON e.a = w.node_id
-        WHERE e.b > w.root
-     )
-     SELECT node_id AS item_id, MIN(root::text) AS component_id
-       FROM walk
-       GROUP BY node_id`,
+    `SELECT from_item_id, to_item_id, weight
+       FROM item_edges
+      WHERE user_id = $1
+        AND edge_type = 'similar'
+        AND weight >= $2`,
     [userId, config.similarityThreshold]
   );
+  if (edgesResult.rowCount === 0) return [];
 
-  if (componentsResult.rowCount === 0) return [];
-
-  // Group rows by component_id; the CTE emits one row per (root, member).
-  const componentMap = new Map<string, Set<string>>();
-  for (const row of componentsResult.rows) {
-    const compId = String(row.component_id);
-    const itemId = String(row.item_id);
-    let set = componentMap.get(compId);
-    if (!set) {
-      set = new Set();
-      componentMap.set(compId, set);
-    }
-    set.add(itemId);
+  const edges: EdgeInput[] = edgesResult.rows.map((r) => ({
+    from: String(r.from_item_id),
+    to: String(r.to_item_id),
+    weight: Number(r.weight),
+  }));
+  const allNodes = new Set<string>();
+  for (const e of edges) {
+    allNodes.add(e.from);
+    allNodes.add(e.to);
   }
+  // Edges are written both directions by auto-link, so the
+  // union-find sees (a, b) and (b, a) for every true pair. The
+  // mutual-kNN gate would treat them as a single edge weight,
+  // so we dedupe before scoring. The cluster id and component
+  // count are independent of edge multiplicity.
+  const dedup = new Map<string, EdgeInput>();
+  for (const e of edges) {
+    const key = e.from < e.to ? `${e.from}|${e.to}` : `${e.to}|${e.from}`;
+    if (!dedup.has(key)) dedup.set(key, e);
+  }
+  const uniqueEdges: EdgeInput[] = [];
+  for (const e of dedup.values()) {
+    uniqueEdges.push(e);
+    uniqueEdges.push({ from: e.to, to: e.from, weight: e.weight });
+  }
+  const mutual = mutualEdges(uniqueEdges, DEFAULT_MUTUAL_K);
+  if (mutual.length === 0) return [];
 
-  // Step 2: filter to >= minSize, then load member metadata for
-  // representative selection and title generation.
-  const eligible: { memberIds: string[] }[] = [];
-  for (const set of componentMap.values()) {
-    if (set.size >= config.minSize) {
-      eligible.push({ memberIds: Array.from(set) });
-    }
+  const initial = connectedComponentsPure(
+    mutual,
+    Array.from(allNodes)
+  );
+  const pruned = pruneBridges(
+    mutual,
+    initial.components,
+    DEFAULT_BRIDGE_RATIO
+  );
+
+  // Step 2: build member lists. minSize filter is applied here so
+  // the downstream SQL doesn't fetch metadata for clusters we
+  // will drop anyway.
+  const eligible: { memberIds: string[]; averageEdgeWeight: number }[] = [];
+  for (const [cid, members] of pruned.components.entries()) {
+    if (members.length < config.minSize) continue;
+    const avg = pruned.clusterAvgWeight.get(cid) ?? 0;
+    eligible.push({ memberIds: members, averageEdgeWeight: avg });
   }
   if (eligible.length === 0) return [];
 
+  // Step 3: load member metadata. The mean-similarity per member
+  // is recomputed against the SURVIVING edges, not the original
+  // v1 graph. A member whose bridges were cut is judged by the
+  // edges that remain — fairer to the cluster.
   const allMemberIds = eligible.flatMap((c) => c.memberIds);
-  const metadataResult = await client.query<{
-    item_id: string;
-    avg_sim: number;
-  }>(
-    `SELECT m.item_id,
-            COALESCE(AVG(e.weight), 0)::float8 AS avg_sim
-       FROM unnest($2::uuid[]) AS m(item_id)
-       LEFT JOIN item_edges e
-         ON e.user_id = $1
-        AND e.edge_type = 'similar'
-        AND ((e.from_item_id = m.item_id AND e.to_item_id = ANY($2::uuid[]))
-          OR (e.to_item_id   = m.item_id AND e.from_item_id = ANY($2::uuid[])))
-        AND e.weight >= $3
-       GROUP BY m.item_id`,
-    [userId, allMemberIds, config.similarityThreshold]
-  );
-
-  const avgMap = new Map<string, number>();
-  for (const r of metadataResult.rows) {
-    avgMap.set(String(r.item_id), Number(r.avg_sim));
+  const memberSet = new Set(allMemberIds);
+  const survivingInCluster = new Map<string, EdgeInput[]>();
+  for (const e of pruned.survivingEdges) {
+    if (!memberSet.has(e.from) || !memberSet.has(e.to)) continue;
+    const key = e.from < e.to ? `${e.from}|${e.to}` : `${e.to}|${e.from}`;
+    let list = survivingInCluster.get(key);
+    if (!list) {
+      list = [];
+      survivingInCluster.set(key, list);
+    }
+    list.push(e);
+  }
+  const meanByItem = new Map<string, number>();
+  for (const itemId of allMemberIds) {
+    const neighbours = pruned.survivingEdges
+      .filter((e) => e.from === itemId && memberSet.has(e.to))
+      .map((e) => e.weight);
+    meanByItem.set(
+      itemId,
+      neighbours.length > 0
+        ? neighbours.reduce((s, w) => s + w, 0) / neighbours.length
+        : 0
+    );
   }
 
-  // Final candidates.
   const candidates: ClusterCandidate[] = [];
   for (const c of eligible) {
     const members: ClusterMember[] = c.memberIds.map((id) => ({
       itemId: id,
-      averageSimilarity: avgMap.get(id) ?? 0
+      averageSimilarity: meanByItem.get(id) ?? 0,
     }));
     const representativeItemId = pickRepresentative(members);
-    // Average edge weight within the cluster: simple mean of member
-    // averages (each pair counted twice because edges are written
-    // both directions; we divide by 2 to undo that).
-    const totalAvg = members.reduce((s, m) => s + m.averageSimilarity, 0);
-    const pairCount = (members.length * (members.length - 1)) / 2;
-    const averageEdgeWeight = pairCount > 0
-      ? totalAvg / (members.length * (members.length - 1))
-      : 0;
     candidates.push({
       memberIds: c.memberIds,
-      averageEdgeWeight,
+      averageEdgeWeight: c.averageEdgeWeight,
       representativeItemId,
-      members
+      members,
     });
   }
-
   return candidates;
 }
 
