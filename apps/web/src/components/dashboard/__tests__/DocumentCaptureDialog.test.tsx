@@ -4,12 +4,11 @@
  * through `ApiClient.uploadDocumentCapture`. The tests below stub the
  * client and assert the wiring (button, dialog, error mapping).
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach } from 'vitest';
 import { DocumentCaptureDialog } from '../DocumentCaptureDialog';
-import type { ApiClient } from '../../lib/api-client';
+import { ApiClient } from '../../../lib/api-client';
 
 function makeApi(over: Partial<ApiClient> = {}): ApiClient {
   const base: Partial<ApiClient> = {
@@ -17,7 +16,6 @@ function makeApi(over: Partial<ApiClient> = {}): ApiClient {
     uploadDocumentCapture: vi.fn(async () => ({ id: 'i1', status: 'pending' })),
     loadStoredSession: vi.fn(() => null),
     saveSession: vi.fn(),
-    clearSession: vi.fn(),
     isAccessTokenExpired: vi.fn(() => false)
   };
   return { ...base, ...over } as unknown as ApiClient;
@@ -48,7 +46,7 @@ describe('DocumentCaptureDialog', () => {
     const f = new File(['hello'], 'paper.pdf', { type: 'application/pdf' });
     pickFile(f);
     expect(await screen.findByText('paper.pdf')).toBeTruthy();
-    expect(screen.getByTestId('document-title-input').value).toBe('paper');
+    expect((screen.getByTestId('document-title-input') as HTMLInputElement).value).toBe('paper');
   });
 
   it('rejects files larger than 20 MB', async () => {
@@ -64,14 +62,17 @@ describe('DocumentCaptureDialog', () => {
   });
 
   it('calls uploadDocumentCapture with a clientRequestId', async () => {
-    const upload = vi.fn(async () => ({ id: 'new-id', status: 'pending' as const }));
+    type UploadArgs = { file: File; title: string; clientRequestId: string };
+    const upload = vi.fn(async (_args: UploadArgs) => ({ id: 'new-id', status: 'pending' as const }));
     const onUploaded = vi.fn();
     const api = makeApi({ uploadDocumentCapture: upload });
     render(<DocumentCaptureDialog api={api} open onClose={vi.fn()} onUploaded={onUploaded} />);
     pickFile(new File(['hi'], 'doc.pdf', { type: 'application/pdf' }));
     await userEvent.click(await screen.findByTestId('document-save'));
     await waitFor(() => expect(upload).toHaveBeenCalledOnce());
-    const [payload] = upload.mock.calls[0];
+    const call = upload.mock.calls[0];
+    expect(call).toBeDefined();
+    const payload = call![0] as UploadArgs;
     expect(payload.file).toBeInstanceOf(File);
     expect(payload.title).toBe('doc');
     expect(payload.clientRequestId).toMatch(/^[0-9a-f-]+/i);

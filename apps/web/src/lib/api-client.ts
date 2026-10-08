@@ -51,6 +51,7 @@ interface RegisterRequest {
 interface ListItemsParams {
   limit?: number;
   offset?: number;
+  favorite?: boolean;
 }
 
 interface ListItemsResponse {
