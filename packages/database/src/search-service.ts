@@ -334,6 +334,7 @@ async function runSemanticSearch(
        JOIN items i ON i.id = ie.item_id
        WHERE i.user_id = $1
          AND i.status = 'ready'
+         AND ie.embedding_kind = 'real'
          AND ($3::text[] IS NULL OR i.type = ANY($3))
          AND ($4::timestamptz IS NULL OR i.captured_at >= $4)
          AND ($5::timestamptz IS NULL OR i.captured_at <= $5)

@@ -115,13 +115,20 @@ export class EmbedHandler {
       }
 
       const embedding = await this.ai.embeddings.embedOne(textToEmbed);
+      const providerInfo2 = this.ai.embeddings.info();
+      const version = currentEmbeddingVersion(providerInfo2);
 
-      // 3. Save embedding to database
+      // 3. Save embedding to database. The version fingerprint is
+      //    computed from the live provider info — never a hard-coded
+      //    string — and `kind = 'real'` tells the SQL guard in
+      //    `auto-link-similar.ts` that this row may participate in
+      //    similarity joins.
       await this.saveEmbedding(
         job.itemId,
         job.userId,
         embedding,
-        providerInfo.model
+        providerInfo2.model,
+        { embeddingVersion: version, embeddingKind: "real" }
       );
 
       // 4. Mark job as completed
@@ -234,7 +241,11 @@ export class EmbedHandler {
     itemId: string,
     userId: string,
     embedding: number[],
-    model: string
+    model: string,
+    options?: {
+      embeddingVersion?: string;
+      embeddingKind?: "real" | "noop" | "legacy" | "unknown";
+    }
   ): Promise<void> {
     // Store embedding in item_embeddings table
     if (this.supabase) {
@@ -246,6 +257,8 @@ export class EmbedHandler {
             model,
             dimensions: embedding.length,
             embedding,
+            embedding_version: options?.embeddingVersion ?? null,
+            embedding_kind: options?.embeddingKind ?? "unknown",
             updated_at: new Date().toISOString(),
           },
           { onConflict: "item_id" }
@@ -255,7 +268,18 @@ export class EmbedHandler {
         throw new Error(`Failed to save embedding: ${error.message}`);
       }
     } else {
-      await this.repository.saveEmbedding(itemId, userId, embedding, model);
+      await this.repository.saveEmbedding(itemId, userId, embedding, model, options);
     }
   }
+}
+
+/**
+ * Build a short, greppable version string for a freshly-written
+ * embedding. The format is intentionally human-readable so a
+ * `psql` query can answer "what model wrote this row?" without
+ * joining a fingerprint table.
+ */
+function currentEmbeddingVersion(info: { name: string; model: string }): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `${info.name}-${info.model}-${date}`;
 }

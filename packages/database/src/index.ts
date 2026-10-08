@@ -59,7 +59,24 @@ export interface ItemRepository {
   updateTags(id: string, tags: string[]): Promise<void>;
   /** Read the names of all tags attached to an item. Empty array if none. */
   getTagsForItem(id: string): Promise<string[]>;
-  saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void>;
+  /**
+   * Persist an embedding. The version + kind arguments are the
+   * identity triple enforced by `embeddings_compatible()` in
+   * migration 022 — they MUST come from the live provider info,
+   * never from a hard-coded string. The default values keep
+   * legacy call-sites (tests, demo scripts) working but flag the
+   * row so a follow-up re-embed can repair it.
+   */
+  saveEmbedding(
+    itemId: string,
+    userId: string,
+    embedding: number[],
+    model: string,
+    options?: {
+      embeddingVersion?: string;
+      embeddingKind?: 'real' | 'noop' | 'legacy' | 'unknown';
+    }
+  ): Promise<void>;
   /** Read today's OCR quota row for a user. Returns null if no row exists. */
   getOcrQuotaForDate(userId: string, isoDate: string): Promise<OcrQuotaRow | null>;
   /** Atomically increment today's counter and return the new value. */
@@ -359,18 +376,32 @@ export function createItemRepository(pool: Pool): ItemRepository {
       return result.rows.map((row) => row.name);
     },
 
-    async saveEmbedding(itemId: string, userId: string, embedding: number[], model: string): Promise<void> {
+    async saveEmbedding(
+      itemId: string,
+      userId: string,
+      embedding: number[],
+      model: string,
+      options?: {
+        embeddingVersion?: string;
+        embeddingKind?: 'real' | 'noop' | 'legacy' | 'unknown';
+      }
+    ): Promise<void> {
       const vectorLiteral = '[' + embedding.join(',') + ']';
+      const version = options?.embeddingVersion ?? null;
+      const kind = options?.embeddingKind ?? 'unknown';
 
       await pool.query(
-        `INSERT INTO item_embeddings (item_id, model, dimensions, embedding, updated_at)
-         VALUES ($1, $2, $3, $4, NOW())
+        `INSERT INTO item_embeddings
+          (item_id, model, dimensions, embedding, embedding_version, embedding_kind, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
          ON CONFLICT (item_id) DO UPDATE SET
            model = EXCLUDED.model,
            dimensions = EXCLUDED.dimensions,
            embedding = EXCLUDED.embedding,
+           embedding_version = COALESCE(EXCLUDED.embedding_version, item_embeddings.embedding_version),
+           embedding_kind = EXCLUDED.embedding_kind,
            updated_at = NOW()`,
-        [itemId, model, embedding.length, vectorLiteral]
+        [itemId, model, embedding.length, vectorLiteral, version, kind]
       );
     }
   };
