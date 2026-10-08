@@ -314,8 +314,41 @@ export interface ClusterRepository {
     offset?: number
   ): Promise<string[]>;
 
+  /**
+   * Hydrated, lightweight item DTOs for a cluster page. The fields
+   * are the same ones the dashboard `MemoryCard` renders, so the
+   * detail endpoint can answer in one round trip instead of having
+   * the client filter the global `items` list. Only the fields the
+   * detail page actually needs are returned: no raw PDF text, no
+   * OCR text, no original image bytes, no enrichments.
+   */
+  listItemSummaries(
+    clusterId: string,
+    userId: string,
+    pool: Pool,
+    limit?: number,
+    offset?: number
+  ): Promise<ClusterItemSummary[]>;
+
   /** The current cluster a single item belongs to (if any). */
   clusterForItem(itemId: string, userId: string, pool: Pool): Promise<ContentClusterSummary | null>;
+}
+
+/**
+ * Lightweight DTO for a single cluster member. Mirrors the
+ * `MemoryCard` inputs so the detail page can render a member
+ * without a second round trip to fetch the parent item.
+ */
+export interface ClusterItemSummary {
+  id: string;
+  kind: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  sourceUrl: string | null;
+  capturedAt: Date;
+  isFavorite: boolean;
+  /** Rank inside the cluster, starting at 0. Stable across pages. */
+  rank: number;
 }
 
 const ALGORITHM_VERSION = 'cc-on-edges-v1';
@@ -742,6 +775,67 @@ export function createClusterRepository(): ClusterRepository {
         [clusterId, userId, limit, offset]
       );
       return result.rows.map((r) => String(r.item_id));
+    },
+
+    async listItemSummaries(clusterId, userId, pool, limit = CLUSTER_DETAIL_PAGE_SIZE, offset = 0) {
+      // The user-scoped predicate is repeated on `items` so a
+      // hijacked cluster id from another user cannot leak rows even
+      // if the content_clusters RLS policy is bypassed (RLS is
+      // normally enforced at the table level, but tests and the
+      // development-token auth path skip it). We select only the
+      // fields MemoryCard actually needs — never the full row, and
+      // never the raw text. The thumbnail is fetched from the first
+      // image asset on the item; non-image items simply get null.
+      const result = await pool.query<{
+        item_id: string;
+        type: string;
+        title: string | null;
+        thumbnail_storage_key: string | null;
+        source_url: string | null;
+        captured_at: Date;
+        is_favorite: boolean;
+        rank: number;
+      }>(
+        `SELECT
+           cci.item_id,
+           cci.rank,
+           i.type,
+           i.title,
+           i.source_url,
+           i.captured_at,
+           COALESCE(i.is_favorite, false) AS is_favorite,
+           (
+             SELECT a.storage_key
+               FROM assets a
+              WHERE a.item_id = cci.item_id
+                AND a.mime_type LIKE 'image/%'
+              ORDER BY a.created_at ASC
+              LIMIT 1
+           ) AS thumbnail_storage_key
+         FROM content_cluster_items cci
+         JOIN content_clusters cc
+           ON cc.id = cci.cluster_id
+          AND cc.user_id = $2
+         JOIN items i
+           ON i.id = cci.item_id
+          AND i.user_id = $2
+         WHERE cci.cluster_id = $1
+         ORDER BY cci.rank ASC, cci.item_id
+         LIMIT $3 OFFSET $4`,
+        [clusterId, userId, limit, offset]
+      );
+      return result.rows.map((row) => ({
+        id: String(row.item_id),
+        kind: String(row.type),
+        title: row.title,
+        thumbnailUrl: row.thumbnail_storage_key
+          ? `/api/v1/assets/${encodeURIComponent(row.thumbnail_storage_key)}`
+          : null,
+        sourceUrl: row.source_url,
+        capturedAt: new Date(row.captured_at),
+        isFavorite: Boolean(row.is_favorite),
+        rank: Number(row.rank),
+      }));
     },
 
     async clusterForItem(itemId, userId, pool) {

@@ -2,11 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
 import { ClusterDetailView } from '../components/dashboard/ClusterDetailView';
-import {
-  ApiClient,
-  type Item,
-  type Session
-} from '../lib/api-client';
+import { ApiClient, type Session } from '../lib/api-client';
 
 interface ClusterDetailPageProps {
   api: ApiClient;
@@ -16,33 +12,10 @@ export function ClusterDetailPage({ api }: ClusterDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
-  const [loadingItems, setLoadingItems] = useState(true);
 
   useEffect(() => {
     setSession(api.loadStoredSession());
   }, [api]);
-
-  useEffect(() => {
-    if (!session) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.listItems(session.accessToken, { limit: 200 });
-        if (cancelled) return;
-        setItems(res.items);
-      } catch {
-        // The detail view can still show cluster member ids without
-        // full item rows; let it surface its own error if the
-        // cluster itself fails to load.
-      } finally {
-        if (!cancelled) setLoadingItems(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, session]);
 
   const onOpen = useCallback(
     (itemId: string) => {
@@ -84,13 +57,7 @@ export function ClusterDetailPage({ api }: ClusterDetailPageProps) {
       onCapture={() => navigate('/app')}
       onLogout={onLogout}
     >
-      <ClusterDetailView
-        api={api}
-        accessToken={session.accessToken}
-        items={items}
-        loadingItems={loadingItems}
-        onOpenItem={onOpen}
-      />
+      <ClusterDetailView api={api} accessToken={session.accessToken} onOpenItem={onOpen} />
     </DashboardShell>
   );
 }

@@ -295,6 +295,17 @@ export interface ClusterListResponse {
   };
 }
 
+export interface ClusterMember {
+  id: string;
+  kind: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  sourceUrl: string | null;
+  capturedAt: string;
+  isFavorite: boolean;
+  rank: number;
+}
+
 export interface ClusterDetailResponse {
   data: {
     cluster: {
@@ -310,7 +321,13 @@ export interface ClusterDetailResponse {
       createdAt: string;
       updatedAt: string;
     };
-    items: string[];
+    /**
+     * Hydrated member DTOs. The previous shape was `string[]`
+     * (raw ids) which forced the client to intersect a global
+     * `items` list and silently dropped members beyond the
+     * dashboard page size.
+     */
+    items: ClusterMember[];
     limit: number;
     offset: number;
   };
