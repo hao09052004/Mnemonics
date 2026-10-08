@@ -94,6 +94,36 @@ export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 100;
 
 /**
+ * M5 — re-rank constants and types.
+ *
+ * Re-rank is a post-RRF step that blends the existing
+ * reciprocal-rank-fusion score with a second-pass cosine
+ * similarity against the query embedding. It is gated by
+ * the `SEARCH_RERANK_ENABLED` env var in `runSearch`; this
+ * module-level constant is the only knob.
+ */
+export const RERANK_ALPHA = 0.3;
+
+export interface RerankHit {
+  id: string;
+  /** Score (post-blend when re-rank ran, RRF-only otherwise). */
+  score: number;
+  /** Optional pre-computed embedding for the hit. null when the
+   *  search did not compute one (lexical-only hits). */
+  embedding: number[] | null;
+  /** Per-leg scores for the explainability surface (M7). */
+  lexical: number;
+  vector: number;
+  /** The post-RRF score before re-rank. */
+  rrf: number;
+}
+
+export interface RerankOptions {
+  /** Query embedding, or null for lexical-only requests. */
+  queryEmbedding: number[] | null;
+}
+
+/**
  * True when the request carries at least one real constraint.
  *
  * Both the search route and "Save as Space" use this: a bare request
@@ -618,4 +648,48 @@ function normalizeKindList(kinds: SearchKind[] | string[] | undefined): string[]
   if (!kinds || kinds.length === 0) return null;
   const allowed = new Set<string>(SEARCH_KINDS);
   return kinds.filter((k) => allowed.has(k));
+}
+
+/**
+ * Re-rank a fused hit list by blending RRF with a second-pass
+ * cosine similarity against the query embedding.
+ *
+ *   score = (1 - RERANK_ALPHA) * rrf + RERANK_ALPHA * cosine(query, hit.embedding)
+ *
+ * Identity when the query embedding is null (lexical-only path)
+ * or when no hit carries an embedding. Cardinality is preserved.
+ */
+export function rerankHits(hits: RerankHit[], opts: RerankOptions): RerankHit[] {
+  if (opts.queryEmbedding === null) return hits;
+  const q = opts.queryEmbedding;
+  const qNorm = l2norm(q);
+  if (qNorm === 0) return hits;
+
+  const scored = hits.map((h) => {
+    if (!h.embedding) {
+      return { hit: h, cosine: 0 };
+    }
+    const hNorm = l2norm(h.embedding);
+    if (hNorm === 0) return { hit: h, cosine: 0 };
+    return { hit: h, cosine: dot(q, h.embedding) / (qNorm * hNorm) };
+  });
+
+  return scored
+    .map(({ hit, cosine }) => ({
+      ...hit,
+      score: (1 - RERANK_ALPHA) * hit.rrf + RERANK_ALPHA * cosine
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function dot(a: number[], b: number[]): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+}
+
+function l2norm(a: number[]): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * a[i];
+  return Math.sqrt(s);
 }
