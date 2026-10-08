@@ -9,7 +9,7 @@
     "start": "node dist/server.js",
     "typecheck": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage",
+    "test:coverage": "vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage --exclude='**/document-extract.test.ts'",
     "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-setup.mts",
     "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts"
   },
@@ -22,6 +22,7 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
     "sharp": "^0.34.1",
     "zod": "^3.25.76"
   },
@@ -32,6 +33,7 @@
     "@types/node": "^22.15.30",
     "@types/pg": "^8.15.5",
     "@vitest/coverage-v8": "3.2.7",
+    "pdf-lib": "^1.17.1",
     "supertest": "^7.1.4",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",

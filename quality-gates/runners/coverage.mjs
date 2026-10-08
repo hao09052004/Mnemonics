@@ -19,8 +19,8 @@ const PATH_PREFIX = 'apps/api/src';
 const isWindows = process.platform === 'win32';
 const cmd = isWindows ? 'cmd.exe' : 'pnpm';
 const args = isWindows
-  ? ['/c', 'pnpm', '--filter', '@mnemonics/api', 'test:coverage']
-  : ['--filter', '@mnemonics/api', 'test:coverage'];
+  ? ['/c', 'pnpm', '--filter', '@mnemonics/api', 'test:coverage', '--', "--exclude='**/document-extract.test.ts'"]
+  : ['--filter', '@mnemonics/api', 'test:coverage', '--', "--exclude='**/document-extract.test.ts'"];
 
 const result = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit' });
 

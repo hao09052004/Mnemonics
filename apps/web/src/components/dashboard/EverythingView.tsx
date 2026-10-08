@@ -40,6 +40,19 @@ interface EverythingViewProps {
   hideCardAddToSpace?: boolean;
   /** Right-hand slot, used by Space detail to render rule chips. */
   children?: React.ReactNode;
+  /**
+   * Override the default empty state copy. Defaults to
+   * "Your memory starts here" / "No memories found." — anything the
+   * dashboard wants to render in the (items.length === 0) branch
+   * passes these. Callers (Favorites, Spaces, …) use it to keep the
+   * CTA on-brand for their surface instead of always pointing at
+   * "Save something worth remembering".
+   */
+  emptyState?: {
+    title: string;
+    text: string;
+    action?: { label: string; onClick: () => void };
+  };
 }
 
 /**
@@ -66,7 +79,8 @@ export function EverythingView({
   favoritingIds,
   onAddToSpace,
   hideCardAddToSpace,
-  children
+  children,
+  emptyState
 }: EverythingViewProps) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -187,15 +201,23 @@ export function EverythingView({
           ))}
         </div>
       ) : items.length === 0 ? (
-        <EmptyState
-          title={query ? 'No memories found.' : 'Your memory starts here.'}
-          text={
-            query
-              ? 'Try another keyword or a different content type.'
-              : 'Save something worth remembering.'
-          }
-          action={query ? undefined : { label: 'Capture', onClick: onCapture }}
-        />
+        emptyState ? (
+          <EmptyState
+            title={emptyState.title}
+            text={emptyState.text}
+            action={emptyState.action}
+          />
+        ) : (
+          <EmptyState
+            title={query ? 'No memories found.' : 'Your memory starts here.'}
+            text={
+              query
+                ? 'Try another keyword or a different content type.'
+                : 'Save something worth remembering.'
+            }
+            action={query ? undefined : { label: 'Capture', onClick: onCapture }}
+          />
+        )
       ) : (
         <div className="masonry">
           {!query ? <CaptureCard onClick={onCapture} /> : null}

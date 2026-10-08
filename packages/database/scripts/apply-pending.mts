@@ -12,7 +12,7 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const wanted = ['007_backend_rls_bypass.sql'];
+const wanted = ['021_content_clusters.sql'];
 
 const pool = new pg.Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } });
 

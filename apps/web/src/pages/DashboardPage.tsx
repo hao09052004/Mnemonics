@@ -6,6 +6,7 @@ import {
   CaptureSheet,
   type CaptureAction,
 } from '../components/dashboard/CaptureSheet';
+import { DocumentCaptureDialog } from '../components/dashboard/DocumentCaptureDialog';
 import { CreateSpaceDialog } from '../components/spaces/CreateSpaceDialog';
 import { SpacePicker } from '../components/spaces/SpacePicker';
 import { hasActiveCriteria, ruleFromView } from '../lib/space-rule';
@@ -36,6 +37,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
   const [searchHits, setSearchHits] = useState<Item[] | null>(null);
   const [filter, setFilter] = useState<MemoryLabel | 'all'>('all');
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [documentCaptureOpen, setDocumentCaptureOpen] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
   const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
   const [favoritingIds, setFavoritingIds] = useState<ReadonlySet<string>>(new Set());
@@ -262,19 +264,23 @@ export function DashboardPage({ api }: DashboardPageProps) {
   const handleNavigate = (page: DashboardPageName) => {
     if (page === 'Everything') navigate('/app');
     else if (page === 'Spaces') navigate('/app/spaces');
+    else if (page === 'Groups') navigate('/app/clusters');
     else if (page === 'Rediscover') navigate('/app/rediscover');
     else if (page === 'Reminders') navigate('/app/reminders');
     else if (page === 'Settings') navigate('/app/settings');
     else if (page === 'Favorites') {
-      // The new dashboard surfaces favorites via a chip filter, not a
-      // separate top-nav destination. No-op keeps the contract honest.
+      // Surface the dedicated favorites page so the heart on any card
+      // has a place to live. The page hits `?favorite=true` server-side,
+      // matching the extension's favourites tab.
+      navigate('/app/favorites');
     }
   };
 
   const handleCaptureAction = (a: CaptureAction) => {
-    // Minimal: open the dashboard quick-note flow. Real capture flows
-    // (image upload, link pasting) reuse the existing routes; here we
-    // just reset the query so the user sees the new card.
+    if (a === 'document') {
+      setDocumentCaptureOpen(true);
+      return;
+    }
     if (a === 'note' || a === 'link') {
       setQuery('');
       setSearchHits(null);
@@ -375,6 +381,18 @@ export function DashboardPage({ api }: DashboardPageProps) {
         open={captureOpen}
         onClose={() => setCaptureOpen(false)}
         onAction={handleCaptureAction}
+      />
+
+      <DocumentCaptureDialog
+        api={api}
+        open={documentCaptureOpen}
+        onClose={() => setDocumentCaptureOpen(false)}
+        onUploaded={() => {
+          // Refresh the list so the new memory appears with
+          // "Processing document…" — the actual extraction runs in the
+          // background and the next reload will show the real title.
+          void loadList();
+        }}
       />
     </DashboardShell>
   );

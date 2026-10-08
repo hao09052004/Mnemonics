@@ -51,6 +51,7 @@ interface RegisterRequest {
 interface ListItemsParams {
   limit?: number;
   offset?: number;
+  favorite?: boolean;
 }
 
 interface ListItemsResponse {
@@ -96,12 +97,32 @@ interface Item {
   raw_text?: string | null;
   ocr_text?: string | null;
   is_favorite?: boolean;
+  /** Populated for `document` items; null for everything else. */
+  page_count?: number | null;
+}
+
+interface ItemAssetMetadata {
+  mime_type: string | null;
+  size_bytes: number | null;
+  original_filename: string | null;
 }
 
 interface ItemDetail extends Item {
   raw_text?: string | null;
   ocr_text?: string | null;
   notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  client_request_id?: string;
+  ocr_engine?: string | null;
+  ocr_language?: string | null;
+  ocr_confidence?: number | null;
+  ocr_processed_at?: string | null;
+  ocr_error_code?: string | null;
+  /** Present when the item has an asset row (image / screenshot / document). */
+  asset?: ItemAssetMetadata | null;
+  /** Short-lived signed URL for the original asset. */
+  signed_url?: string | null;
 }
 
 interface ItemEnrichment {
@@ -151,7 +172,7 @@ interface SpaceRule {
   q?: string;
   filters?: {
     tags?: string[];
-    kind?: Array<'link' | 'text' | 'image' | 'screenshot'>;
+    kind?: Array<'link' | 'text' | 'image' | 'screenshot' | 'document'>;
     captured_after?: string;
     captured_before?: string;
     favorite?: boolean;
@@ -235,6 +256,84 @@ interface RelatedItem {
 
 interface ApiErrorPayload {
   error?: { code?: string; message?: string; requestId?: string };
+}
+
+/**
+ * Content Cluster DTOs.
+ *
+ * The web dashboard's view of the cluster feature. The DTO shape
+ * follows the wire format produced by `apps/api/src/routes/clusters.ts`
+ * so the dashboard never invents a parallel client-side model.
+ */
+export interface ClusterPreviewItem {
+  id: string;
+  kind: string;
+  title: string;
+  thumbnailUrl: string | null;
+  isFavorite: boolean;
+}
+
+export interface ClusterSummary {
+  id: string;
+  title: string | null;
+  summary: string | null;
+  itemCount: number;
+  representativeItemId: string | null;
+  algorithmVersion: string;
+  embeddingModel: string;
+  similarityThreshold: number;
+  minSize: number;
+  createdAt: string;
+  updatedAt: string;
+  representativeItems: ClusterPreviewItem[];
+}
+
+export interface ClusterListResponse {
+  data: {
+    clusters: ClusterSummary[];
+    unclusteredCount: number;
+  };
+}
+
+export interface ClusterDetailResponse {
+  data: {
+    cluster: {
+      id: string;
+      title: string | null;
+      summary: string | null;
+      itemCount: number;
+      representativeItemId: string | null;
+      algorithmVersion: string;
+      embeddingModel: string;
+      similarityThreshold: number;
+      minSize: number;
+      createdAt: string;
+      updatedAt: string;
+    };
+    items: string[];
+    limit: number;
+    offset: number;
+  };
+}
+
+export interface ClusterRefreshResponse {
+  data: {
+    algorithmVersion: string;
+    embeddingModel: string;
+    similarityThreshold: number;
+    minSize: number;
+    eligibleItemCount: number;
+    clusterCount: number;
+    unclusteredCount: number;
+    durationMs: number;
+  };
+}
+
+export interface SaveClusterAsSpaceResponse {
+  data: {
+    spaceId: string;
+    memberCount: number;
+  };
 }
 
 export class ApiError extends Error {
@@ -400,6 +499,7 @@ export class ApiClient {
     const search = new URLSearchParams();
     if (params.limit !== undefined) search.set('limit', String(params.limit));
     if (params.offset !== undefined) search.set('offset', String(params.offset));
+    if (params.favorite !== undefined) search.set('favorite', String(params.favorite));
     const query = search.toString();
     const response = await this.request<{ data: ListItemsResponse }>(
       `/api/v1/items${query ? `?${query}` : ''}`,
@@ -683,7 +783,124 @@ export class ApiClient {
     return response.data;
   }
 
-  /** Session storage helpers (web localStorage). */
+  /**
+   * Multipart document upload. The web dashboard hands the picked file
+   * straight to the API; the server is the save boundary so the
+   * dashboard never has to base64 the bytes or stash them in localStorage.
+   *
+   * `onProgress` is optional. The browser's `fetch` doesn't expose
+   * upload progress, so we report phases (`uploading` -> `finalizing`)
+   * rather than a byte count. Errors are mapped to a small set of
+   * user-facing categories so the UI can render a specific message
+   * instead of the raw server stack.
+   */
+  async uploadDocumentCapture(
+    payload: {
+      file: File;
+      title: string;
+      sourceUrl?: string;
+      capturedAt?: string;
+      clientRequestId: string;
+    },
+    accessToken: string,
+    onProgress?: (phase: 'uploading' | 'finalizing') => void
+  ): Promise<{ id: string; status: string; signedUrl?: string }> {
+    const form = new FormData();
+    form.append('file', payload.file, payload.file.name);
+    form.append('title', payload.title);
+    if (payload.sourceUrl) form.append('sourceUrl', payload.sourceUrl);
+    if (payload.capturedAt) form.append('capturedAt', payload.capturedAt);
+    form.append('clientRequestId', payload.clientRequestId);
+
+    onProgress?.('uploading');
+    const response = await fetch(this.baseUrl + '/api/v1/captures/document', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form
+    });
+    onProgress?.('finalizing');
+
+    const text = await response.text();
+    let payload2: unknown = null;
+    if (text.length > 0) {
+      try {
+        payload2 = JSON.parse(text);
+      } catch {
+        payload2 = { error: { message: text } };
+      }
+    }
+
+    if (!response.ok) {
+      const errPayload = payload2 as ApiErrorPayload;
+      const message = errPayload?.error?.message || `HTTP ${response.status}`;
+      throw new ApiError(
+        response.status,
+        message,
+        errPayload?.error?.code,
+        errPayload?.error?.requestId
+      );
+    }
+
+    const data = (payload2 as { data?: { id: string; status: string; signedUrl?: string } })?.data;
+    if (!data) {
+      throw new ApiError(response.status, 'Unexpected empty response', 'EMPTY_RESPONSE');
+    }
+    return data;
+  }
+
+/**
+ * Content Cluster API.
+ *
+ * Mirrors the spec at `specs/api/clusters.md` (this file is its
+ * reference implementation). All three endpoints are
+ * user-scoped — the token is the only source of user identity,
+ * the body is never read for it.
+ */
+  async listClusters(accessToken: string): Promise<ClusterListResponse['data']> {
+    const r = await this.request<ClusterListResponse>('/api/v1/clusters', {
+      method: 'GET',
+      accessToken
+    });
+    return r.data;
+  }
+
+  async getCluster(
+    id: string,
+    accessToken: string,
+    options: { limit?: number; offset?: number } = {}
+  ): Promise<ClusterDetailResponse['data']> {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    if (options.offset !== undefined) params.set('offset', String(options.offset));
+    const qs = params.toString();
+    const r = await this.request<ClusterDetailResponse>(
+      `/api/v1/clusters/${encodeURIComponent(id)}${qs ? `?${qs}` : ''}`,
+      { method: 'GET', accessToken }
+    );
+    return r.data;
+  }
+
+  async refreshClusters(
+    accessToken: string
+  ): Promise<ClusterRefreshResponse['data']> {
+    const r = await this.request<ClusterRefreshResponse>('/api/v1/clusters/refresh', {
+      method: 'POST',
+      accessToken
+    });
+    return r.data;
+  }
+
+  async saveClusterAsSpace(
+    id: string,
+    accessToken: string,
+    body: { name?: string; description?: string | null; color?: string } = {}
+  ): Promise<SaveClusterAsSpaceResponse['data']> {
+    const r = await this.request<SaveClusterAsSpaceResponse>(
+      `/api/v1/clusters/${encodeURIComponent(id)}/save-as-space`,
+      { method: 'POST', body, accessToken }
+    );
+    return r.data;
+  }
 
   loadStoredSession(): Session | null {
     try {

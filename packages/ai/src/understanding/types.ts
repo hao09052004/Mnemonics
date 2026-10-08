@@ -35,7 +35,7 @@ export interface TldrInput {
   rawText?: string | null;
   /** Source URL — useful for "page" captures. */
   sourceUrl?: string | null;
-  type: 'link' | 'text' | 'image' | 'screenshot' | 'note';
+  type: 'link' | 'text' | 'image' | 'screenshot' | 'note' | 'document';
   /** Locale for the TLDR — defaults to vi-VN. */
   locale?: string;
 }

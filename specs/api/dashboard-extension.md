@@ -91,16 +91,24 @@ Mapping from API `kind` (`link`, `text`, `image`, `screenshot`) to chip label:
 | Images | `image` (uploaded via right-click / context menu) |
 | Screenshots | `screenshot` (cropped) |
 | Highlights | `text` where `ocr_text` is non-empty and is the entire body |
-| Documents | not yet supported by BE → chip disabled with `aria-disabled` and tooltip "Coming soon" |
+| Documents | `document` — supported since the document-capture milestone. |
 
-Document is **explicitly stubbed** — the FE shows the chip but the BE has no
-`document` kind. The chip is rendered as disabled and explains why.
+Mapping from API `kind` (`link`, `text`, `image`, `screenshot`,
+`document`) to chip label:
+
+| Chip | API `kind` values |
+|------|------------------|
+| Notes | `text` (without checks) |
+| Articles | `link` |
+| Images | `image` (uploaded via right-click / context menu) |
+| Screenshots | `screenshot` (cropped) |
+| Highlights | `text` where `ocr_text` is non-empty and is the entire body |
+| Documents | `document` (PDF / TXT / Markdown) |
 
 ## 6. Memory card variants
 
 `figma-ui-reference/src/App.tsx` defines 6 variants. The extension dashboard
-implements all 6 even though backend storage is only `link`/`text`/`image`/`screenshot`,
-because the FE reference is the spec.
+implements all 6 because the FE reference is the spec.
 
 | Variant | Trigger | Visual |
 |---------|---------|--------|
@@ -109,7 +117,7 @@ because the FE reference is the spec.
 | `highlight` | `kind === 'text'` + only OCR-derived text (no `raw_text`) | Quote-style, large 20px title, no image |
 | `image` | `kind === 'image'` | Image preview 220px, title, short desc, tags |
 | `screenshot` | `kind === 'screenshot'` | Image preview 190px, "Screenshot" eyebrow |
-| `document` | not yet supported by BE | Rendered only when BE returns `kind === 'document'`; otherwise stub |
+| `document` | `kind === 'document'` | Eyebrow chip, title, `PDF · 18 pages · 2.4 MB` (or `TXT · 12 KB` / `Markdown · 4 KB`), tags |
 
 The variant is decided by `kindToVariant(kind, item)` (see §11).
 
@@ -262,12 +270,12 @@ service worker (`chrome.runtime.sendMessage`):
 * `Quick Note` → opens a tiny inline form (title + note), then `type: text`.
 * `Upload Image` → opens file picker → `uploadImageCapture` →
   `POST /api/v1/captures/image` with `type: image`.
-* `Upload Document` → **stubbed**: chip rendered but click shows a toast
-  "Document uploads coming soon — backend doesn't expose this kind yet."
-  The action is not destructive (no API call, no UI lock); it just informs
-  the user the feature isn't available. We keep the entry so the FE stays
-  consistent with the Figma reference and so the disabled state is honest
-  rather than silently missing.
+* `Upload Document` → opens a hidden `<input type="file">` scoped to
+  `.pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown` →
+  `uploadDocumentCapture` → `POST /api/v1/captures/document` with
+  `type: document`. The extension never writes document bytes to
+  `chrome.storage.local`; the server response is the durability
+  boundary. See `docs/document-capture.md` for the full pipeline.
 
 ## 10. State management
 

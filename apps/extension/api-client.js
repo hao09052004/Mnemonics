@@ -131,6 +131,38 @@ function uploadImageCapture(imageDataUrl, payload, accessToken) {
     });
 }
 
+/**
+ * Upload a user-selected document (PDF / TXT / Markdown) to the
+ * /api/v1/captures/document endpoint. The form must already contain
+ * `file`, `title`, `clientRequestId`, and the optional `capturedAt` /
+ * `sourceUrl`. Returns the parsed response body. The file bytes are
+ * NOT persisted anywhere client-side — chrome.storage.local is left
+ * untouched — so a 20 MiB PDF cannot bloat the extension's storage
+ * budget. The server response is the only durable record.
+ */
+function uploadDocumentCapture(form, accessToken) {
+  if (!accessToken) return Promise.reject(new Error('Bạn cần đăng nhập trước khi lưu tài liệu.'));
+  if (!form || typeof form.get !== 'function') {
+    return Promise.reject(new Error('Yêu cầu tài liệu không hợp lệ.'));
+  }
+  return fetch(MNEMONICS_API_URL + '/api/v1/captures/document', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + accessToken },
+    body: form
+  }).then(function(response) {
+    return response.text().then(function(text) {
+      var body = {};
+      try { body = text ? JSON.parse(text) : {}; } catch (_e) { body = {}; }
+      if (!response.ok) {
+        throw new Error(body.error && body.error.message
+          ? body.error.message
+          : 'API không lưu được tài liệu.');
+      }
+      return body;
+    });
+  });
+}
+
 function toCapturePayload(item) {
   const type = item.type === 'image' || item.type === 'screenshot' ? 'image' : item.type === 'link' ? 'link' : 'text';
   const payload = {
@@ -282,4 +314,154 @@ async function searchItemsFromApi(query, accessToken, filters) {
   }
 
   return body;
+}
+
+/**
+ * Content clusters — the same backend endpoints the web dashboard
+ * hits. The extension must not recompute clusters locally: spec §32
+ * forbids "extension-only local clustering" and §12 requires
+ * identical membership across web and extension.
+ */
+async function listClustersFromApi(accessToken) {
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi tải groups.');
+  async function request(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/clusters', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+  }
+  var token = accessToken;
+  var response = await request(token);
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await request(token);
+    }
+  }
+  if (response.status === 404) {
+    // Feature flag off — treat as empty list so the UI hides the
+    // tab rather than erroring.
+    return { data: { clusters: [], unclusteredCount: 0 } };
+  }
+  var body = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    var message = body && body.error && body.error.message
+      ? body.error.message
+      : 'Cluster API failed with status ' + response.status;
+    throw new Error(message);
+  }
+  return body;
+}
+
+async function getClusterFromApi(clusterId, accessToken) {
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi tải group.');
+  async function request(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/clusters/' + encodeURIComponent(clusterId), {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+  }
+  var token = accessToken;
+  var response = await request(token);
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await request(token);
+    }
+  }
+  if (response.status === 404) {
+    return { data: { cluster: null, items: [] } };
+  }
+  var body = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    throw new Error(body && body.error && body.error.message
+      ? body.error.message
+      : 'Cluster API failed with status ' + response.status);
+  }
+  return body;
+}
+
+async function saveClusterAsSpaceFromApi(clusterId, accessToken, body) {
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu group.');
+  var payload = body || {};
+  async function request(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/clusters/' + encodeURIComponent(clusterId) + '/save-as-space', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+  }
+  var token = accessToken;
+  var response = await request(token);
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await request(token);
+    }
+  }
+  var json = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    throw new Error(json && json.error && json.error.message
+      ? json.error.message
+      : 'Save as Space failed with status ' + response.status);
+  }
+  return json;
+}
+
+async function refreshClustersFromApi(accessToken) {
+  if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi cập nhật groups.');
+  async function request(token) {
+    return fetch(MNEMONICS_API_URL + '/api/v1/clusters/refresh', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+  }
+  var token = accessToken;
+  var response = await request(token);
+  if (response.status === 401) {
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+      response = await request(token);
+    }
+  }
+  var json = await response.json().catch(function() { return {}; });
+  if (!response.ok) {
+    throw new Error(json && json.error && json.error.message
+      ? json.error.message
+      : 'Refresh clusters failed with status ' + response.status);
+  }
+  return json;
+}
+
+// Expose the helpers dashboard.js relies on as a flat surface.
+// Each function is conditionally assigned so a missing function in
+// upstream (older api-client) doesn't break the dashboard.
+if (typeof window !== 'undefined') {
+  window.MnemonicsApiClient = {
+    uploadImageCapture: uploadImageCapture,
+    uploadDocumentCapture: uploadDocumentCapture,
+    refreshAccessToken: refreshAccessToken,
+    toCapturePayload: toCapturePayload,
+    listClustersFromApi: listClustersFromApi,
+    getClusterFromApi: getClusterFromApi,
+    refreshClustersFromApi: refreshClustersFromApi,
+    saveClusterAsSpaceFromApi: saveClusterAsSpaceFromApi
+  };
+  // Keep the legacy flat globals that dashboard.js may still read
+  // directly. uploadDocumentCapture is new in this milestone.
+  window.uploadImageCapture = uploadImageCapture;
+  window.uploadDocumentCapture = uploadDocumentCapture;
+  window.refreshAccessToken = refreshAccessToken;
+  window.toCapturePayload = toCapturePayload;
+  window.listClustersFromApi = listClustersFromApi;
+  window.getClusterFromApi = getClusterFromApi;
+  window.refreshClustersFromApi = refreshClustersFromApi;
+  window.saveClusterAsSpaceFromApi = saveClusterAsSpaceFromApi;
 }

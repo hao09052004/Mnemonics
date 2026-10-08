@@ -12,6 +12,7 @@ describe('memory-kind', () => {
     expect(kindToLabel('text')).toBe('note');
     expect(kindToLabel('image')).toBe('image');
     expect(kindToLabel('screenshot')).toBe('screenshot');
+    expect(kindToLabel('document')).toBe('document');
   });
 
   it('maps FE labels back to BE kinds', () => {
@@ -20,11 +21,11 @@ describe('memory-kind', () => {
     expect(labelToKinds('image')).toEqual(['image']);
     expect(labelToKinds('screenshot')).toEqual(['screenshot']);
     expect(labelToKinds('highlight')).toEqual(['link']);
-    expect(labelToKinds('document')).toEqual([]); // disabled
+    expect(labelToKinds('document')).toEqual(['document']);
   });
 
   it('normalizes unknown kinds to note', () => {
-    expect(normalizeKind('document')).toBe('document'); // explicit pass-through
+    expect(normalizeKind('document')).toBe('document');
     expect(normalizeKind('')).toBe('note');
     expect(normalizeKind('something-weird')).toBe('note');
   });

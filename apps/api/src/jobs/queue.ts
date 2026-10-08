@@ -12,7 +12,7 @@
 
 import type { Pool } from 'pg';
 
-export type JobType = 'ocr' | 'tag' | 'embed' | 'enrich';
+export type JobType = 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document';
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface Job {

@@ -127,6 +127,32 @@ describe('POST /api/v1/spaces', () => {
     expect(res.status).toBe(400);
   });
 
+  it('accepts a smart space whose kind filter is document-only', async () => {
+    handler = (sql) =>
+      sql.includes('INSERT INTO spaces')
+        ? {
+            rows: [
+              {
+                ...baseSpace,
+                space_type: 'smart',
+                rule: { q: 'valuation', filters: { kind: ['document'] } }
+              }
+            ]
+          }
+        : { rows: [] };
+
+    const res = await request(app)
+      .post('/api/v1/spaces')
+      .set(auth())
+      .send({
+        name: 'Valuation PDFs',
+        spaceType: 'smart',
+        rule: { q: 'valuation', filters: { kind: ['document'] } }
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.space.rule.filters.kind).toEqual(['document']);
+  });
+
   it('requires a session', async () => {
     const res = await request(app).post('/api/v1/spaces').send({ name: 'X', spaceType: 'manual' });
     expect(res.status).toBe(401);

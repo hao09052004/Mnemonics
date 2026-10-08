@@ -7,6 +7,11 @@ export type NewItem = {
 };
 
 export type NewImageItem = NewItem & {
+    itemId: string;
+};
+
+/** Pending item shape produced by the document upload route. */
+export type NewDocumentItem = NewItem & {
   itemId: string;
 };
 
@@ -38,6 +43,8 @@ export interface ItemRepository {
   findByClientRequestId(userId: string, clientRequestId: string): Promise<StoredItem | null>;
   createPendingItem(input: NewItem): Promise<StoredItem>;
   createPendingImageItem(input: NewImageItem): Promise<StoredItem>;
+  /** Persist a `document` item + asset row in one transaction. */
+  createPendingDocumentItem(input: NewDocumentItem): Promise<StoredItem>;
   updateStatus(id: string, status: ItemStatus): Promise<void>;
   updateOcrText(
     id: string,
@@ -146,6 +153,61 @@ export function createItemRepository(pool: Pool): ItemRepository {
           `INSERT INTO assets (item_id, storage_key, mime_type, size_bytes)
            VALUES ($1, $2, $3, $4)`,
           [itemId, capture.image.storageKey, capture.image.mimeType, capture.image.sizeBytes]
+        );
+        await client.query('COMMIT');
+        return itemResult.rows[0];
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
+    async createPendingDocumentItem({ userId, capture, itemId }) {
+      if (capture.type !== 'document') {
+        throw new Error('Document repository requires a document capture');
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        // `raw_text` is set to NULL on insert: the extraction job writes
+        // it after parsing. We do NOT store the file bytes anywhere on
+        // the row — those live in the object storage bucket under the
+        // canonical `<user>/<item>/<filename>` key.
+        const itemResult = await client.query<StoredItem>(
+          `INSERT INTO items
+            (id, user_id, type, title, source_url, raw_text, captured_at, status, client_request_id)
+           VALUES ($1, $2, $3, $4, $5, NULL, $6, 'pending', $7)
+           RETURNING id, user_id AS "userId", status, type, title,
+                     source_url AS "sourceUrl", raw_text AS "rawText",
+                     ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
+                     ocr_confidence AS "ocrConfidence",
+                     ocr_language AS "ocrLanguage",
+                     ocr_processed_at AS "ocrProcessedAt",
+                     ocr_error_code AS "ocrErrorCode",
+                     captured_at AS "capturedAt"`,
+          [
+            itemId,
+            userId,
+            capture.type,
+            capture.title,
+            capture.sourceUrl ?? null,
+            capture.capturedAt ?? new Date(),
+            capture.clientRequestId
+          ]
+        );
+        await client.query(
+          `INSERT INTO assets (item_id, storage_key, mime_type, size_bytes, original_filename)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            itemId,
+            capture.document.storageKey,
+            capture.document.mimeType,
+            capture.document.sizeBytes,
+            capture.document.originalFilename ?? null
+          ]
         );
         await client.query('COMMIT');
         return itemResult.rows[0];
@@ -357,3 +419,25 @@ export {
   type ItemEnrichment,
   type TldrSource
 } from './enrichments.js';
+
+export {
+  createClusterRepository,
+  clusterIdForMembers,
+  pickRepresentative,
+  collectSignals,
+  buildClusterTitle,
+  DEFAULT_CLUSTER_CONFIG,
+  DEFAULT_MIN_CLUSTER_SIZE,
+  DEFAULT_SIMILARITY_THRESHOLD,
+  CLUSTER_DETAIL_PAGE_SIZE,
+  type ClusterConfig,
+  type ClusterMember,
+  type ClusterCandidate,
+  type ClusterRefreshDeps,
+  type ClusterRepository,
+  type ClusterRefreshResult,
+  type ContentCluster,
+  type ContentClusterItem,
+  type ContentClusterSummary,
+  type ClusterPreviewItem
+} from './clusters.js';

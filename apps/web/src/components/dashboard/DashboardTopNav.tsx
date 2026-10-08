@@ -3,6 +3,7 @@ import { Icon } from './Icons';
 export type DashboardPage =
   | 'Everything'
   | 'Favorites'
+  | 'Groups'
   | 'Spaces'
   | 'Rediscover'
   | 'Reminders'
@@ -11,6 +12,7 @@ export type DashboardPage =
 const NAV: Array<{ label: DashboardPage }> = [
   { label: 'Everything' },
   { label: 'Favorites' },
+  { label: 'Groups' },
   { label: 'Spaces' },
   { label: 'Rediscover' },
   { label: 'Reminders' },

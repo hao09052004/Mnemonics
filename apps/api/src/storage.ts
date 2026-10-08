@@ -1,26 +1,69 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * The MIME types we accept as user-uploaded assets (images or
+ * documents). The closed list is what `assets.mime_type` CHECKs on
+ * the BE (migration 019) and is the single source of truth for the
+ * route-level multer filter. Image captures keep the legacy
+ * `image/jpeg|png|webp` triple; documents add the three document
+ * kinds the product ships with in Phase 1.
+ */
+export const SUPPORTED_ASSET_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'text/markdown'
+] as const;
+export type SupportedAssetMimeType = (typeof SUPPORTED_ASSET_MIME_TYPES)[number];
+
 export type ImageUpload = {
   storageKey: string;
   buffer: Buffer;
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
 };
 
+/**
+ * Document asset upload (PDF / TXT / Markdown). The route is the only
+ * caller; the BE constraint on `assets.size_bytes` is 20 MiB which is
+ * enforced at the route boundary so the storage layer never has to
+ * second-guess the size limit. `originalFilename` is persisted into
+ * `assets.original_filename` so the dashboard can show the user's
+ * chosen filename in the card / detail view.
+ */
+export type DocumentUpload = {
+  storageKey: string;
+  buffer: Buffer;
+  mimeType: 'application/pdf' | 'text/plain' | 'text/markdown';
+  sizeBytes: number;
+  originalFilename?: string;
+};
+
 export interface ImageStorage {
-  upload(input: ImageUpload): Promise<void>;
-  remove(storageKey: string): Promise<void>;
-  /**
-   * Read the raw bytes of a stored asset. Used by the OCR job to feed
-   * the image into the provider without exposing a URL. Returns null if
-   * the object is missing.
-   */
-  download(storageKey: string): Promise<Buffer | null>;
-  createSignedUrl(storageKey: string, expiresInSeconds: number): Promise<string | null>;
-  // Public URL works without a signed token when the bucket is public.
-  // Returned as a plain path so callers can decide how to compose the
-  // origin (`https://<project>.supabase.co/...`). Returns null when the
-  // bucket isn't public.
-  createPublicUrl(storageKey: string): Promise<string | null>;
+    upload(input: ImageUpload): Promise<void>;
+    /**
+     * Upload a user-supplied document (PDF/TXT/Markdown). Same backing
+     * object as an image asset — the distinction is purely the MIME
+     * and the consumer of the bytes. Reusing the bucket keeps the
+     * signed-URL path and the RLS policy the same; the original
+     * filename is propagated into `assets.original_filename` by the
+     * route so the UI can show it.
+     */
+    uploadDocument(input: DocumentUpload): Promise<void>;
+    remove(storageKey: string): Promise<void>;
+    /**
+     * Read the raw bytes of a stored asset. Used by the OCR job to feed
+     * the image into the provider without exposing a URL. Returns null if
+     * the object is missing.
+     */
+    download(storageKey: string): Promise<Buffer | null>;
+    createSignedUrl(storageKey: string, expiresInSeconds: number): Promise<string | null>;
+    // Public URL works without a signed token when the bucket is public.
+    // Returned as a plain path so callers can decide how to compose the
+    // origin (`https://<project>.supabase.co/...`). Returns null when the
+    // bucket isn't public.
+    createPublicUrl(storageKey: string): Promise<string | null>;
 }
 
 export function normalizeSupabaseUrl(value: string): string {
@@ -63,6 +106,17 @@ export function createInMemoryImageStorage(): ImageStorage {
       for (const v of store.values()) total += v.buffer.length;
       if (total + buffer.length > MAX_TOTAL) {
         throw new Error(`IMAGE_STORAGE_FULL (limit ${MAX_TOTAL} bytes)`);
+      }
+      store.set(storageKey, { buffer, mimeType });
+    },
+    async uploadDocument({ storageKey, buffer, mimeType }) {
+      // Same backing map as legacy image uploads — the in-memory store
+      // treats the asset as opaque bytes regardless of MIME. The cap
+      // is intentionally the same to surface any runaway caller fast.
+      let total = 0;
+      for (const v of store.values()) total += v.buffer.length;
+      if (total + buffer.length > MAX_TOTAL) {
+        throw new Error(`DOCUMENT_STORAGE_FULL (limit ${MAX_TOTAL} bytes)`);
       }
       store.set(storageKey, { buffer, mimeType });
     },
@@ -112,6 +166,18 @@ function createImageStorage(client: SupabaseClient, bucket: string): ImageStorag
         upsert: false
       });
       if (error) throw new Error(`IMAGE_UPLOAD_FAILED: ${error.message}`);
+    },
+    async uploadDocument({ storageKey, buffer, mimeType }) {
+      // Documents share the bucket with images; the bucket policy in
+      // migration 001 keys access on (bucket_id, foldername[1]) so the
+      // same RLS contract governs document storage. The MIME is propagated
+      // to Supabase so the served bytes come back with the right
+      // Content-Type (browser-native PDF rendering relies on it).
+      const { error } = await client.storage.from(bucket).upload(storageKey, buffer, {
+        contentType: mimeType,
+        upsert: false
+      });
+      if (error) throw new Error(`DOCUMENT_UPLOAD_FAILED: ${error.message}`);
     },
     async remove(storageKey) {
       await client.storage.from(bucket).remove([storageKey]);

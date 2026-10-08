@@ -14,6 +14,7 @@ import { createSearchRouter } from './routes/search.js';
 import { createItemRouter } from './routes/items.js';
 import { createTagRouter } from './routes/tags.js';
 import { createSpaceRouter } from './routes/spaces.js';
+import { createClusterRouter } from './routes/clusters.js';
 import { createEnrichmentRouter } from './routes/enrichments.js';
 import { createMonitoringRouter } from './monitoring/monitoring-router.js';
 import { metricsMiddleware } from './monitoring/metrics.js';
@@ -86,7 +87,7 @@ const { queue, router: jobRouter } = createJobRouter({
 });
 
 // Create job function for capture routes
-const createJob = async (type: 'ocr' | 'tag' | 'embed' | 'enrich', itemId: string, userId: string) => {
+const createJob = async (type: 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document', itemId: string, userId: string) => {
 	return queue.create({ type, itemId, userId });
 };
 
@@ -145,6 +146,14 @@ const spaceRouter = createSpaceRouter({
   embeddings: aiService.embeddings
 });
 
+// Mount clusters router
+const clusterRouter = createClusterRouter({
+  pool,
+  supabase,
+  expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+  developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
+});
+
 // Mount enrichment router
 const enrichmentRouter = createEnrichmentRouter({
   pool,
@@ -163,6 +172,7 @@ app.use('/api/v1', itemRouter);
 app.use('/api/v1', tagRouter);
 app.use('/api/v1', graphRouter);
 app.use('/api/v1', spaceRouter);
+app.use('/api/v1', clusterRouter);
 app.use('/api/v1', enrichmentRouter);
 app.use('/', monitoringRouter);
 
