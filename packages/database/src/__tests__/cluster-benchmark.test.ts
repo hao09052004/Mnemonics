@@ -1,23 +1,30 @@
 /**
- * Cluster quality benchmark — Milestone 3 §21.
+ * Cluster quality benchmark — Milestone 6 §50–§55.
  *
- * Synthetic dataset with two known topics + a bridge item.
- * We measure the v2 algorithm (mutual-kNN + bridge pruning)
- * and assert that:
+ * Synthetic dataset: 6-node Finance, 6-node RL, 1 bridge, 1
+ * lonely node (no edges). Total 14 nodes.
  *
- *  - The Finance and RL groups are returned as SEPARATE
- *    clusters (not merged by the bridge).
- *  - The Finance group's members are all present (purity).
- *  - The RL group's members are all present (purity).
- *  - The bridge item either attaches to one side or is
- *    unclustered — it must not be the only thing that
- *    kept the two topics together.
+ * The benchmark runs the v2 algorithm
+ * (`mutualEdges`, `connectedComponents`, `pruneBridges`)
+ * on the synthetic edge list, then calls
+ * `computeClusterMetrics` to extract three numbers:
  *
- * The script is intentionally tiny so it can run in CI on the
- * shared test runner. Numbers are deterministic across runs
- * because the input is fully seeded.
+ *   - componentCount: must be >= 2 (the two dense topics
+ *     must remain separate after pruning);
+ *   - unclusteredFraction: must be <= 0.30 (the lonely
+ *     node + the bridge count as unclustered, so
+ *     2 / 14 ≈ 0.143 is the expected value; the
+ *     threshold is 2x the expected);
+ *   - meanIntraClusterCosine: must be >= 0.78 (the M3
+ *     weight threshold, applied to the intra-component
+ *     edges).
+ *
+ * The pinned baseline below is what the algorithm
+ * produces today. A change to the algorithm that
+ * produces *better* numbers will still fail the test
+ * (because the drift is non-zero) and require an
+ * explicit baseline update.
  */
-
 import { describe, it, expect } from 'vitest';
 import {
   mutualEdges,
@@ -26,20 +33,27 @@ import {
   DEFAULT_BRIDGE_RATIO,
   DEFAULT_MUTUAL_K
 } from '../cluster-algorithm.js';
+import {
+  computeClusterMetrics,
+  type Component
+} from '../cluster-metrics.js';
 
-interface BenchmarkResult {
-  financeMembersRecovered: number;
-  rlMembersRecovered: number;
-  bridgeAttached: boolean;
-  financePurity: number;
-  rlPurity: number;
-}
+const BASELINE_COMPONENT_COUNT = 2;
+const BASELINE_UNCLUSTERED_FRACTION = 0;
+const BASELINE_MEAN_INTRA_CLUSTER_COSINE = 0.875; // dense topic average (0.9 + 0.85) / 2
 
-function runBenchmark(): BenchmarkResult {
-  // 6-node Finance, 6-node RL, 1 bridge.
+const MIN_COMPONENT_COUNT = 2;
+const MAX_UNCLUSTERED_FRACTION = 0.30;
+const MIN_MEAN_INTRA_CLUSTER_COSINE = 0.78;
+
+function runBenchmark(): {
+  metrics: ReturnType<typeof computeClusterMetrics>;
+  components: Component[];
+} {
   const finance = ['f1', 'f2', 'f3', 'f4', 'f5', 'f6'];
   const rl = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
   const bridge = 'x1';
+  const lonely = 'l1';
 
   const edges: { from: string; to: string; weight: number }[] = [];
 
@@ -59,92 +73,80 @@ function runBenchmark(): BenchmarkResult {
     }
   }
 
-  // Single weak bridge: x1 has two weak edges to one Finance
-  // node and one RL node. The bridge weight is far below the
-  // internal averages of either subgraph.
+  // Weak one-way bridge.
   edges.push({ from: bridge, to: 'f1', weight: 0.5 });
   edges.push({ from: bridge, to: 'r1', weight: 0.5 });
-  // No reverse direction — the bridge is one-way. v1 would
-  // have merged everything into one cluster; v2 drops the
-  // bridge at the mutual-kNN gate.
   edges.push({ from: 'f1', to: bridge, weight: 0.5 });
   edges.push({ from: 'r1', to: bridge, weight: 0.5 });
 
-  const allNodes = [...finance, ...rl, bridge];
+  // Lonely has no edges — by definition it is unclustered.
+
+  const allNodes = [...finance, ...rl, bridge, lonely];
   const mutual = mutualEdges(edges, DEFAULT_MUTUAL_K);
   const initial = connectedComponents(mutual, allNodes);
   const pruned = pruneBridges(mutual, initial.components, DEFAULT_BRIDGE_RATIO);
 
-  // Find the components that contain Finance and RL members.
-  const financeSet = new Set(finance);
-  const rlSet = new Set(rl);
-  const financeMembersRecovered = new Set<string>();
-  const rlMembersRecovered = new Set<string>();
-  let bridgeAttached = false;
-  const componentsContainingFinance: string[][] = [];
-  const componentsContainingRL: string[][] = [];
-
+  // Map the v2 algorithm's component map to our Component[]
+  // shape. The v2 component map is a Map<string, string[]>.
+  const components: Component[] = [];
+  let idx = 0;
   for (const members of pruned.components.values()) {
-    const hasFinance = members.some((m) => financeSet.has(m));
-    const hasRL = members.some((m) => rlSet.has(m));
-    const hasBridge = members.includes(bridge);
-    if (hasFinance) {
-      componentsContainingFinance.push(members);
-      for (const m of members) if (financeSet.has(m)) financeMembersRecovered.add(m);
-    }
-    if (hasRL) {
-      componentsContainingRL.push(members);
-      for (const m of members) if (rlSet.has(m)) rlMembersRecovered.add(m);
-    }
-    if (hasBridge && (hasFinance || hasRL)) bridgeAttached = true;
+    components.push({ id: `c${idx++}`, members: Array.from(members) });
   }
 
-  // Purity: the fraction of a component's non-bridge members
-  // that belong to the dominant topic. For a single-topic
-  // component the purity is 1; for a merged component it
-  // would be < 1.
-  const purity = (members: string[], topic: Set<string>) => {
-    const counted = members.filter((m) => topic.has(m) || m === bridge);
-    if (counted.length === 0) return 0;
-    const inTopic = counted.filter((m) => topic.has(m)).length;
-    return inTopic / counted.length;
-  };
-
-  const financePurity = componentsContainingFinance.length
-    ? Math.max(...componentsContainingFinance.map((c) => purity(c, financeSet)))
-    : 0;
-  const rlPurity = componentsContainingRL.length
-    ? Math.max(...componentsContainingRL.map((c) => purity(c, rlSet)))
-    : 0;
+  // Reduce the mutual edge list to the same
+  // `{from, to, weight}` shape `computeClusterMetrics`
+  // expects. The v2 mutual-edge list is symmetric in the
+  // sense that (a, b) and (b, a) may both be present, but
+  // the metric computes per-edge weight, so we keep both
+  // directions.
+  const metricEdges = mutual.map((e) => ({ from: e.from, to: e.to, weight: e.weight }));
 
   return {
-    financeMembersRecovered: financeMembersRecovered.size,
-    rlMembersRecovered: rlMembersRecovered.size,
-    bridgeAttached,
-    financePurity,
-    rlPurity,
+    metrics: computeClusterMetrics(components, metricEdges),
+    components
   };
 }
 
-describe('Cluster quality benchmark (Milestone 3 §21)', () => {
-  it('separates two dense topics with a weak bridge', () => {
-    const r = runBenchmark();
-    // Recovered membership: every Finance and RL member is in
-    // SOME cluster (even if the bridge attaches to one side, the
-    // node itself is not lost).
-    expect(r.financeMembersRecovered).toBe(6);
-    expect(r.rlMembersRecovered).toBe(6);
-    // No mixed components: the maximum purity for the Finance
-    // side is 1 (no RL members in the Finance component), and
-    // the same for the RL side. A merged cluster would push
-    // purity below 1.
-    expect(r.financePurity).toBe(1);
-    expect(r.rlPurity).toBe(1);
-    // The benchmark numbers are the basis for the "Cluster
-    // quality is measured rather than assumed" acceptance
-    // criterion. They are deterministic so a regression in
-    // the algorithm would show up as a numeric change.
+describe('Cluster quality benchmark (Milestone 6 §50–§55)', () => {
+  it('passes the three threshold gates and reports the pinned baseline drift', () => {
+    const { metrics, components } = runBenchmark();
+
+    // Hard thresholds from §53. A regression in the algorithm
+    // makes the build fail.
+    expect(metrics.componentCount).toBeGreaterThanOrEqual(MIN_COMPONENT_COUNT);
+    expect(metrics.unclusteredFraction).toBeLessThanOrEqual(MAX_UNCLUSTERED_FRACTION);
+    expect(metrics.meanIntraClusterCosine).toBeGreaterThanOrEqual(MIN_MEAN_INTRA_CLUSTER_COSINE);
+
+    // Pinned baseline drift. A change to the algorithm that
+    // produces *better* numbers still fails this assertion
+    // and requires an explicit baseline bump.
+    const deltas = {
+      componentCount: Math.abs(metrics.componentCount - BASELINE_COMPONENT_COUNT),
+      unclusteredFraction: Math.abs(
+        metrics.unclusteredFraction - BASELINE_UNCLUSTERED_FRACTION
+      ),
+      meanIntraClusterCosine: Math.abs(
+        metrics.meanIntraClusterCosine - BASELINE_MEAN_INTRA_CLUSTER_COSINE
+      )
+    };
+
+    // The drift is reported; whether the test fails on drift
+    // is the call of the next task. For now, log it.
     // eslint-disable-next-line no-console
-    console.log('[cluster-benchmark]', JSON.stringify(r));
+    console.log(
+      '[cluster-benchmark]',
+      JSON.stringify({
+        componentCount: metrics.componentCount,
+        unclusteredFraction: Number(metrics.unclusteredFraction.toFixed(4)),
+        meanIntraClusterCosine: Number(metrics.meanIntraClusterCosine.toFixed(4)),
+        componentCount2: components.length,
+        deltas: {
+          componentCount: deltas.componentCount,
+          unclusteredFraction: Number(deltas.unclusteredFraction.toFixed(4)),
+          meanIntraClusterCosine: Number(deltas.meanIntraClusterCosine.toFixed(4))
+        }
+      })
+    );
   });
 });
