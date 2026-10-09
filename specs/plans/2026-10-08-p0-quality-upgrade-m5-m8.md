@@ -468,6 +468,79 @@ TBD — written when M7 is the active milestone.
 
 ---
 
+## §60–§69. M7 spec — search result explainability
+
+M5 lifts the relevance ceiling, but the user cannot see
+*why* a chunk matched. The dashboard renders chunk-level
+results as opaque cards; the "Related memories" surface
+does the same. M7 adds a flat, non-nested `explanation`
+block to each hit, plus a one-line "Why this matched" pill
+on each card that focus-expands to a small score table.
+
+**§60.** `SearchHit` gains a new optional field
+`explanation?: SearchHitExplanation`. Existing
+consumers that do not read it must keep working
+unchanged. The field is omitted from the JSON response
+when the dashboard-side explainer is off (see §65).
+
+**§61.** `SearchHitExplanation` is a flat object with five
+numeric fields and zero nested fields:
+
+    {
+      lexical: number,   // pre-RRF lexical rank score
+      vector:  number,   // pre-RRF semantic cosine
+      chunk:   number,   // pre-RRF chunk cosine (M4 leg)
+      rrf:     number,   // post-RRF score before re-rank
+      rerank:  number | null,  // post-RRF score after re-rank; null when re-rank was off
+    }
+
+**§62.** `auto-link-similar.ts` returns the same shape
+under the same field name (`explanation`) on each related
+item, so search and related-memories speak the same
+vocabulary.
+
+**§63.** The web dashboard adds a one-line
+`Why this matched` pill on each card. The pill is rendered
+inside the existing `MemoryCard.tsx` component, below the
+snippet, with the same typography as the existing
+metadata row. On focus or hover, the pill expands into a
+small table with the five score fields. Touch devices
+tap to toggle.
+
+**§64.** The extension dashboard renders a one-line pill
+with no expand (popup width is constrained). The pill is
+the same string, no numeric table.
+
+**§65.** The feature is **off by default** for M7 too.
+The env var `SEARCH_EXPLAINABILITY_ENABLED=true` turns
+on the new fields in the response and the pill in the
+UI. When off, the response is byte-equal to the post-M6
+response, and the dashboard renders the existing card.
+
+**§66.** The explanation block is computed at the same
+time as the hit's score, in `runSearch`. The five
+numbers are tracked through the lexical / semantic /
+chunk legs and the RRF + re-rank steps. They are not
+computed after the fact.
+
+**§67.** Performance. Adding the explanation tracking
+to `runSearch` is O(N) over the fused hit list. The web
+dashboard's render is one extra DOM node per card. No
+new SQL.
+
+**§68.** Failure modes. If a leg is missing (e.g. no
+embedding provider in a free-tier deploy), its
+contribution to the explanation is 0; the other two
+fields still report. A re-rank off state shows
+`rerank: null`, not a missing field.
+
+**§69.** Observability. The explanation block is
+*visible to the user*, not just logged. M7 does not
+add a separate log line. The `explain` block in
+`SearchResponse` is unchanged.
+
+---
+
 ## §70–§79. M8 spec — embedding-model migration path
 
 TBD — written when M8 is the active milestone.
