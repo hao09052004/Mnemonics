@@ -22,6 +22,15 @@ export interface MemoryCardItem {
   page_count?: number | null;
   /** Pre-built asset blob for document cards (mime type, size, filename). */
   asset?: { mime_type?: string | null; size_bytes?: number | null; original_filename?: string | null } | null;
+  /** M7 — present only when SEARCH_EXPLAINABILITY_ENABLED=true. Renders
+   *  as a "Why this matched" pill below the snippet. */
+  explanation?: {
+    lexical: number;
+    vector: number;
+    chunk: number;
+    rrf: number;
+    rerank: number | null;
+  };
 }
 
 interface MemoryCardProps {
@@ -276,6 +285,8 @@ export function MemoryCard({
         {label === 'document' ? <DocumentMeta item={item} /> : null}
         {item.snippet ? <p>{item.snippet}</p> : null}
 
+        {item.explanation ? <ExplainabilityPill explanation={item.explanation} /> : null}
+
         <div className="meta">
           <span>{sourceLabel || formatDate(item.captured_at)}</span>
           {item.tags && item.tags.length > 0 ? (
@@ -351,4 +362,36 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+interface ExplainabilityPillProps {
+  explanation: {
+    lexical: number;
+    vector: number;
+    chunk: number;
+    rrf: number;
+    rerank: number | null;
+  };
+}
+
+/**
+ * M7 — "Why this matched" pill. Renders a native <details> so
+ * focus / hover / tap all work without JS handlers. The table is
+ * hidden by default; the summary is the visible string.
+ */
+function ExplainabilityPill({ explanation }: ExplainabilityPillProps): JSX.Element {
+  return (
+    <details className="memory-card-explainability" data-testid="memory-card-explainability">
+      <summary>Why this matched</summary>
+      <table>
+        <tbody>
+          <tr><th>Lexical</th><td>{explanation.lexical.toFixed(4)}</td></tr>
+          <tr><th>Vector</th><td>{explanation.vector.toFixed(4)}</td></tr>
+          <tr><th>Chunk</th><td>{explanation.chunk.toFixed(4)}</td></tr>
+          <tr><th>RRF</th><td>{explanation.rrf.toFixed(4)}</td></tr>
+          <tr><th>Re-rank</th><td>{explanation.rerank === null ? '—' : explanation.rerank.toFixed(4)}</td></tr>
+        </tbody>
+      </table>
+    </details>
+  );
 }
