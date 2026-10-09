@@ -28,6 +28,11 @@ export interface AutoLinkOptions {
 }
 
 export interface SimilarItem {
+  /** Item id of the similar memory. Aliased from `item_embeddings.item_id` —
+   *  `item_embeddings` has no `id` column (its primary key is `item_id`),
+   *  so the SELECT returns the column under that name. The caller still
+   *  sees it as a memory id because every row in `item_embeddings` is
+   *  1-to-1 with a row in `items`. */
   id: string;
   similarity: number;
   embeddingModel: string;
@@ -74,9 +79,9 @@ export async function autoLinkSimilarItems(
   //    the `embedding_kind = 'real'` predicate, which the planner
   //    can satisfy from `item_embeddings_identity_idx` (migration
   //    022).
-  const result = await pool.query<{ id: string; similarity: number }>(
+  const result = await pool.query<{ item_id: string; similarity: number }>(
     `SELECT
-       target.id,
+       target.item_id,
        (1 - (source.embedding <=> target.embedding))::float8 AS similarity
      FROM item_embeddings source
      JOIN items source_item
@@ -125,7 +130,7 @@ export async function autoLinkSimilarItems(
       [
         userId,
         itemId,
-        similar.id,
+        similar.item_id,
         weight,
         JSON.stringify({
           source: 'embedding',
@@ -146,7 +151,7 @@ export async function autoLinkSimilarItems(
   return result.rows.map((row) => {
     const weight = Math.max(0, Math.min(1, Number(row.similarity)));
     return {
-      id: row.id,
+      id: row.item_id,
       similarity: weight,
       embeddingModel: source.model,
       embeddingVersion: source.version,
