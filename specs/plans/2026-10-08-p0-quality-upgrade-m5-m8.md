@@ -543,7 +543,96 @@ add a separate log line. The `explain` block in
 
 ## §70–§79. M8 spec — embedding-model migration path
 
-TBD — written when M8 is the active milestone.
+M1–M4 hard-coded the `bge-m3-or-gemini` invariant: every
+user has the same `item_embeddings.embedding` and the
+same dimensions. M5, M6, and M7 do not change that. M8
+introduces a path to change it for one user without
+nuking the table or running an offline batch.
+
+**§70.** Add `embedding_model TEXT` and
+`embedding_version TEXT` columns to the queue job
+payload contract. The embed handler reads the requested
+model from the job payload instead of the global config.
+When the payload is empty, the handler falls back to the
+current env-driven model (M1 contract preserved).
+
+**§71.** Add a SQL function `re_embed_user(user_id uuid,
+target_model text) → integer` that:
+
+1. Counts the user's items that have a `ready` status
+   and a non-null embedding.
+2. Returns the count, with no side effects.
+
+(The actual re-embed is done by an out-of-band script
+that calls the function in `count` mode, then enqueues
+one `embed` job per item with `model: target_model` in
+the payload. M8 ships the function and the queue-payload
+plumbing; the orchestration script is a separate change
+because it depends on a deployment runbook.)
+
+**§72.** Migration `024_embedding_model_migration.sql`
+adds:
+
+- A `re_embed_user` SQL function.
+- A partial index on `(user_id, embedding_model)` on
+  `item_embeddings` so the `re_embed_user` function's
+  count and the in-process re-embed batch can use the
+  same scan.
+
+**§73.** The embed handler reads
+`job.payload.targetEmbeddingModel` (string | undefined).
+When present, the handler temporarily forces the AI
+config to use that model for the duration of the call.
+A unit test pins the contract: a job with
+`targetEmbeddingModel: 'gemini-embedding-001'` writes
+a row whose `embedding_model` column matches, regardless
+of the env var.
+
+**§74.** Failure modes:
+
+- The target model is unavailable → the handler logs
+  and re-throws so the job retries.
+- The target model is the same as the current one →
+  the handler runs the embedding anyway; the row's
+  `embedding_model` is rewritten to the target.
+  (Idempotency at the *row* level is the existing
+  `ON CONFLICT` logic in `item_embeddings`.)
+
+**§75.** The function does not migrate chunks. Chunk
+embeddings are part of M4 and live in
+`item_document_chunks`. A separate function
+`re_embed_user_chunks(user_id, target_model)` covers
+that case; it is a future change because the
+`re_embed_user` orchestration in §71 is already
+offload-heavy and adding chunks doubles the surface
+area. The handler does NOT call the chunk pipeline
+when a `targetEmbeddingModel` is set; the chunk
+embedding is left for a future migration.
+
+**§76.** Performance. `re_embed_user` runs a single
+count query; the partial index from §72 makes it an
+index-only scan. The handler's switch to the
+target model is a no-op in the hot path (it sets a
+local variable, no env mutation, no provider
+re-initialisation).
+
+**§77.** Observability. The handler logs the
+target model and the count of items it has just
+re-embedded with that model:
+`[EmbedHandler] Re-embedded N items for user U with model M`.
+The function logs nothing (it is a count, not a
+write).
+
+**§78.** Backwards compatibility. The default
+embedding model path (no `targetEmbeddingModel` in
+the payload) is unchanged. Every test that passed
+before M8 still passes.
+
+**§79.** Out of scope. UI to "switch model",
+automatic cron re-embed, A/B evaluation across
+models, multi-tenant target-model selection. M8 is
+the path, not the policy. The policy lives in a
+future PRD.
 
 ---
 
