@@ -44,6 +44,16 @@ out/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development.local
+.env.test.local
+
+# Local secret dumps / scan outputs that may contain credential matches
+secrets.json
+.gitleaks-report.*
+gitleaks-report.*
+.security-scan/
 
 # Figma Make design reference.
 # `figma-ui-reference/` and `.figma/` are throwaway UI mockups, not

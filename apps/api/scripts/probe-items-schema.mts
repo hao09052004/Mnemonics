@@ -1,8 +1,28 @@
 // Apply migration 013: add `notes` column to items.
+//
+// Required environment:
+//   DATABASE_URL   Postgres connection string, e.g.
+//                  postgres://user:password@host:5432/db
+//
+// Hardcoded credentials were removed after a P0 secret-exposure
+// incident; the previously committed connection string is treated
+// as compromised and the password is expected to be rotated before
+// reuse. The script fails fast when DATABASE_URL is missing rather
+// than carrying a fallback that would defeat the rotation.
+
 import pg from 'file:///C:/mnemonics-csp-fixed/node_modules/.pnpm/pg@8.23.0/node_modules/pg/lib/index.js';
 
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not configured.');
+  console.error('Set it before running, e.g.:');
+  console.error('  DATABASE_URL=postgres://user:password@host:5432/db \\');
+  console.error('    node apps/api/scripts/probe-items-schema.mts');
+  process.exit(1);
+}
+
 const pool = new pg.Pool({
-  connectionString: 'postgresql://postgres.jtmowwtmjtmceihzvreu:XB7MDkYj43Tgy8vp@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres',
+  connectionString,
   ssl: { rejectUnauthorized: false }
 });
 

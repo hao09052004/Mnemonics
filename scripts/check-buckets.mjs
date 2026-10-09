@@ -1,4 +1,28 @@
-const svc = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0bW93d3RtanRtY2VpaHp2cmV1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTY5OTU1NSwiZXhwIjoyMTA1Mjc1NTU1fQ.qR4sYBGCorwywXdfXgxMUSjpAIs4ELnirhgwpB63FPQ';
-const r = await fetch('https://jtmowwtmjtmceihzvreu.supabase.co/storage/v1/bucket', { headers: { apikey: svc, Authorization: `Bearer ${svc}` } });
+/**
+ * List storage buckets via the service-role key.
+ * Required environment:
+ *   SUPABASE_URL                  e.g. https://<project>.supabase.co
+ *   SUPABASE_SERVICE_ROLE_KEY     service-role JWT
+ */
+import { config } from 'dotenv';
+import { resolve } from 'node:path';
+
+config({ path: resolve(process.cwd(), '.env') });
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('SUPABASE_URL is not configured.');
+  process.exit(1);
+}
+if (!SERVICE_ROLE) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY is not configured.');
+  process.exit(1);
+}
+
+const r = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+  headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` }
+});
 const data = await r.json();
 console.log(JSON.stringify(data, null, 2));

@@ -299,6 +299,8 @@ Full machine: [`workflows/state-machine.md`](workflows/state-machine.md).
 * Architecture spec: [`specs/0001-system-overview.md`](specs/0001-system-overview.md)
 * **AI setup (free tier)**: [`docs/free-ai-setup.md`](docs/free-ai-setup.md)
 * **AI architecture**: [`docs/ai-architecture.md`](docs/ai-architecture.md)
+* **Security — Supabase credential exposure remediation**:
+  [`docs/security/supabase-credential-remediation.md`](docs/security/supabase-credential-remediation.md)
 * ADR-0001: [`specs/adr/0001-agents-skills-workflows-layout.md`](specs/adr/0001-agents-skills-workflows-layout.md)
 * Operations docs: [`docs/`](docs)
 

@@ -1,10 +1,35 @@
-const url = 'https://jtmowwtmjtmceihzvreu.supabase.co/auth/v1/signup';
-const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0bW93d3RtanRtY2VpaHp2cmV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2OTk1NTUsImV4cCI6MjEwNTI3NTU1NX0.o_K8YiRud5LcPmV4oEJ8rsz4HV-VWFnMKmFbSHMyTUo';
+/**
+ * Reproduce a public /auth/v1/signup call to debug the auth facade.
+ * Required environment:
+ *   SUPABASE_URL       e.g. https://<project>.supabase.co
+ *   SUPABASE_ANON_KEY  the public anon JWT (NOT the service-role key)
+ *
+ * Note: the anon key is the only Supabase credential this script is
+ * allowed to use. It must not be substituted with the service-role
+ * key — that is exactly the mistake this cleanup is meant to prevent.
+ */
+import { config } from 'dotenv';
+import { resolve } from 'node:path';
+
+config({ path: resolve(process.cwd(), '.env') });
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const ANON = process.env.SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('SUPABASE_URL is not configured.');
+  process.exit(1);
+}
+if (!ANON) {
+  console.error('SUPABASE_ANON_KEY is not configured.');
+  process.exit(1);
+}
+
 const email = `repro+${Date.now()}@gmail.com`;
 
-const r = await fetch(url, {
+const r = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
   method: 'POST',
-  headers: { apikey: anon, 'Content-Type': 'application/json' },
+  headers: { apikey: ANON, 'Content-Type': 'application/json' },
   body: JSON.stringify({ email, password: 'StrongPass#2026', data: { name: 'Repro' } })
 });
 const text = await r.text();
