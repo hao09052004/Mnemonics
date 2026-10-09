@@ -64,6 +64,7 @@ function createAppForSearch(pool: any) {
 describe('POST /api/v1/search — M5 re-rank env gate', () => {
   afterEach(() => {
     delete process.env.SEARCH_RERANK_ENABLED;
+    delete process.env.SEARCH_EXPLAINABILITY_ENABLED;
   });
 
   it('with SEARCH_RERANK_ENABLED unset, returns the same hit order as the pre-M5 path', async () => {
@@ -98,5 +99,42 @@ describe('POST /api/v1/search — M5 re-rank env gate', () => {
     expect(response.status).toBe(200);
     expect(response.body.hits).toHaveLength(1);
     expect(response.body.hits[0].id).toBe('00000000-0000-4000-8000-000000000010');
+  });
+
+  // M7 — search result explainability at the HTTP boundary.
+  it('with SEARCH_EXPLAINABILITY_ENABLED unset, hits do NOT carry an explanation field', async () => {
+    delete process.env.SEARCH_EXPLAINABILITY_ENABLED;
+    const pool = createPoolMock();
+    const app = createAppForSearch(pool);
+
+    const response = await request(app)
+      .post('/api/v1/search')
+      .set('Authorization', 'Bearer test-token')
+      .send({ q: 'idempotency', limit: 10 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.hits[0].explanation).toBeUndefined();
+  });
+
+  it('with SEARCH_EXPLAINABILITY_ENABLED=true, each hit carries an explanation block', async () => {
+    process.env.SEARCH_EXPLAINABILITY_ENABLED = 'true';
+    const pool = createPoolMock();
+    const app = createAppForSearch(pool);
+
+    const response = await request(app)
+      .post('/api/v1/search')
+      .set('Authorization', 'Bearer test-token')
+      .send({ q: 'idempotency', limit: 10 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.hits[0].explanation).toBeDefined();
+    expect(response.body.hits[0].explanation).toMatchObject({
+      lexical: expect.any(Number),
+      vector: expect.any(Number),
+      chunk: expect.any(Number),
+      rrf: expect.any(Number),
+      rerank: expect.any(Number)
+    });
+    delete process.env.SEARCH_EXPLAINABILITY_ENABLED;
   });
 });
