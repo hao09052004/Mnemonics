@@ -288,6 +288,27 @@ export interface ClusterSummary {
   representativeItems: ClusterPreviewItem[];
 }
 
+/**
+ * Subset of {@link ClusterSummary} returned by the
+ * `GET /api/v1/clusters/:id` endpoint. The detail screen
+ * already has the full member list alongside this object,
+ * so it does not need the (up-to-three) preview items the
+ * list endpoint inlines for the card grid.
+ */
+export interface ClusterDetailSummary {
+  id: string;
+  title: string | null;
+  summary: string | null;
+  itemCount: number;
+  representativeItemId: string | null;
+  algorithmVersion: string;
+  embeddingModel: string;
+  similarityThreshold: number;
+  minSize: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ClusterListResponse {
   data: {
     clusters: ClusterSummary[];
@@ -308,19 +329,7 @@ export interface ClusterMember {
 
 export interface ClusterDetailResponse {
   data: {
-    cluster: {
-      id: string;
-      title: string | null;
-      summary: string | null;
-      itemCount: number;
-      representativeItemId: string | null;
-      algorithmVersion: string;
-      embeddingModel: string;
-      similarityThreshold: number;
-      minSize: number;
-      createdAt: string;
-      updatedAt: string;
-    };
+    cluster: ClusterDetailSummary;
     /**
      * Hydrated member DTOs. The previous shape was `string[]`
      * (raw ids) which forced the client to intersect a global

@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { type ClusterSummary, type ClusterMember, type ApiClient } from '../../lib/api-client';
+import { type ClusterDetailSummary, type ClusterMember, type ApiClient } from '../../lib/api-client';
 import { MemoryCard } from './MemoryCard';
 import { EmptyState } from './EmptyState';
 import '../spaces/spaces.css';
@@ -39,7 +39,7 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [summary, setSummary] = useState<ClusterSummary | null>(null);
+  const [summary, setSummary] = useState<ClusterDetailSummary | null>(null);
   const [members, setMembers] = useState<ClusterMember[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -161,7 +161,7 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
             item={{
               id: it.id,
               kind: it.kind,
-              title: it.title,
+              title: it.title ?? 'Untitled',
               snippet: '',
               source_url: it.sourceUrl,
               image_url: it.thumbnailUrl,
