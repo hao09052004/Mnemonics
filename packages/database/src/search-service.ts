@@ -16,6 +16,7 @@
  */
 
 import type { Pool } from 'pg';
+import { buildSearchHitExplanation } from './search-explainability.js';
 
 /**
  * Minimal shape of the embedding provider this service needs.
@@ -69,6 +70,14 @@ export interface SearchHit {
   score: number;
   capturedAt: Date;
   tags: string[];
+  /** M7 — present only when SEARCH_EXPLAINABILITY_ENABLED=true. */
+  explanation?: {
+    lexical: number;
+    vector: number;
+    chunk: number;
+    rrf: number;
+    rerank: number | null;
+  };
 }
 
 export interface SearchResponse {
@@ -249,9 +258,45 @@ export async function runSearch(
 
   const paged = finalHits.slice(offset, offset + limit);
 
+  // M7 — per-hit explainability tracker. Built up alongside
+  // the legs and the RRF step. The dashboard reads this when
+  // SEARCH_EXPLAINABILITY_ENABLED is on.
+  const explainabilityEnabled = process.env.SEARCH_EXPLAINABILITY_ENABLED === 'true';
+  const perId = new Map<string, { lexical: number; vector: number; chunk: number; rrf: number; rerank: number | null }>();
+  function track(id: string, leg: 'lexical' | 'vector' | 'chunk', score: number) {
+    let entry = perId.get(id);
+    if (!entry) {
+      entry = { lexical: 0, vector: 0, chunk: 0, rrf: 0, rerank: null };
+      perId.set(id, entry);
+    }
+    entry[leg] = score;
+  }
+  for (const row of lexResults) track(row.id, 'lexical', row.score);
+  for (const row of semResults) track(row.id, 'vector', row.score);
+  for (const row of chunkResults) track(row.id, 'chunk', row.score);
+  for (const row of finalHits) {
+    let entry = perId.get(row.id);
+    if (!entry) {
+      entry = { lexical: 0, vector: 0, chunk: 0, rrf: 0, rerank: null };
+      perId.set(row.id, entry);
+    }
+    // Re-rank is identity in M5 (no per-hit embedding in
+    // fused), so rerank == rrf. When M7's future per-hit
+    // embedding plumbing lands, this line becomes the
+    // post-re-rank score.
+    entry.rrf = row.score;
+    entry.rerank = row.score;
+  }
+
   return {
     hits: paged.map((item) => {
       const snip = buildSnippet(item, q);
+      const explanation = explainabilityEnabled
+        ? buildSearchHitExplanation({
+            ...(perId.get(item.id) ?? { lexical: 0, vector: 0, chunk: 0, rrf: 0, rerank: null }),
+            rerankEnabled: true
+          })
+        : undefined;
       return {
         id: item.id,
         kind: item.type,
@@ -262,7 +307,8 @@ export async function runSearch(
         chunkIndex: snip.chunkIndex,
         score: item.score,
         capturedAt: item.capturedAt,
-        tags: item.tags
+        tags: item.tags,
+        ...(explanation ? { explanation } : {})
       };
     }),
     total: fused.length,
