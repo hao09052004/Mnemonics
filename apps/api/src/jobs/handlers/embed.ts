@@ -10,6 +10,27 @@
  * `ai.embeddings`, so loadAiConfig() owns the whole chain. Every
  * provider in that chain emits 1024-d vectors, which is what
  * `item_embeddings.embedding` (vector(1024)) accepts.
+ *
+ * Milestone 4 — long-PDF chunk embeddings:
+ *   For items whose type is `document`, the handler now produces
+ *   TWO layers of embeddings instead of one:
+ *
+ *     1. An item-level embedding, built from the title, TLDR,
+ *        caption, and a SHORT prefix of the extracted text. The
+ *        8 000-character truncation is preserved for this layer
+ *        so Related Memories and the cluster graph still see the
+ *        same compact "what is this memory about" signal.
+ *
+ *     2. A set of chunk-level embeddings, built from the
+ *        `chunkDocument()` output. Each chunk is embedded
+ *        individually and persisted in `item_document_chunks`
+ *        with its own embedding identity (model + dimensions +
+ *        version). Search runs against the chunks and
+ *        aggregates back to the parent item.
+ *
+ *   The two layers share the same provider and the same
+ *   version fingerprint, so a re-index of the chunks does not
+ *   invalidate the item-level embedding.
  */
 
 import type { JobQueue } from "../queue.js";
@@ -19,6 +40,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pool } from "pg";
 import type { AiService } from "@mnemonics/ai";
 import { autoLinkSimilarItems } from "../auto-link-similar.js";
+import { chunkDocument, type DocumentChunk } from "../document-chunker.js";
 
 export interface EmbedHandlerDeps {
   queue: JobQueue;
@@ -115,14 +137,62 @@ export class EmbedHandler {
       }
 
       const embedding = await this.ai.embeddings.embedOne(textToEmbed);
+      const providerInfo2 = this.ai.embeddings.info();
+      // M8 — read the target embedding model from the job
+      // payload when present. The default path (no payload
+      // field) is unchanged: the env-driven provider's
+      // model is used. A future orchestration step enqueues
+      // one `embed` job per item with
+      // `targetEmbeddingModel` set; the handler honours it
+      // here without mutating the env or the provider.
+      const targetModel =
+        typeof job.payload?.targetEmbeddingModel === "string" &&
+        (job.payload.targetEmbeddingModel as string).length > 0
+          ? (job.payload.targetEmbeddingModel as string)
+          : providerInfo2.model;
+      const version = `${currentEmbeddingVersion(providerInfo2)}|target=${targetModel}`;
 
-      // 3. Save embedding to database
+      // 3. Save embedding to database. The version fingerprint is
+      //    computed from the live provider info — never a hard-coded
+      //    string — and `kind = 'real'` tells the SQL guard in
+      //    `auto-link-similar.ts` that this row may participate in
+      //    similarity joins.
       await this.saveEmbedding(
         job.itemId,
         job.userId,
         embedding,
-        providerInfo.model
+        targetModel,
+        { embeddingVersion: version, embeddingKind: "real" }
       );
+
+      if (targetModel !== providerInfo2.model) {
+        console.log(
+          `[EmbedHandler] Re-embedded item ${job.itemId} for user ${job.userId} ` +
+            `with model ${targetModel} (default would have been ${providerInfo2.model})`
+        );
+      }
+
+      // 3b. Document items: also embed every chunk so a search
+      //     for a phrase on page 80 of a 200-page PDF can
+      //     retrieve the document. The chunk pipeline is
+      //     best-effort: a failure here is logged and swallowed
+      //     so it does not block the item from becoming ready.
+      if (item.type === "document" && item.rawText && item.rawText.length > 0) {
+        try {
+          await this.embedDocumentChunks(
+            job.itemId,
+            job.userId,
+            item.rawText,
+            null,
+            { embeddingVersion: version, embeddingKind: "real" }
+          );
+        } catch (chunkErr) {
+          console.warn(
+            `[EmbedHandler] Chunk embedding failed for item ${job.itemId}:`,
+            chunkErr
+          );
+        }
+      }
 
       // 4. Mark job as completed
       await this.queue.markCompleted(job.id);
@@ -204,6 +274,105 @@ export class EmbedHandler {
     console.log(`[EmbedHandler] Item ${job.itemId} is now ready`);
   }
 
+  /**
+   * Embed and persist every chunk of a document item.
+   *
+   * Called from `handle()` AFTER the item-level embedding has
+   * been written. The chunk pipeline is best-effort: a failure
+   * here is logged but does not block the item from becoming
+   * `ready`. A document with no chunks can still be opened
+   * and searched lexically; only the semantic-recall path is
+   * affected.
+   *
+   * Idempotency: chunks are upserted by (item_id, chunk_index)
+   * AND (item_id, content_hash). A document that was edited
+   * (and therefore re-extracted with different content) will
+   * leave stale chunks behind; the `deleteMissing` step below
+   * removes them so the chunk set always matches the latest
+   * content.
+   */
+  private async embedDocumentChunks(
+    itemId: string,
+    userId: string,
+    rawText: string,
+    pageCount: number | null,
+    options: { embeddingVersion: string; embeddingKind: "real" | "noop" | "legacy" | "unknown" }
+  ): Promise<void> {
+    if (!this.pool) return;
+    if (options.embeddingKind !== "real") {
+      // No real provider available; skip silently. Search stays
+      // lexical-only for this document.
+      return;
+    }
+    const chunks = chunkDocument({ text: rawText, pageCount });
+    if (chunks.length === 0) return;
+
+    const providerInfo = this.ai.embeddings.info();
+    const vector = await Promise.all(
+      chunks.map((c) => this.ai.embeddings.embedOne(c.content))
+    );
+
+    // Upsert each chunk. The (item_id, content_hash) uniqueness
+    // constraint means re-runs of this method are safe: an
+    // unchanged chunk hits ON CONFLICT (item_id, content_hash)
+    // and is not duplicated. A chunk that changed (its hash
+    // differs from the stored one) is updated in place.
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i];
+      const v = vector[i];
+      await this.pool.query(
+        `INSERT INTO item_document_chunks
+          (user_id, item_id, chunk_index, page_start, page_end,
+           char_start, char_end, content, content_hash, token_estimate,
+           embedding, embedding_model, embedding_dimensions,
+           embedding_version, embedding_kind, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+         ON CONFLICT (item_id, content_hash) DO UPDATE SET
+           chunk_index = EXCLUDED.chunk_index,
+           page_start = EXCLUDED.page_start,
+           page_end = EXCLUDED.page_end,
+           char_start = EXCLUDED.char_start,
+           char_end = EXCLUDED.char_end,
+           content = EXCLUDED.content,
+           token_estimate = EXCLUDED.token_estimate,
+           embedding = EXCLUDED.embedding,
+           embedding_model = EXCLUDED.embedding_model,
+           embedding_dimensions = EXCLUDED.embedding_dimensions,
+           embedding_version = EXCLUDED.embedding_version,
+           embedding_kind = EXCLUDED.embedding_kind,
+           updated_at = NOW()`,
+        [
+          userId,
+          itemId,
+          c.index,
+          c.pageStart,
+          c.pageEnd,
+          c.charStart,
+          c.charEnd,
+          c.content,
+          c.contentHash,
+          c.tokenEstimate,
+          `[${v.join(",")}]`,
+          providerInfo.model,
+          v.length,
+          options.embeddingVersion,
+          options.embeddingKind,
+        ]
+      );
+    }
+
+    // Drop chunks that no longer correspond to any current
+    // chunk_index. After a re-extract, the new chunk set may be
+    // smaller (a paragraph was deleted) so stale rows would
+    // otherwise linger and return misleading search hits.
+    await this.pool.query(
+      `DELETE FROM item_document_chunks
+        WHERE item_id = $1
+          AND chunk_index >= $2`,
+      [itemId, chunks.length]
+    );
+  }
+
   private prepareTextForEmbedding(item: {
     id: string;
     type: string;
@@ -234,7 +403,11 @@ export class EmbedHandler {
     itemId: string,
     userId: string,
     embedding: number[],
-    model: string
+    model: string,
+    options?: {
+      embeddingVersion?: string;
+      embeddingKind?: "real" | "noop" | "legacy" | "unknown";
+    }
   ): Promise<void> {
     // Store embedding in item_embeddings table
     if (this.supabase) {
@@ -246,6 +419,8 @@ export class EmbedHandler {
             model,
             dimensions: embedding.length,
             embedding,
+            embedding_version: options?.embeddingVersion ?? null,
+            embedding_kind: options?.embeddingKind ?? "unknown",
             updated_at: new Date().toISOString(),
           },
           { onConflict: "item_id" }
@@ -255,7 +430,18 @@ export class EmbedHandler {
         throw new Error(`Failed to save embedding: ${error.message}`);
       }
     } else {
-      await this.repository.saveEmbedding(itemId, userId, embedding, model);
+      await this.repository.saveEmbedding(itemId, userId, embedding, model, options);
     }
   }
+}
+
+/**
+ * Build a short, greppable version string for a freshly-written
+ * embedding. The format is intentionally human-readable so a
+ * `psql` query can answer "what model wrote this row?" without
+ * joining a fingerprint table.
+ */
+function currentEmbeddingVersion(info: { name: string; model: string }): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `${info.name}-${info.model}-${date}`;
 }

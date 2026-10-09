@@ -740,6 +740,11 @@ function renderCard(item) {
   const excerptBlock = (variant !== 'highlight' && excerpt)
     ? `<p>${escapeHtml(excerpt)}</p>` : '';
 
+  // M7 — explainability pill. One line, no expand (popup width
+  // is constrained). Mirrors the web pill text.
+  const explanationBlock = item.explanation
+    ? `<div class="mnx-card__explainability"><span>Why this matched</span></div>` : '';
+
   const meta = (variant !== 'highlight')
     ? `<div class="mnx-card__meta"><span>${escapeHtml(sourceLabel(item))}</span>${tagBlock}</div>` : '';
 
@@ -774,6 +779,7 @@ function renderCard(item) {
     </div>
       <h3>${highlightTitle}</h3>
       ${excerptBlock}
+      ${explanationBlock}
       ${meta}
     </div>
   </article>`;
@@ -909,11 +915,18 @@ function renderClusterDetail() {
     host.innerHTML = `<p style="color:var(--muted);font-size:13px">Loading group…</p>`;
     return;
   }
-  const items = (detail.items || []).map((id) => state.items.find((i) => String(i.id) === String(id))).filter(Boolean);
+  // Milestone 2: members come from the hydrated response, not from
+  // a global `state.items` intersection. The dashboard keeps a
+  // separate page of "All memories" for the rest of the UI, but
+  // the cluster view must show EXACTLY the members the backend
+  // says are in this cluster.
+  const items = detail.items || [];
+  const total = detail.itemCount ?? items.length;
   host.innerHTML = `
     <div class="mnx-everything__header">
       <h1 class="mnx-everything__title">${escapeHtml(detail.title || 'Untitled group')}</h1>
-      <p class="mnx-everything__subtitle">${items.length} ${items.length === 1 ? 'memory' : 'memories'}</p>
+      ${detail.summary ? `<p class="mnx-everything__subtitle">${escapeHtml(detail.summary)}</p>` : ''}
+      <p class="mnx-everything__subtitle">${total} ${total === 1 ? 'memory' : 'memories'}</p>
       <div class="mnx-clusters__actions">
         <button class="primary" data-action="cluster-save-as-space">Save as Space</button>
       </div>
@@ -941,16 +954,18 @@ async function openClusterDetail(id) {
   try {
     const r = await window.getClusterFromApi(id, token);
     const d = (r && r.data) || {};
-    const memberItems = (d.items || []).map((mid) => state.items.find((i) => String(i.id) === String(mid))).filter(Boolean);
-    const firstTitle = memberItems[0] ? memberItems[0].title : null;
+    // Authoritative title/summary/itemCount come from the cluster
+    // row, never from a member. Members arrive as hydrated DTOs.
     state.clusterDetail = {
       id,
-      title: firstTitle,
+      title: d.cluster && d.cluster.title ? d.cluster.title : null,
+      summary: d.cluster && d.cluster.summary ? d.cluster.summary : null,
+      itemCount: d.cluster && typeof d.cluster.itemCount === 'number' ? d.cluster.itemCount : (d.items || []).length,
       items: d.items || []
     };
     renderRoute();
   } catch (e) {
-    state.clusterDetail = { id, title: null, items: [], error: e && e.message };
+    state.clusterDetail = { id, title: null, summary: null, itemCount: 0, items: [], error: e && e.message };
     renderRoute();
   }
 }

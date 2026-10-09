@@ -715,3 +715,56 @@
   text-align: center;
 }
 
+/* ===== M7 — search result explainability pill =================== */
+
+.memory-card-explainability {
+  margin: 0.5rem 0;
+  font-size: var(--mn-fs-meta);
+  color: var(--mn-text-3);
+}
+
+.memory-card-explainability > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-block;
+  color: var(--mn-text-3);
+  border: 1px solid var(--mn-border-strong);
+  border-radius: var(--mn-r-xs);
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.memory-card-explainability > summary::-webkit-details-marker {
+  display: none;
+}
+
+.memory-card-explainability > summary:hover {
+  color: var(--mn-text);
+  border-color: var(--mn-text-3);
+}
+
+.memory-card-explainability > table {
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-card-explainability > table th,
+.memory-card-explainability > table td {
+  padding: 1px 8px 1px 0;
+  text-align: left;
+  font-weight: 400;
+  color: var(--mn-text-3);
+}
+
+.memory-card-explainability > table th {
+  color: var(--mn-text-3);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+

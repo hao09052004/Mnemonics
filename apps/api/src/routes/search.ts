@@ -108,9 +108,13 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
           kind: hit.kind,
           title: hit.title,
           snippet: hit.snippet,
+          page_start: hit.pageStart,
+          page_end: hit.pageEnd,
+          chunk_index: hit.chunkIndex,
           score: hit.score,
           captured_at: hit.capturedAt,
-          tags: hit.tags
+          tags: hit.tags,
+          ...(hit.explanation ? { explanation: hit.explanation } : {})
         })),
         total: result.total,
         took_ms: result.tookMs,

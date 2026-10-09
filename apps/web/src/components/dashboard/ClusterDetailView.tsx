@@ -1,20 +1,28 @@
 /**
  * Cluster detail view.
  *
- * Shows the cluster's title, summary, item count, and a memory
- * canvas (reusing the same MemoryCard grid the Spaces view uses).
- * The two actions are:
- *   - Refresh groups (rarely needed; mostly for support cases)
- *   - Save as Space (the spec §31 path — creates a Manual Space
- *     containing the CURRENT members)
+ * Renders the cluster's authoritative title, summary, item count,
+ * and the paginated list of member cards. The detail page is the
+ * single screen that needs ALL members of one cluster, so it asks
+ * the backend for hydrated DTOs (no intersection with the
+ * dashboard's global items list).
  *
- * The detail view is read-only: editing membership is the role of
- * a Space, not a cluster (spec §50).
+ * Milestone 2 changes:
+ *  - Reads the cluster's title/summary from the detail response,
+ *    not from a member's title
+ *  - Caps the page size at the backend limit (100), not 200
+ *  - Implements "Load more" pagination consistent with the
+ *    Everything view (Mnemonics UI rule)
+ *  - Member cards come from the response, not from `items` prop
+ *
+ * The two actions are unchanged:
+ *  - Save as Space (spec §31 — creates a Manual Space containing
+ *    the CURRENT members)
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { type ClusterSummary, type Item, type ApiClient } from '../../lib/api-client';
+import { type ClusterDetailSummary, type ClusterMember, type ApiClient } from '../../lib/api-client';
 import { MemoryCard } from './MemoryCard';
 import { EmptyState } from './EmptyState';
 import '../spaces/spaces.css';
@@ -22,51 +30,58 @@ import '../spaces/spaces.css';
 interface ClusterDetailViewProps {
   api: ApiClient;
   accessToken: string;
-  items: Item[];
-  loadingItems: boolean;
   onOpenItem: (id: string) => void;
 }
 
-export function ClusterDetailView({
-  api,
-  accessToken,
-  items,
-  loadingItems,
-  onOpenItem
-}: ClusterDetailViewProps) {
+const PAGE_SIZE = 50;
+
+export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetailViewProps) {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [summary, setSummary] = useState<ClusterSummary | null>(null);
-  const [memberIds, setMemberIds] = useState<string[]>([]);
+
+  const [summary, setSummary] = useState<ClusterDetailSummary | null>(null);
+  const [members, setMembers] = useState<ClusterMember[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [savingAsSpace, setSavingAsSpace] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    try {
-      setError(null);
-      const detail = await api.getCluster(id, accessToken, { limit: 200, offset: 0 });
-      setSummary(null); // we don't need the full summary here, just member ids
-      setMemberIds(detail.items);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to load this group right now.');
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, id]);
+  const loadPage = useCallback(
+    async (nextOffset: number, append: boolean) => {
+      if (!id) return;
+      try {
+        if (append) setLoadingMore(true);
+        else setError(null);
+        const detail = await api.getCluster(id, accessToken, {
+          limit: PAGE_SIZE,
+          offset: nextOffset,
+        });
+        setSummary(detail.cluster);
+        setMembers((prev) => (append ? [...prev, ...detail.items] : detail.items));
+        setOffset(nextOffset + detail.items.length);
+        setHasMore(nextOffset + detail.items.length < detail.cluster.itemCount);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unable to load this group right now.');
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [accessToken, id]
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    setMembers([]);
+    setOffset(0);
+    setHasMore(false);
+    setLoading(true);
+    void loadPage(0, false);
+  }, [loadPage]);
 
-  const memberItems = useMemo(() => {
-    const set = new Set(memberIds);
-    return items.filter((i) => set.has(i.id));
-  }, [items, memberIds]);
-
-  const onSaveAsSpace = async () => {
-    if (!summary && !id) return;
+  const onSaveAsSpace = useCallback(async () => {
+    if (!id) return;
     try {
       setSavingAsSpace(true);
       const res = await api.saveClusterAsSpace(id, accessToken, {});
@@ -76,7 +91,15 @@ export function ClusterDetailView({
     } finally {
       setSavingAsSpace(false);
     }
-  };
+  }, [accessToken, id, navigate]);
+
+  const title = useMemo(() => {
+    // Authoritative title from the cluster row, NOT derived from a
+    // member. If the backend did not compute one (singleton,
+    // algorithm-cold start) we keep a stable fallback so the page
+    // never shows a blank header.
+    return summary?.title?.trim() || 'Untitled group';
+  }, [summary]);
 
   if (loading) {
     return <div className="mnx-everything__loading">Loading group…</div>;
@@ -86,13 +109,13 @@ export function ClusterDetailView({
     return (
       <EmptyState
         title="We can't load this group"
-        text="It may have been removed or never existed."
+        text={error}
         action={{ label: 'Back to groups', onClick: () => navigate('/app/clusters') }}
       />
     );
   }
 
-  if (memberIds.length === 0) {
+  if (members.length === 0) {
     return (
       <EmptyState
         title="This group is empty"
@@ -105,11 +128,18 @@ export function ClusterDetailView({
   return (
     <div className="mnx-everything" data-testid="cluster-detail">
       <header className="mnx-everything__header">
-        <h1 className="mnx-everything__title">
-          {clusterTitleFromIds(memberIds, items) ?? 'Untitled group'}
+        <h1 className="mnx-everything__title" data-testid="cluster-title">
+          {title}
         </h1>
-        <p className="mnx-everything__subtitle">
-          {memberIds.length} {memberIds.length === 1 ? 'memory' : 'memories'}
+        {summary?.summary ? (
+          <p className="mnx-everything__subtitle" data-testid="cluster-summary">
+            {summary.summary}
+          </p>
+        ) : null}
+        <p className="mnx-everything__subtitle" data-testid="cluster-count">
+          {summary?.itemCount ?? members.length}{' '}
+          {(summary?.itemCount ?? members.length) === 1 ? 'memory' : 'memories'}
+          {hasMore ? ' (showing first ' + members.length + ')' : ''}
         </p>
         <div className="mnx-clusters__actions">
           <button
@@ -125,40 +155,39 @@ export function ClusterDetailView({
       </header>
 
       <div className="mnx-memory-grid" data-testid="cluster-items">
-        {memberItems.map((it) => (
+        {members.map((it) => (
           <MemoryCard
             key={it.id}
             item={{
               id: it.id,
               kind: it.kind,
-              title: it.title,
-              snippet: it.raw_text ?? it.ocr_text ?? '',
-              source_url: it.source_url,
-              image_url: it.image_url,
-              tags: it.tags,
-              captured_at: it.captured_at,
-              status: it.status,
-              is_favorite: it.is_favorite
+              title: it.title ?? 'Untitled',
+              snippet: '',
+              source_url: it.sourceUrl,
+              image_url: it.thumbnailUrl,
+              tags: [],
+              captured_at: it.capturedAt,
+              status: 'ready',
+              is_favorite: it.isFavorite,
             }}
             onOpen={() => onOpenItem(it.id)}
           />
         ))}
-        {loadingItems ? (
-          <div className="mnx-everything__loading">Loading more…</div>
-        ) : null}
       </div>
+
+      {hasMore ? (
+        <div className="mnx-everything__more">
+          <button
+            type="button"
+            className="mnx-button mnx-button--ghost"
+            disabled={loadingMore}
+            onClick={() => void loadPage(offset, true)}
+            data-testid="cluster-load-more"
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
-}
-
-function clusterTitleFromIds(ids: string[], items: Item[]): string | null {
-  // The detail endpoint doesn't return the cluster's title (the
-  // overview endpoint does and that's where the title lives in the
-  // UI). We pull it from the first matching item's tags so the
-  // header still has something. If the dashboard later needs a
-  // guaranteed cluster title here, extend the detail endpoint to
-  // return the summary too.
-  const first = items.find((i) => i.id === ids[0]);
-  if (!first) return null;
-  return first.title || null;
 }

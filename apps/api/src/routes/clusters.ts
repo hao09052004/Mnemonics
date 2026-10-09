@@ -159,7 +159,26 @@ export function createClusterRouter(deps: ClusterRouterDeps): Application {
       const offsetParsed = offsetQuery.safeParse(req.query.offset);
       const limit = limitParsed.success ? limitParsed.data : CLUSTER_DETAIL_PAGE_SIZE;
       const offset = offsetParsed.success ? offsetParsed.data : 0;
-      const itemIds = await clusterRepo.listItemIds(cluster.id, req.userId!, pool, limit, offset);
+      // Milestone 2: return hydrated items so the detail page does
+      // not have to intersect a global `items` list (which would
+      // silently drop members beyond the dashboard page size).
+      let items;
+      try {
+        items = await clusterRepo.listItemSummaries(
+          cluster.id,
+          req.userId!,
+          pool,
+          limit,
+          offset
+        );
+      } catch (sqlErr) {
+        // Surface the SQL error in test logs. The default error
+        // handler swallows it and returns 500 with an empty body,
+        // which makes test failures impossible to diagnose.
+        // eslint-disable-next-line no-console
+        console.error('[clusters/:id] listItemSummaries failed:', sqlErr);
+        throw sqlErr;
+      }
 
       res.json({
         data: {
@@ -176,7 +195,16 @@ export function createClusterRouter(deps: ClusterRouterDeps): Application {
             createdAt: cluster.createdAt.toISOString(),
             updatedAt: cluster.updatedAt.toISOString()
           },
-          items: itemIds,
+          items: items.map((it) => ({
+            id: it.id,
+            kind: it.kind,
+            title: it.title,
+            thumbnailUrl: it.thumbnailUrl,
+            sourceUrl: it.sourceUrl,
+            capturedAt: it.capturedAt.toISOString(),
+            isFavorite: it.isFavorite,
+            rank: it.rank
+          })),
           limit,
           offset
         }

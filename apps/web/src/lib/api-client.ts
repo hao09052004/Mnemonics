@@ -288,6 +288,27 @@ export interface ClusterSummary {
   representativeItems: ClusterPreviewItem[];
 }
 
+/**
+ * Subset of {@link ClusterSummary} returned by the
+ * `GET /api/v1/clusters/:id` endpoint. The detail screen
+ * already has the full member list alongside this object,
+ * so it does not need the (up-to-three) preview items the
+ * list endpoint inlines for the card grid.
+ */
+export interface ClusterDetailSummary {
+  id: string;
+  title: string | null;
+  summary: string | null;
+  itemCount: number;
+  representativeItemId: string | null;
+  algorithmVersion: string;
+  embeddingModel: string;
+  similarityThreshold: number;
+  minSize: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ClusterListResponse {
   data: {
     clusters: ClusterSummary[];
@@ -295,22 +316,27 @@ export interface ClusterListResponse {
   };
 }
 
+export interface ClusterMember {
+  id: string;
+  kind: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  sourceUrl: string | null;
+  capturedAt: string;
+  isFavorite: boolean;
+  rank: number;
+}
+
 export interface ClusterDetailResponse {
   data: {
-    cluster: {
-      id: string;
-      title: string | null;
-      summary: string | null;
-      itemCount: number;
-      representativeItemId: string | null;
-      algorithmVersion: string;
-      embeddingModel: string;
-      similarityThreshold: number;
-      minSize: number;
-      createdAt: string;
-      updatedAt: string;
-    };
-    items: string[];
+    cluster: ClusterDetailSummary;
+    /**
+     * Hydrated member DTOs. The previous shape was `string[]`
+     * (raw ids) which forced the client to intersect a global
+     * `items` list and silently dropped members beyond the
+     * dashboard page size.
+     */
+    items: ClusterMember[];
     limit: number;
     offset: number;
   };
