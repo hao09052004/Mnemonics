@@ -22,6 +22,7 @@
  */
 
 import type { AiConfig } from "../../ai-config.js";
+import { buildGeminiClient, type GeminiClient } from "../../gemini-client.js";
 import type { EmbeddingProvider } from "./types.js";
 import { GeminiEmbeddingProvider } from "./gemini.js";
 import {
@@ -31,13 +32,17 @@ import {
 import { NoopEmbeddingProvider } from "./noop.js";
 import { FallingBackEmbeddingProvider } from "./fallback.js";
 
-export function buildEmbeddingProvider(config: AiConfig): EmbeddingProvider {
-  const primary = pickPrimary(config);
+export function buildEmbeddingProvider(
+  config: AiConfig,
+  client?: GeminiClient
+): EmbeddingProvider {
+  const geminiClient = client ?? buildGeminiClient();
+  const primary = pickPrimary(config, geminiClient);
   if (!config.embeddings.embeddingsFallback || primary.info().name === "noop") {
     return primary;
   }
 
-  const fallback = pickFallback(config, primary);
+  const fallback = pickFallback(config, primary, geminiClient);
   if (!fallback) return primary;
   return new FallingBackEmbeddingProvider(primary, fallback);
 }
@@ -47,11 +52,11 @@ function buildLocal(config: AiConfig): OllamaEmbeddingProvider {
     config.embeddings.ollamaBaseUrl ?? "http://localhost:11434",
     config.embeddings.ollamaEmbeddingModel,
     config.embeddings.geminiDimensions,
-    config.ollamaForceCpu,
+    config.ollamaForceCpu
   );
 }
 
-function pickPrimary(config: AiConfig): EmbeddingProvider {
+function pickPrimary(config: AiConfig, geminiClient: GeminiClient): EmbeddingProvider {
   switch (config.embeddings.provider) {
     case "gemini": {
       if (!config.embeddings.geminiApiKey) {
@@ -62,7 +67,8 @@ function pickPrimary(config: AiConfig): EmbeddingProvider {
       return new GeminiEmbeddingProvider(
         config.embeddings.geminiApiKey,
         config.embeddings.geminiModel,
-        config.embeddings.geminiDimensions
+        config.embeddings.geminiDimensions,
+        geminiClient
       );
     }
     case "ollama":
@@ -91,7 +97,8 @@ function buildLocalOrNoop(config: AiConfig): EmbeddingProvider {
 
 function pickFallback(
   config: AiConfig,
-  primary: EmbeddingProvider
+  primary: EmbeddingProvider,
+  geminiClient: GeminiClient
 ): EmbeddingProvider | null {
   const primaryInfo = primary.info();
 
@@ -109,7 +116,8 @@ function pickFallback(
       new GeminiEmbeddingProvider(
         config.embeddings.geminiApiKey,
         config.embeddings.geminiModel,
-        config.embeddings.geminiDimensions
+        config.embeddings.geminiDimensions,
+        geminiClient
       )
     );
   }

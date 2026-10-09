@@ -201,3 +201,66 @@ All network calls are mocked. The OCR.Space tests use a real
 `fetch` mock that returns canned `ParsedResults`. Tesseract is
 tested by asserting the not-installed error path (M7 will add
 real-fixture integration tests when the WASM binary is wired).
+
+## Production target: Gemini-only cloud AI
+
+The production target is a lightweight cloud API server with **no
+Ollama, Tesseract, Transformers.js, or local CLIP**. The
+authoritative model selection is:
+
+| Capability         | Provider config      | Model                       | Output           |
+|--------------------|----------------------|------------------------------|------------------|
+| Tag generation     | `AI_TEXT_PROVIDER=gemini` | `GEMINI_MODEL` (`gemini-3.8-flash`) | ≤ 5 kebab-case tags |
+| TLDR               | `AI_TLDR_PROVIDER=gemini`  | `GEMINI_MODEL`         | ≤ TLDR_MAX_LENGTH chars |
+| Image description  | `AI_IMAGE_DESCRIPTION_PROVIDER=gemini` | `GEMINI_MODEL` | ≤ 200 chars caption |
+| OCR                | `OCR_PROVIDER=gemini`       | `GEMINI_MODEL`         | visible text, line breaks preserved |
+| Text embeddings    | `AI_EMBEDDING_PROVIDER=gemini` | `gemini-embedding-001` | 1024-d float32 |
+| Document chunk embeddings | same as text | `gemini-embedding-001` | 1024-d float32 |
+| Visual embeddings  | `VISUAL_EMBEDDING_PROVIDER=gemini` | `GEMINI_VISUAL_EMBEDDING_MODEL` (`gemini-embedding-2`) | 512-d (separate storage) |
+
+All Gemini HTTP traffic flows through a single shared client —
+[`packages/ai/src/gemini-client.ts`](../packages/ai/src/gemini-client.ts).
+Centralising the request/response lifecycle gives us one place to
+enforce:
+
+- bounded per-attempt timeout (`GEMINI_REQUEST_TIMEOUT_MS`, default 45 s)
+- exponential backoff with jitter, capped at `GEMINI_MAX_RETRIES`
+- respect for `Retry-After` on 429
+- retryable vs. non-retryable classification of HTTP and network errors
+- per-process concurrency cap (`GEMINI_MAX_CONCURRENT_REQUESTS`)
+- per-process RPM pacer (`GEMINI_RATE_LIMIT_RPM`)
+- circuit breaker: after N consecutive failures, short-circuit for a
+  cooldown window so we do not hammer a dead provider
+- sanitised telemetry: provider/model/task/latency/retry count are
+  recorded; the API key, prompt, and image bytes are never logged
+
+The visual embedding space is **kept distinct** from the text
+embedding space: a different model id, a different dimension count,
+and a separate `item_visual_embeddings` table. The two similarity
+graphs are never compared.
+
+## Free-Tier protection
+
+`AI_FREE_ONLY=true` is the production default. The config validator
+in [`packages/ai/src/ai-config.ts`](../packages/ai/src/ai-config.ts):
+
+- refuses any visual provider other than `local` or `gemini`
+- refuses `gemini` for visual embeddings when the configured
+  `GEMINI_VISUAL_EMBEDDING_MODEL` is not on the verified-Free-Tier
+  list (see `FREE_TIER_VISUAL_MODELS` in `ai-config.ts`)
+
+`AI_USER_DAILY_LIMIT` (default 100) caps the per-user daily number
+of provider-acknowledged AI calls. The cap is enforced by
+[`UserAiQuota`](../packages/ai/src/user-quota.ts) BEFORE any HTTP
+call. The counter is reset at UTC midnight. When a user is over
+the cap the system throws a non-retryable `RATE_LIMITED` error and
+the memory is preserved with whatever enrichment already
+completed — the item becomes `ready` and the failure is recorded
+for the operator.
+
+Note that `AI_FREE_ONLY=true` is a **hard refusal of non-Free-Tier
+providers**, not a guarantee of zero billing. Verify the actual
+Google Cloud project billing tier and the model availability on
+the Free Tier via the Google AI Studio model catalog before going
+live. See `docs/privacy.md` for the user-facing disclosure that
+MUST be rendered before any content is sent to Google.

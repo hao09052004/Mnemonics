@@ -40,11 +40,23 @@ describe("loadAiConfig", () => {
   });
 
   it("refuses non-local visual provider when AI_FREE_ONLY=true", () => {
+    // "remote" is neither "local" nor "gemini". The config validator
+    // refuses anything outside the allow-list so a future paid
+    // provider cannot be enabled silently.
     const env: NodeJS.ProcessEnv = {
       AI_FREE_ONLY: "true",
-      VISUAL_EMBEDDING_PROVIDER: "remote",
+      VISUAL_EMBEDDING_PROVIDER: "remote"
     };
-    expect(() => loadAiConfig(env)).toThrowError(/visual providers/);
+    expect(() => loadAiConfig(env)).toThrowError(/visual providers|visual/);
+  });
+
+  it("refuses gemini visual when AI_FREE_ONLY=true and the model is not on the Free-Tier list", () => {
+    const env: NodeJS.ProcessEnv = {
+      AI_FREE_ONLY: "true",
+      VISUAL_EMBEDDING_PROVIDER: "gemini",
+      GEMINI_VISUAL_EMBEDDING_MODEL: "gemini-embedding-2"
+    };
+    expect(() => loadAiConfig(env)).toThrowError(/Free-Tier/);
   });
 
   it("has no OpenAI fields at all — OpenAI was removed", () => {

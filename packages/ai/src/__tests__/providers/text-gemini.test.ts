@@ -1,8 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GeminiTextProvider } from "../../providers/text/gemini.js";
+import { GeminiClient } from "../../gemini-client.js";
 import { ProviderError } from "../../types.js";
 
 const originalFetch = globalThis.fetch;
+
+function makeClient(): GeminiClient {
+  // Construct a client with very fast backoff so the existing
+  // behaviour-driven tests (which only care about outcome, not
+  // wall-clock) still complete quickly. `maxRetries` here is
+  // total attempts.
+  return new GeminiClient({
+    timeoutMs: 5_000,
+    maxRetries: 3,
+    maxConcurrent: 4,
+    rateLimitRpm: 10_000,
+    sleep: async () => undefined
+  });
+}
 
 function mockFetchSequence(responses: Array<{ status: number; body: unknown; retryAfter?: string }>) {
   let i = 0;
@@ -26,7 +41,7 @@ describe("GeminiTextProvider", () => {
   });
 
   it("rejects missing API key at construction", () => {
-    expect(() => new GeminiTextProvider("", "gemini-2.5-flash")).toThrowError(/apiKey/);
+    expect(() => new GeminiTextProvider("", "gemini-2.5-flash", makeClient())).toThrowError(/apiKey/);
   });
 
   it("generateTags parses JSON array response", async () => {
@@ -38,7 +53,7 @@ describe("GeminiTextProvider", () => {
         },
       },
     ]);
-    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash");
+    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash", makeClient());
     const tags = await p.generateTags("Some long content about design and research");
     expect(tags).toEqual(["design", "user-research", "async"]);
   });
@@ -47,7 +62,7 @@ describe("GeminiTextProvider", () => {
     mockFetchSequence([
       { status: 200, body: { candidates: [{ content: { parts: [{ text: "not json" }] } }] } },
     ]);
-    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash");
+    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash", makeClient());
     const tags = await p.generateTags("anything");
     expect(tags).toEqual([]);
   });
@@ -58,16 +73,16 @@ describe("GeminiTextProvider", () => {
       { status: 500, body: { error: "boom" } },
       { status: 500, body: { error: "boom" } },
     ]);
-    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash");
+    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash", makeClient());
     const tags = await p.generateTags("design design design research", {
-      failOpen: true,
+      failOpen: true
     });
     expect(tags).toContain("design");
   });
 
   it("throws on INVALID_API_KEY (no retry)", async () => {
     mockFetchSequence([{ status: 401, body: { error: "bad key" } }]);
-    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash");
+    const p = new GeminiTextProvider("g-key", "gemini-2.5-flash", makeClient());
     await expect(p.generateTags("anything")).rejects.toBeInstanceOf(ProviderError);
   });
 });

@@ -64,9 +64,17 @@ export interface AiConfig {
   };
 
   ocr: {
-    provider: "ocrspace" | "tesseract";
+    /**
+     * OCR provider. Production target is "gemini" (multimodal
+     * text extraction from images). The other two ("ocrspace",
+     * "tesseract") are kept for offline development and as
+     * deterministic fallbacks when Gemini is unavailable.
+     */
+    provider: "ocrspace" | "tesseract" | "gemini";
     ocrSpaceApiKey?: string;
     ocrSpaceDailySoftLimit: number;
+    /** When true and OCR fails, retry with the next provider in the
+     *  fallback chain. Default true. */
     localFallback: boolean;
   };
 
@@ -79,17 +87,40 @@ export interface AiConfig {
   ollamaForceCpu: boolean;
 
   vision: {
-    provider: "local";
+    /**
+     * Visual embedding provider. The text and visual spaces are
+     * NEVER mixed, so the provider used here is independent of
+     * `embeddings.provider`. "local" uses the local CLIP model
+     * (development only); "gemini" calls Gemini's multimodal
+     * embedding endpoint (see `GeminiVisualEmbeddingProvider`).
+     */
+    provider: "local" | "gemini";
     clipModel: string;
+    /** Cloud visual model id (used when provider = "gemini"). */
+    geminiVisualModel: string;
+    /** Cloud visual embedding width. */
+    geminiVisualDimensions: number;
   };
 
   understanding: {
-    /** Local image-description provider. Always on. */
+    /**
+     * Image-description provider. "local" is the offline
+     * Transformers.js model. "gemini" is the production cloud
+     * provider. Failures from "gemini" must not be silently
+     * replaced by a fake caption.
+     */
+    imageDescriptionProvider: "local" | "gemini";
+    /** Local image-description model. */
     localImageModel: string;
     /** Whether the local model may be downloaded on first use. */
     allowDownload: boolean;
-    /** "deterministic" (default) or "ollama" (local LLM upgrade). */
-    tldrProvider: "deterministic" | "ollama";
+    /**
+     * TLDR provider.
+     *   - "deterministic" — zero-cost, always available
+     *   - "ollama" — local LLM upgrade
+     *   - "gemini" — cloud TLDR via Gemini
+     */
+    tldrProvider: "deterministic" | "ollama" | "gemini";
     /** Hard ceiling for the TLDR string we persist. */
     tldrMaxLength: number;
     /** Below this raw content length the deterministic provider is
@@ -137,18 +168,37 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
     | "noop";
   const ocrProvider = (readString(env, "OCR_PROVIDER", "ocrspace") ?? "ocrspace") as
     | "ocrspace"
-    | "tesseract";
+    | "tesseract"
+    | "gemini";
   const visionProvider = (readString(env, "VISUAL_EMBEDDING_PROVIDER", "local") ?? "local") as
-    | "local";
-  const tldrProvider = (readString(env, "AI_TLDR_PROVIDER", "deterministic") ?? "deterministic") as
-    | "deterministic"
-    | "ollama";
+    | "local"
+    | "gemini";
+  const tldrProvider = (readString(env, "AI_TLDR_PROVIDER", "deterministic") ??
+    "deterministic") as "deterministic" | "ollama" | "gemini";
+  const imageDescriptionProvider = (readString(
+    env,
+    "AI_IMAGE_DESCRIPTION_PROVIDER",
+    "local"
+  ) ?? "local") as "local" | "gemini";
 
   if (freeOnly) {
-    if (visionProvider !== "local") {
+    // Free mode forbids paid providers. Gemini Developer API keys
+    // and Gemini embedding endpoints are eligible for the Free
+    // Tier (subject to model availability per Google's docs);
+    // any other future provider must be added to the allow-list
+    // explicitly here.
+    if (visionProvider !== "local" && visionProvider !== "gemini") {
       throw new Error(
-        "AI_FREE_ONLY=true but VISUAL_EMBEDDING_PROVIDER is not 'local'. " +
+        "AI_FREE_ONLY=true but VISUAL_EMBEDDING_PROVIDER is not 'local' or 'gemini'. " +
           "Free mode forbids paid visual providers."
+      );
+    }
+    if (visionProvider === "gemini" && !isFreeTierEligibleVisualModel(env)) {
+      throw new Error(
+        "AI_FREE_ONLY=true and VISUAL_EMBEDDING_PROVIDER=gemini, but the configured " +
+          "GEMINI_VISUAL_EMBEDDING_MODEL is not on the verified-Free list. " +
+          "Either remove AI_FREE_ONLY, switch to VISUAL_EMBEDDING_PROVIDER=local, " +
+          "or set GEMINI_VISUAL_EMBEDDING_MODEL to a Free-Tier eligible id."
       );
     }
   }
@@ -169,13 +219,14 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://localhost:11434"),
       ollamaTextModel:
         readString(env, "OLLAMA_TEXT_MODEL", "llama3.2:3b") ?? "llama3.2:3b",
-      textFallback: readBool(env, "AI_TEXT_FALLBACK", true),
+      textFallback: readBool(env, "AI_TEXT_FALLBACK", true)
     },
     embeddings: {
       provider: embeddingProvider,
       geminiApiKey: readString(env, "GEMINI_API_KEY"),
       geminiModel:
-        readString(env, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001") ?? "gemini-embedding-001",
+        readString(env, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001") ??
+        "gemini-embedding-001",
       // Must stay in sync with item_embeddings.embedding — migration
       // 017 narrowed the column to 1024 so Gemini and the local model
       // share one embedding space.
@@ -183,13 +234,13 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://localhost:11434"),
       ollamaEmbeddingModel:
         readString(env, "OLLAMA_EMBEDDING_MODEL", "bge-m3") ?? "bge-m3",
-      embeddingsFallback: readBool(env, "AI_EMBEDDING_FALLBACK", true),
+      embeddingsFallback: readBool(env, "AI_EMBEDDING_FALLBACK", true)
     },
     ocr: {
       provider: ocrProvider,
       ocrSpaceApiKey: readString(env, "OCR_SPACE_API_KEY"),
       ocrSpaceDailySoftLimit: readInt(env, "OCR_SPACE_DAILY_SOFT_LIMIT", 450),
-      localFallback: readBool(env, "OCR_LOCAL_FALLBACK", true),
+      localFallback: readBool(env, "OCR_LOCAL_FALLBACK", true)
     },
     ollamaForceCpu: readBool(env, "OLLAMA_FORCE_CPU", false),
     vision: {
@@ -197,8 +248,13 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       clipModel:
         readString(env, "VISUAL_EMBEDDING_MODEL", "Xenova/clip-vit-base-patch32") ??
         "Xenova/clip-vit-base-patch32",
+      geminiVisualModel:
+        readString(env, "GEMINI_VISUAL_EMBEDDING_MODEL", "gemini-embedding-2") ??
+        "gemini-embedding-2",
+      geminiVisualDimensions: readInt(env, "GEMINI_VISUAL_EMBEDDING_DIMENSIONS", 512)
     },
     understanding: {
+      imageDescriptionProvider,
       localImageModel:
         readString(env, "LOCAL_IMAGE_DESCRIPTION_MODEL", "Xenova/vit-gpt2-image-captioning") ??
         "Xenova/vit-gpt2-image-captioning",
@@ -206,8 +262,28 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       tldrProvider,
       tldrMaxLength: readInt(env, "TLDR_MAX_LENGTH", 240),
       tldrMinTextLength: readInt(env, "AI_TLDR_MIN_TEXT_LENGTH", 160)
-    },
+    }
   };
 
   return config;
+}
+
+/**
+ * Conservative allow-list of Gemini visual-embedding models
+ * verified to be available on the Free Tier at the time of this
+ * file's last review. Add new ids here ONLY after confirming the
+ * model is on the Free Tier via the Google AI Studio model
+ * catalog — silent drift to a paid model is a billing incident.
+ */
+const FREE_TIER_VISUAL_MODELS = new Set<string>([
+  // The Google AI Studio docs do not list a multimodal-embedding
+  // model on the Free Tier as of the file date. Keep the entry
+  // empty so the config validator always refuses until a Free-Tier
+  // eligible model is confirmed.
+]);
+
+function isFreeTierEligibleVisualModel(env: NodeJS.ProcessEnv): boolean {
+  const m = readString(env, "GEMINI_VISUAL_EMBEDDING_MODEL", "");
+  if (!m) return false;
+  return FREE_TIER_VISUAL_MODELS.has(m);
 }

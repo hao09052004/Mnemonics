@@ -8,27 +8,28 @@
  */
 
 import { loadAiConfig, type AiConfig } from "./ai-config.js";
+import { buildGeminiClient, type GeminiClient } from "./gemini-client.js";
 import { buildTextProvider, type TextProvider } from "./providers/text/index.js";
 import {
   buildEmbeddingProvider,
-  type EmbeddingProvider,
+  type EmbeddingProvider
 } from "./providers/embeddings/index.js";
 import {
   buildOcrProvider,
   recognizeWithFallback,
   type OcrProvider,
   type OcrInput,
-  type OcrResult,
+  type OcrResult
 } from "./providers/ocr/index.js";
 import { buildVisualProvider, type VisualProvider } from "./providers/vision/index.js";
 import {
   buildUnderstandingProviders,
-  type UnderstandingProviders,
+  type UnderstandingProviders
 } from "./providers/understanding/index.js";
 import {
   MemoryCache,
   createMemoryCache,
-  type CacheStore,
+  type CacheStore
 } from "./cache.js";
 import { contentHash } from "./types.js";
 
@@ -76,18 +77,25 @@ export interface AiHealthSnapshot {
 export async function createAiService(opts?: {
   config?: AiConfig;
   ocrFallback?: OcrProvider;
+  geminiClient?: GeminiClient;
 }): Promise<AiService> {
   const config = opts?.config ?? loadAiConfig();
-  const text = buildTextProvider(config);
-  const embeddings = buildEmbeddingProvider(config);
-  const primaryOcr = buildOcrProvider(config);
+  // One Gemini client per process. Reusing a single client means
+  // the concurrency cap, RPM pacer, and circuit breaker count
+  // every Gemini call — text, embeddings, OCR, image, TLDR,
+  // visual — together, so a flood of capture jobs cannot
+  // stampede the Free Tier from multiple call sites at once.
+  const geminiClient = opts?.geminiClient ?? buildGeminiClient();
+  const text = buildTextProvider(config, geminiClient);
+  const embeddings = buildEmbeddingProvider(config, geminiClient);
+  const primaryOcr = buildOcrProvider(config, undefined, geminiClient);
   const fallbackOcr =
     opts?.ocrFallback ??
     (primaryOcr.info().name === "tesseract"
       ? primaryOcr
       : new (await import("./providers/ocr/index.js")).TesseractOcrProvider());
-  const visual = buildVisualProvider(config);
-  const understanding = buildUnderstandingProviders({ config });
+  const visual = buildVisualProvider(config, geminiClient);
+  const understanding = buildUnderstandingProviders({ config, geminiClient });
 
   const tagCache = createMemoryCache<string[]>({ defaultTtlMs: 6 * 60 * 60 * 1000 });
   const summaryCache = createMemoryCache<string>({ defaultTtlMs: 6 * 60 * 60 * 1000 });

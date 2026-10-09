@@ -15,17 +15,27 @@
  *   - gemini primary   → fallback Ollama (then Heuristic on Ollama fail)
  *   - ollama primary   → fallback Heuristic (no further local option)
  *   - heuristic primary → no fallback (it's already the floor)
+ *
+ * The shared Gemini HTTP client is built once per process and reused
+ * for every Gemini call (text, embedding, OCR, image, TLDR). Pass
+ * `client` to inject a pre-built client for tests; otherwise the
+ * factory builds one from env via {@link buildGeminiClient}.
  */
 
 import type { AiConfig } from "../../ai-config.js";
+import { buildGeminiClient, type GeminiClient } from "../../gemini-client.js";
 import type { TextProvider } from "./types.js";
 import { GeminiTextProvider } from "./gemini.js";
 import { OllamaTextProvider } from "./ollama.js";
 import { HeuristicTextProvider } from "./heuristic.js";
 import { FallingBackTextProvider } from "./fallback.js";
 
-export function buildTextProvider(config: AiConfig): TextProvider {
-  const primary = pickPrimary(config);
+export function buildTextProvider(
+  config: AiConfig,
+  client?: GeminiClient
+): TextProvider {
+  const geminiClient = client ?? buildGeminiClient();
+  const primary = pickPrimary(config, geminiClient);
   if (!config.text.textFallback || primary.info().name === "heuristic") {
     return primary;
   }
@@ -34,7 +44,7 @@ export function buildTextProvider(config: AiConfig): TextProvider {
   return new FallingBackTextProvider(primary, fallback);
 }
 
-function pickPrimary(config: AiConfig): TextProvider {
+function pickPrimary(config: AiConfig, geminiClient: GeminiClient): TextProvider {
   switch (config.text.provider) {
     case "gemini": {
       if (!config.text.geminiApiKey) {
@@ -51,13 +61,17 @@ function pickPrimary(config: AiConfig): TextProvider {
         );
         return new HeuristicTextProvider();
       }
-      return new GeminiTextProvider(config.text.geminiApiKey, config.text.geminiModel);
+      return new GeminiTextProvider(
+        config.text.geminiApiKey,
+        config.text.geminiModel,
+        geminiClient
+      );
     }
     case "ollama": {
       return new OllamaTextProvider(
         config.text.ollamaBaseUrl ?? "http://localhost:11434",
         config.text.ollamaTextModel,
-        config.ollamaForceCpu,
+        config.ollamaForceCpu
       );
     }
     case "heuristic":
@@ -79,7 +93,7 @@ function pickFallback(
     return new OllamaTextProvider(
       config.text.ollamaBaseUrl ?? "http://localhost:11434",
       config.text.ollamaTextModel,
-      config.ollamaForceCpu,
+      config.ollamaForceCpu
     );
   }
   if (primaryName === "ollama") {

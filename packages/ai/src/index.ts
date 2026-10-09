@@ -67,3 +67,27 @@ export {
   buildUnderstandingProviders,
   type UnderstandingProviders
 } from "./providers/understanding/index.js";
+
+/**
+ * Centralised Gemini HTTP client. One client per process, shared by
+ * every Gemini provider (text, embeddings, OCR, image, TLDR, visual).
+ * The shared client owns timeout, retry, rate-limit, concurrency,
+ * and circuit-breaker behaviour so individual providers stay small.
+ */
+export {
+  GeminiClient,
+  GeminiCircuitOpenError,
+  buildGeminiClient,
+  type GeminiCallRequest,
+  type GeminiCallTelemetry,
+  type GeminiClientOptions,
+  type GeminiTask,
+  type GeminiTelemetryListener
+} from "./gemini-client.js";
+
+export {
+  UserAiQuota,
+  getDefaultUserAiQuota,
+  setDefaultUserAiQuota,
+  type UserAiQuotaOptions
+} from "./user-quota.js";
