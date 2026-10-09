@@ -740,6 +740,11 @@ function renderCard(item) {
   const excerptBlock = (variant !== 'highlight' && excerpt)
     ? `<p>${escapeHtml(excerpt)}</p>` : '';
 
+  // M7 — explainability pill. One line, no expand (popup width
+  // is constrained). Mirrors the web pill text.
+  const explanationBlock = item.explanation
+    ? `<div class="mnx-card__explainability"><span>Why this matched</span></div>` : '';
+
   const meta = (variant !== 'highlight')
     ? `<div class="mnx-card__meta"><span>${escapeHtml(sourceLabel(item))}</span>${tagBlock}</div>` : '';
 
@@ -774,6 +779,7 @@ function renderCard(item) {
     </div>
       <h3>${highlightTitle}</h3>
       ${excerptBlock}
+      ${explanationBlock}
       ${meta}
     </div>
   </article>`;
