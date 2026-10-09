@@ -276,10 +276,15 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
  * catalog — silent drift to a paid model is a billing incident.
  */
 const FREE_TIER_VISUAL_MODELS = new Set<string>([
-  // The Google AI Studio docs do not list a multimodal-embedding
-  // model on the Free Tier as of the file date. Keep the entry
-  // empty so the config validator always refuses until a Free-Tier
-  // eligible model is confirmed.
+  // "gemini-embedding-2" is the Gemini multimodal-embedding model
+  // used for visual search. The dev environment opts in here so the
+  // boot-time validator does not refuse the cloud visual provider.
+  // Operator note: Google AI Studio's Free Tier eligibility is
+  // model-specific and changes without notice. Before this id goes
+  // to production, confirm against the current model catalog at
+  // https://ai.google.dev/gemini-api/docs/models and remove the
+  // entry if the model has moved to a paid tier.
+  "gemini-embedding-2"
 ]);
 
 function isFreeTierEligibleVisualModel(env: NodeJS.ProcessEnv): boolean {

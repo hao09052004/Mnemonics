@@ -37,6 +37,10 @@ dist/
 .next/
 out/
 
+# Tesseract.js downloads the language training data on first
+# use. We never want these large blobs in git history.
+*.traineddata
+
 # Generated
 .turbo/
 
