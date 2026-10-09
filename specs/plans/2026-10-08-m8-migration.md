@@ -26,7 +26,7 @@ now reads the target model from the job payload.
    (M1 contract) is preserved.
 3. Migration `024_embedding_model_migration.sql` adds
    the function and a partial index on
-   `(user_id, embedding_model)`.
+   `(item_id, model)`.
 
 **Tech Stack:** TypeScript 5.4, PostgreSQL 15, no new
 dependencies.
@@ -244,7 +244,9 @@ git commit -m "feat(m8): re_embed_user count helper"
     of `ready` items for the user whose
     `embedding_model` differs from `target_model`.
   - A partial index on
-    `(user_id, embedding_model)` on `item_embeddings`.
+    `(item_id, model)` on `item_embeddings` (the
+    `item_embeddings` table has no `user_id` column —
+    the user is reached via the `items` join).
 
 - [ ] **Step 1:** Create the migration file:
 
@@ -266,8 +268,10 @@ git commit -m "feat(m8): re_embed_user count helper"
 --      per item with `targetEmbeddingModel` in the
 --      payload. The orchestration is a deployment runbook,
 --      not in this migration.
---   2. A partial index on `(user_id, embedding_model)` on
---      `item_embeddings` so the count and the batch can
+--   2. A partial index on `(item_id, model)` on
+--      `item_embeddings` (`item_embeddings` has no
+--      `user_id` column — user is reached via the
+--      `items` join) so the count and the batch can
 --      use the same scan.
 
 -- 1. The function.
@@ -298,10 +302,15 @@ COMMENT ON FUNCTION re_embed_user(uuid, text) IS
 
 -- 2. Partial index. The planner uses this for the count
 --    above and for the in-process batch that the
---    orchestration step runs.
-CREATE INDEX IF NOT EXISTS item_embeddings_user_model_idx
-  ON item_embeddings (user_id, embedding_model)
-  WHERE embedding_model IS NOT NULL;
+--    orchestration step runs. The columns on
+--    `item_embeddings` are `item_id` (not `user_id` —
+--    the user is reached via the `items` join) and
+--    `model` (not `embedding_model` — see migration 022
+--    which added the `embedding_model` column on
+--    `item_edges` and `content_clusters` only).
+CREATE INDEX IF NOT EXISTS item_embeddings_item_model_idx
+  ON item_embeddings (item_id, model)
+  WHERE model IS NOT NULL;
 ```
 
 - [ ] **Step 2:** Verify the migration file is at the
@@ -619,7 +628,7 @@ preserved.
 
 A new migration `024_embedding_model_migration.sql`
 adds the function and a partial index on
-`(user_id, embedding_model)`.
+`(item_id, model)`.
 
 ## How to roll a user from one model to another
 

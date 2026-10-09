@@ -574,8 +574,10 @@ because it depends on a deployment runbook.)
 adds:
 
 - A `re_embed_user` SQL function.
-- A partial index on `(user_id, embedding_model)` on
-  `item_embeddings` so the `re_embed_user` function's
+- A partial index on `(item_id, model)` on
+  `item_embeddings` (`item_embeddings` has no
+  `user_id` column — user is reached via the `items`
+  join) so the `re_embed_user` function's
   count and the in-process re-embed batch can use the
   same scan.
 

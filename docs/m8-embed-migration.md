@@ -29,7 +29,7 @@ preserved.
 
 A new migration `024_embedding_model_migration.sql`
 adds the function and a partial index on
-`(user_id, embedding_model)`.
+`(item_id, model)`.
 
 ## How to roll a user from one model to another
 

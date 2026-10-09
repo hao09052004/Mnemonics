@@ -15,9 +15,12 @@
 --      per item with `targetEmbeddingModel` in the
 --      payload. The orchestration is a deployment runbook,
 --      not in this migration.
---   2. A partial index on `(user_id, embedding_model)` on
---      `item_embeddings` so the count and the batch can
---      use the same scan.
+--   2. A partial index on `(item_id, model)` on
+--      `item_embeddings` (the `item_embeddings` schema
+--      has no `user_id` column — the user is reached
+--      through `item_embeddings.item_id → items.id`)
+--      so the count and the batch can use the same
+--      scan.
 
 -- 1. The function.
 CREATE OR REPLACE FUNCTION re_embed_user(
@@ -47,11 +50,12 @@ COMMENT ON FUNCTION re_embed_user(uuid, text) IS
 
 -- 2. Partial index. The planner uses this for the count
 --    above and for the in-process batch that the
---    orchestration step runs. The column on
---    `item_embeddings` is `model` (the table is the
---    `embedding_*` family, the column is short for
---    "embedding model" — see migration 022 which added
---    the `embedding_model` column on `item_edges` only).
-CREATE INDEX IF NOT EXISTS item_embeddings_user_model_idx
-  ON item_embeddings (user_id, model)
+--    orchestration step runs. The columns on
+--    `item_embeddings` are `item_id` (not `user_id` —
+--    the user is reached via the `items` join) and
+--    `model` (not `embedding_model` — see migration 022
+--    which added the `embedding_model` column on
+--    `item_edges` and `content_clusters` only).
+CREATE INDEX IF NOT EXISTS item_embeddings_item_model_idx
+  ON item_embeddings (item_id, model)
   WHERE model IS NOT NULL;
