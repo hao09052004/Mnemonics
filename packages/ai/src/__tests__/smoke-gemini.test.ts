@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { GeminiTextProvider } from '../providers/text/gemini.js';
+import { GeminiClient } from '../gemini-client.js';
 
 const runLive = process.env.SMOKE_GEMINI === '1';
 
@@ -16,7 +17,7 @@ const runLive = process.env.SMOKE_GEMINI === '1';
 
   it('returns real JSON tags for a sample', async () => {
     if (!apiKey) throw new Error('GEMINI_API_KEY must be set for this smoke test');
-    const provider = new GeminiTextProvider(apiKey, model);
+    const provider = new GeminiTextProvider(apiKey, model, new GeminiClient());
     const tags = await provider.generateTags(
       'Captured a recipe for sourdough bread: 500g flour, 350g water, 100g starter, 10g salt. Mix, bulk ferment 4-6 hours, shape, cold proof overnight, bake at 230C in a dutch oven.'
     );
