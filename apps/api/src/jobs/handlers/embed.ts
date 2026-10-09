@@ -138,7 +138,19 @@ export class EmbedHandler {
 
       const embedding = await this.ai.embeddings.embedOne(textToEmbed);
       const providerInfo2 = this.ai.embeddings.info();
-      const version = currentEmbeddingVersion(providerInfo2);
+      // M8 — read the target embedding model from the job
+      // payload when present. The default path (no payload
+      // field) is unchanged: the env-driven provider's
+      // model is used. A future orchestration step enqueues
+      // one `embed` job per item with
+      // `targetEmbeddingModel` set; the handler honours it
+      // here without mutating the env or the provider.
+      const targetModel =
+        typeof job.payload?.targetEmbeddingModel === "string" &&
+        (job.payload.targetEmbeddingModel as string).length > 0
+          ? (job.payload.targetEmbeddingModel as string)
+          : providerInfo2.model;
+      const version = `${currentEmbeddingVersion(providerInfo2)}|target=${targetModel}`;
 
       // 3. Save embedding to database. The version fingerprint is
       //    computed from the live provider info — never a hard-coded
@@ -149,9 +161,16 @@ export class EmbedHandler {
         job.itemId,
         job.userId,
         embedding,
-        providerInfo2.model,
+        targetModel,
         { embeddingVersion: version, embeddingKind: "real" }
       );
+
+      if (targetModel !== providerInfo2.model) {
+        console.log(
+          `[EmbedHandler] Re-embedded item ${job.itemId} for user ${job.userId} ` +
+            `with model ${targetModel} (default would have been ${providerInfo2.model})`
+        );
+      }
 
       // 3b. Document items: also embed every chunk so a search
       //     for a phrase on page 80 of a 200-page PDF can
