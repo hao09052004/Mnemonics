@@ -36,7 +36,7 @@ BEGIN
     JOIN item_embeddings ie ON ie.item_id = i.id
    WHERE i.user_id = p_user_id
      AND i.status = 'ready'
-     AND ie.embedding_model IS DISTINCT FROM p_target_model;
+     AND ie.model IS DISTINCT FROM p_target_model;
 
   RETURN result;
 END;
@@ -47,7 +47,11 @@ COMMENT ON FUNCTION re_embed_user(uuid, text) IS
 
 -- 2. Partial index. The planner uses this for the count
 --    above and for the in-process batch that the
---    orchestration step runs.
+--    orchestration step runs. The column on
+--    `item_embeddings` is `model` (the table is the
+--    `embedding_*` family, the column is short for
+--    "embedding model" — see migration 022 which added
+--    the `embedding_model` column on `item_edges` only).
 CREATE INDEX IF NOT EXISTS item_embeddings_user_model_idx
-  ON item_embeddings (user_id, embedding_model)
-  WHERE embedding_model IS NOT NULL;
+  ON item_embeddings (user_id, model)
+  WHERE model IS NOT NULL;
