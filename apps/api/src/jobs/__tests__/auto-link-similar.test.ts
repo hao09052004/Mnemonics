@@ -164,4 +164,45 @@ describe('autoLinkSimilarItems', () => {
     expect(pool.inserts[0].sql).toMatch(/ON CONFLICT \(user_id, from_item_id, to_item_id, edge_type\)/);
     expect(pool.inserts[0].sql).toMatch(/DO UPDATE SET/);
   });
+
+  // M7 — explainability at the auto-link boundary.
+  describe('M7 explainability', () => {
+    it('omits the explanation field when SEARCH_EXPLAINABILITY_ENABLED is unset', async () => {
+      delete process.env.SEARCH_EXPLAINABILITY_ENABLED;
+      pool.responses = [
+        { rows: [makeSourceRow()] },
+        { rows: [{ id: '00000000-0000-4000-8000-000000000020', similarity: 0.85 }] }
+      ];
+      const result = await autoLinkSimilarItems(pool as unknown as never, USER_ID, ITEM_ID);
+      expect(result[0].explanation).toBeUndefined();
+    });
+
+    it('attaches explanation.weight when SEARCH_EXPLAINABILITY_ENABLED=true', async () => {
+      process.env.SEARCH_EXPLAINABILITY_ENABLED = 'true';
+      try {
+        pool.responses = [
+          { rows: [makeSourceRow()] },
+          { rows: [{ id: '00000000-0000-4000-8000-000000000020', similarity: 0.85 }] }
+        ];
+        const result = await autoLinkSimilarItems(pool as unknown as never, USER_ID, ITEM_ID);
+        expect(result[0].explanation).toEqual({ weight: 0.85 });
+      } finally {
+        delete process.env.SEARCH_EXPLAINABILITY_ENABLED;
+      }
+    });
+
+    it('clamps the explanation weight into [0, 1]', async () => {
+      process.env.SEARCH_EXPLAINABILITY_ENABLED = 'true';
+      try {
+        pool.responses = [
+          { rows: [makeSourceRow()] },
+          { rows: [{ id: '00000000-0000-4000-8000-000000000020', similarity: 1.4 }] }
+        ];
+        const result = await autoLinkSimilarItems(pool as unknown as never, USER_ID, ITEM_ID);
+        expect(result[0].explanation).toEqual({ weight: 1 });
+      } finally {
+        delete process.env.SEARCH_EXPLAINABILITY_ENABLED;
+      }
+    });
+  });
 });

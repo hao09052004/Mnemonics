@@ -32,6 +32,12 @@ export interface SimilarItem {
   similarity: number;
   embeddingModel: string;
   embeddingVersion: string;
+  /** M7 — present only when SEARCH_EXPLAINABILITY_ENABLED=true.
+   *  Related items have no lexical / chunk leg; the only signal
+   *  is the edge weight, which is the per-edge cosine. */
+  explanation?: {
+    weight: number;
+  };
 }
 
 const DEFAULT_THRESHOLD = 0.78;
@@ -136,12 +142,17 @@ export async function autoLinkSimilarItems(
     );
   }
 
-  return result.rows.map((row) => ({
-    id: row.id,
-    similarity: Number(row.similarity),
-    embeddingModel: source.model,
-    embeddingVersion: source.version,
-  }));
+  const explainabilityEnabled = process.env.SEARCH_EXPLAINABILITY_ENABLED === 'true';
+  return result.rows.map((row) => {
+    const weight = Math.max(0, Math.min(1, Number(row.similarity)));
+    return {
+      id: row.id,
+      similarity: weight,
+      embeddingModel: source.model,
+      embeddingVersion: source.version,
+      ...(explainabilityEnabled ? { explanation: { weight } } : {})
+    };
+  });
 }
 
 /**
