@@ -268,12 +268,6 @@ export function DashboardPage({ api }: DashboardPageProps) {
     else if (page === 'Rediscover') navigate('/app/rediscover');
     else if (page === 'Reminders') navigate('/app/reminders');
     else if (page === 'Settings') navigate('/app/settings');
-    else if (page === 'Favorites') {
-      // Surface the dedicated favorites page so the heart on any card
-      // has a place to live. The page hits `?favorite=true` server-side,
-      // matching the extension's favourites tab.
-      navigate('/app/favorites');
-    }
   };
 
   const handleCaptureAction = (a: CaptureAction) => {

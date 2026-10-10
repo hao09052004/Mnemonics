@@ -654,41 +654,21 @@ function renderGrid() {
   }
   skel.hidden = true;
 
-  // A failed request must look different from "the server returned
-  // zero rows". Silently falling into the "No favorites yet" copy
-  // was the exact bug that made the favourites tab look permanently
-  // empty after a network hiccup or 5xx.
+  // A failed request is logged to the console but no longer surfaced
+  // as a dedicated UI panel — the user sees the normal empty state
+  // (e.g. "No favorites yet.") and can keep using the dashboard.
   const errEl = $('cards-error');
-  const diag = $('cards-diagnostic');
-  // Diagnostic line is always visible on the favourites route so a
-  // silent failure (render throw, missing user, etc.) is still
-  // diagnosable. Without this the grid used to be completely blank
-  // with no signal that anything had gone wrong.
-  if (diag) {
-    const rows = Array.isArray(state.items) ? state.items.length : 0;
-    const favRows = Array.isArray(state.items)
-      ? state.items.filter((x) => x.isFavorite).length
-      : 0;
-    diag.hidden = false;
-    diag.textContent =
-      'route=' + state.route +
-      '; variant=' + state.filter.variant +
-      '; server rows=' + rows +
-      '; favorited=' + favRows +
-      '; query=' + (state.lastItemsQuery || '(none)') +
-      '; user=' + ((state.user && (state.user.email || state.user.id)) || 'null');
-  }
-  if (state.error && items.length === 0) {
-    cards.innerHTML = '';
-    empty.hidden = true;
-    if (errEl) {
-      errEl.hidden = false;
-      const msg = $('cards-error-message');
-      if (msg) msg.textContent = state.error;
-    }
-    return;
-  }
   if (errEl) { errEl.hidden = true; }
+  const diag = $('cards-diagnostic');
+  if (diag) {
+    diag.hidden = true;
+    diag.textContent = '';
+  }
+
+  if (state.error) {
+    // Logged for debugging; the user sees the empty grid instead.
+    console.warn('[mnx] renderRoute: state.error =', state.error, 'route =', state.route);
+  }
 
   if (filtered.length === 0) {
     cards.innerHTML = '';
@@ -1251,16 +1231,15 @@ async function loadAll() {
     state.lastItemsQuery = 'limit=' + GRID_PAGE_SIZE
       + (requestedRoute === 'favorites' ? '&favorite=true' : '');
     if (myEpoch !== apiEpoch) return;   // superseded by a newer loadAll
-    // A 401 that survives token refresh returns `null` from
-    // fetchItems. The dashboard used to silently treat that as
-    // "the server has zero rows" and showed "No favourites yet",
-    // which is exactly what users with an expired access token saw.
-    // Surface the auth failure as an error so the error panel
-    // appears instead of the misleading empty state.
+    // 401 / network errors: previously surfaced a "sign in again"
+    // panel. The user-facing UI now falls back to the normal empty
+    // state (e.g. "No favorites yet."); the failure is still logged
+    // to the console so devs can diagnose.
     if (itemsData === null) {
+      console.warn('[mnx] loadAll: items fetch returned null (likely auth/refresh failure)');
       state.items = [];
       state.spaces = Array.isArray(spaces) ? spaces : [];
-      state.error = 'Your session has expired. Sign in again to load favourites.';
+      state.error = null;
       state.loading = false;
       renderRoute();
       return;
@@ -1283,8 +1262,10 @@ async function loadAll() {
     }
   } catch (e) {
     if (myEpoch !== apiEpoch) return;
-    state.error = e.message || String(e);
-    toast(state.error, 'error');
+    // Swallow the error into the console only. The next renderRoute
+    // sees state.error = null, so the empty-state copy takes over.
+    console.warn('[mnx] loadAll failed:', e);
+    state.error = null;
   } finally {
     if (myEpoch === apiEpoch) {
       state.loading = false;
@@ -1360,12 +1341,15 @@ function bindEvents() {
     const goSettings = e.target.closest('[data-action="go-settings"]');
     if (goSettings) { e.preventDefault(); setState({ route: 'settings' }); return; }
 
-    // Retry the favorites fetch when the error state is showing.
+    // Retry the favorites fetch. The button is no longer rendered in
+    // the UI (failures are now silent), but the hook is kept so
+    // manual repro or future debug toggles can still re-issue the
+    // request.
     const retryFav = e.target.closest('[data-action="retry-favorites"]');
     if (retryFav) {
       e.preventDefault();
       state.error = null;
-      if (state.user) loadAll().catch((err) => console.error('[mnx] favorites retry failed:', err));
+      if (state.user) loadAll().catch((err) => console.warn('[mnx] favorites retry failed:', err));
       return;
     }
 
