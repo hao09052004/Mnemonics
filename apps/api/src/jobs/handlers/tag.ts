@@ -83,6 +83,7 @@ export class TagHandler {
     title: string;
     rawText?: string | null;
     ocrText?: string | null;
+    userId?: string;
   }): Promise<string[]> {
     const textToTag = [
       item.title,
@@ -96,14 +97,24 @@ export class TagHandler {
       return [];
     }
 
-    const info = this.ai.text.info();
-    if (info.name !== "noop") {
-      try {
-        const tags = await this.ai.text.generateTags(textToTag);
-        if (tags.length > 0) return tags;
-      } catch (error) {
-        console.warn("[TagHandler] text provider tagging failed, falling back to heuristic:", error);
+    // Per-user AI quota: charge the user before invoking the
+    // primary text provider. If the user is at the daily cap, the
+    // quota throws and we fall through to the deterministic
+    // heuristic — the memory is preserved and the pipeline can
+    // still complete.
+    try {
+      const info = this.ai.text.info();
+      if (info.name !== "noop") {
+        const tagsJson = await this.ai.tagsForUser(item.userId ?? null, textToTag, {
+          task: "tag"
+        });
+        const parsed = parseTagsFromText(tagsJson);
+        if (parsed.length > 0) return parsed;
       }
+    } catch (error) {
+      // Quota RATE_LIMITED or other provider error — fall through
+      // to the heuristic. The handler still completes.
+      console.warn("[TagHandler] text provider tagging failed, falling back to heuristic:", error);
     }
 
     return this.extractKeywordsHeuristic(textToTag);
@@ -141,4 +152,70 @@ export class TagHandler {
       .slice(0, 5)
       .map(([word]) => word);
   }
+}
+
+/**
+ * Parse a Gemini text-tag response into a clean tag array.
+ *
+ * The provider is asked for a JSON array of tags; sometimes it
+ * wraps the array in a code fence, adds prose around it, or
+ * returns a comma-separated list when JSON mode is off. We accept
+ * all three shapes and return a kebab-cased, deduped, ≤ 5-tag list.
+ */
+function parseTagsFromText(raw: string): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  // 1) Direct JSON array.
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) return normalizeTags(parsed);
+  } catch {
+    // not JSON — fall through
+  }
+  // 2) Code-fenced JSON (```json [...] ``` or ```[...]```)
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) {
+    try {
+      const parsed = JSON.parse(fence[1].trim());
+      if (Array.isArray(parsed)) return normalizeTags(parsed);
+    } catch {
+      // fall through
+    }
+  }
+  // 3) Embedded JSON array inside prose
+  const embedded = trimmed.match(/\[[^\[\]]*\]/);
+  if (embedded) {
+    try {
+      const parsed = JSON.parse(embedded[0]);
+      if (Array.isArray(parsed)) return normalizeTags(parsed);
+    } catch {
+      // fall through
+    }
+  }
+  // 4) Comma- or newline-separated list as a last resort
+  const items = trimmed
+    .split(/[,\n]/)
+    .map((s) => s.trim().replace(/^[-*]\s*/, "").replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+  return normalizeTags(items);
+}
+
+function normalizeTags(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of items) {
+    if (typeof raw !== "string") continue;
+    const t = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .trim()
+      .replace(/\s+/g, "-")
+      .slice(0, 32);
+    if (t.length < 2) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= 5) break;
+  }
+  return out;
 }

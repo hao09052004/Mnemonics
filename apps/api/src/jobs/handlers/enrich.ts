@@ -27,6 +27,7 @@ import type { ImageStorage } from '../../storage.js';
 import type { AiService } from '@mnemonics/ai';
 import { DeterministicTldrProvider } from '@mnemonics/ai/providers/understanding';
 import { prepareForOcr } from '../image-prep.js';
+import { getDefaultUserAiQuota } from '@mnemonics/ai';
 
 export interface UnderstandingHandlerDeps {
   queue: JobQueue;
@@ -144,6 +145,12 @@ export class UnderstandingHandler {
     }
 
     try {
+      // Per-user AI quota. Charge one slot for the image-description
+      // call. Local Transformers.js (the "local" provider) does not
+      // hit Gemini, so a quota throw is impossible there; we still
+      // charge to keep counters meaningful and to make a future
+      // switch to the cloud provider immediately rate-limited.
+      getDefaultUserAiQuota().record(job.userId, 'caption');
       const caption = await this.deps.ai.understanding.imageDescription.describe({
         bytes,
         mimeType: guessMime(storageKey)
@@ -206,6 +213,8 @@ export class UnderstandingHandler {
     }
 
     try {
+      // Per-user AI quota. Charge one slot for the TLDR call.
+      getDefaultUserAiQuota().record(job.userId, 'tldr');
       const result = await this.deps.ai.understanding.tldr.summarize({
         title,
         caption,

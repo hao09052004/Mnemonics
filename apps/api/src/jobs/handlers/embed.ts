@@ -136,7 +136,29 @@ export class EmbedHandler {
         return;
       }
 
-      const embedding = await this.ai.embeddings.embedOne(textToEmbed);
+      // Per-user AI quota. Throws RATE_LIMITED if the user is at the
+      // daily cap. The handler still completes (item becomes ready
+      // with no vector) so the memory stays searchable lexically.
+      let embedding: number[] | null;
+      try {
+        embedding = await this.ai.embedForUser(job.userId, textToEmbed, {
+          task: "embed"
+        });
+      } catch (err) {
+        const code = err instanceof Error ? err.message : "UNKNOWN";
+        console.warn(
+          `[EmbedHandler] embedding provider failed for item ${job.itemId} (${code}); ` +
+            `skipping embedding. Search stays lexical-only.`
+        );
+        await this.queue.markCompleted(job.id);
+        await this.markReadyIfComplete(job);
+        return;
+      }
+      if (!embedding) {
+        await this.queue.markCompleted(job.id);
+        await this.markReadyIfComplete(job);
+        return;
+      }
       const providerInfo2 = this.ai.embeddings.info();
       // M8 — read the target embedding model from the job
       // payload when present. The default path (no payload
@@ -307,19 +329,44 @@ export class EmbedHandler {
     const chunks = chunkDocument({ text: rawText, pageCount });
     if (chunks.length === 0) return;
 
-    const providerInfo = this.ai.embeddings.info();
-    const vector = await Promise.all(
-      chunks.map((c) => this.ai.embeddings.embedOne(c.content))
-    );
+    // Bounded concurrency: 1 in flight at a time. The shared Gemini
+    // client's RPM pacer enforces the global cap, but a 200-page PDF
+    // can have 50+ chunks; an unbounded Promise.all would queue 50
+    // concurrent awaits and double-count against the concurrency
+    // semaphore. One at a time keeps memory pressure and the RPM
+    // pacer happy.
+    const vectors: (number[] | null)[] = [];
+    for (const c of chunks) {
+      try {
+        const v = await this.ai.embedForUser(userId, c.content, {
+          task: "embed-chunk"
+        });
+        vectors.push(v);
+      } catch (err) {
+        const code = err instanceof Error ? err.message : "UNKNOWN";
+        console.warn(
+          `[EmbedHandler] chunk embedding failed (${code.slice(0, 120)}); ` +
+            `stopping chunk embed for item ${itemId} at index ${c.index}.`
+        );
+        // Push null for the failed chunk; the upsert below skips null.
+        vectors.push(null);
+        // Stop on quota exhaustion — there's no point hammering a
+        // closed gate. The next re-embed job (or operator retry)
+        // will resume.
+        if (code.toLowerCase().includes("rate_limit")) break;
+      }
+    }
 
     // Upsert each chunk. The (item_id, content_hash) uniqueness
     // constraint means re-runs of this method are safe: an
     // unchanged chunk hits ON CONFLICT (item_id, content_hash)
     // and is not duplicated. A chunk that changed (its hash
     // differs from the stored one) is updated in place.
+    const providerInfo = this.ai.embeddings.info();
     for (let i = 0; i < chunks.length; i++) {
       const c = chunks[i];
-      const v = vector[i];
+      const v = vectors[i];
+      if (!v) continue; // null vector → skip; the chunk is left for a later re-embed
       await this.pool.query(
         `INSERT INTO item_document_chunks
           (user_id, item_id, chunk_index, page_start, page_end,
@@ -436,12 +483,24 @@ export class EmbedHandler {
 }
 
 /**
- * Build a short, greppable version string for a freshly-written
- * embedding. The format is intentionally human-readable so a
- * `psql` query can answer "what model wrote this row?" without
- * joining a fingerprint table.
+ * Build a version string for the embedding written by the current
+ * provider. The string is persisted in `item_embeddings.embedding_version`
+ * and used by `embeddings_compatible()` in SQL to guard similarity joins.
+ *
+ * The version MUST change when:
+ *   - The provider model changes (different vectors)
+ *   - The input preprocessing changes (different text)
+ *   - The pipeline changes (different chunking, different captions)
+ *
+ * The version MUST NOT change merely because time passes. Using a date
+ * string here was the exact bug that made memories embedded on different
+ * days fail the `embeddings_compatible()` guard and never become related.
+ *
+ * When the operator wants to change any of the above, they increment
+ * the PIPELINE_VERSION constant. A new version creates a new embedding
+ * space; old embeddings stay searchable via their existing space.
  */
+const PIPELINE_VERSION = "v1";
 function currentEmbeddingVersion(info: { name: string; model: string }): string {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  return `${info.name}-${info.model}-${date}`;
+  return `${info.name}-${info.model}-${PIPELINE_VERSION}`;
 }

@@ -15,6 +15,9 @@ function createNoopAi() {
     summaryCache: { get: () => undefined, set: () => undefined },
     embeddingCache: { get: () => undefined, set: () => undefined },
     ocrCache: { get: () => undefined, set: () => undefined },
+    textForUser: async () => '',
+    embedForUser: async () => [],
+    tagsForUser: async () => '[]',
     health: async () => ({
       config: { freeOnly: true, demoMode: true, text: 'noop', embeddings: 'noop', ocr: 'noop', visual: 'noop' },
       textReady: false, embeddingsReady: false, ocrReady: false, visualReady: false, notes: []
@@ -30,6 +33,7 @@ function createMockAi(vec: number[]) {
     embedOne: async () => vec,
     embedMany: async () => [vec]
   };
+  ai.embedForUser = async () => vec;
   return ai;
 }
 

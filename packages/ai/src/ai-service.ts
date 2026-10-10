@@ -32,6 +32,8 @@ import {
   type CacheStore
 } from "./cache.js";
 import { contentHash } from "./types.js";
+import { getDefaultUserAiQuota } from "./user-quota.js";
+import { ProviderError } from "./types.js";
 
 export interface AiService {
   readonly config: AiConfig;
@@ -43,6 +45,34 @@ export interface AiService {
   readonly understanding: UnderstandingProviders;
   /** Run OCR with primary → fallback chain. */
   recognizeWithFallback(input: OcrInput): Promise<OcrResult>;
+  /**
+   * Quota-guarded text generation. Throws RATE_LIMITED when the
+   * user is at the daily cap. With a null userId the call
+   * proceeds without quota enforcement (e.g. for operator/CLI use).
+   */
+  textForUser(
+    userId: string | null,
+    content: string,
+    opts?: { task?: string; timeoutMs?: number; failOpen?: boolean; maxOutputTokens?: number }
+  ): Promise<string>;
+  /**
+   * Quota-guarded embedding. Returns null when the underlying
+   * provider refuses to embed (e.g. noop mode).
+   */
+  embedForUser(
+    userId: string | null,
+    text: string,
+    opts?: { task?: string; timeoutMs?: number; model?: string }
+  ): Promise<number[] | null>;
+  /**
+   * Quota-guarded tag generation. Returns the raw provider text
+   * (usually a JSON array). Callers parse it.
+   */
+  tagsForUser(
+    userId: string | null,
+    content: string,
+    opts?: { task?: string; timeoutMs?: number; maxOutputTokens?: number }
+  ): Promise<string>;
   /** Cache helpers exposed so job handlers can store derived results. */
   tagCache: CacheStore<string[]>;
   summaryCache: CacheStore<string>;
@@ -89,11 +119,17 @@ export async function createAiService(opts?: {
   const text = buildTextProvider(config, geminiClient);
   const embeddings = buildEmbeddingProvider(config, geminiClient);
   const primaryOcr = buildOcrProvider(config, undefined, geminiClient);
+  // Instantiate Tesseract fallback ONLY when the config explicitly allows it.
+  // When OCR_LOCAL_FALLBACK=false the local fallback is disabled in
+  // production so we never download the 30 MB WASM binary on startup.
   const fallbackOcr =
     opts?.ocrFallback ??
     (primaryOcr.info().name === "tesseract"
       ? primaryOcr
-      : new (await import("./providers/ocr/index.js")).TesseractOcrProvider());
+      : config.ocr.localFallback
+        ? new (await import("./providers/ocr/index.js")).TesseractOcrProvider()
+        : primaryOcr // no-op: chain will fail through to the last provider
+    );
   const visual = buildVisualProvider(config, geminiClient);
   const understanding = buildUnderstandingProviders({ config, geminiClient });
 
@@ -111,6 +147,14 @@ export async function createAiService(opts?: {
     visual,
     understanding,
     async recognizeWithFallback(input) {
+      // Per-user daily quota. The check sits OUTSIDE the cache so
+      // a throttled user still consumes their daily budget (the
+      // throw is the cost). Cached results bypass the quota because
+      // they are local — re-charging the same image OCR would
+      // double-bill the user.
+      if (input.userId) {
+        getDefaultUserAiQuota().record(input.userId, "ocr");
+      }
       const key = await contentHash([
         "ocr",
         config.ocr.provider,
@@ -123,6 +167,38 @@ export async function createAiService(opts?: {
       const out = await recognizeWithFallback(primaryOcr, fallbackOcr, input);
       ocrCache.set(key, out);
       return out;
+    },
+    /**
+     * Text generation guarded by the per-user AI quota. Callers
+     * pass `userId` to charge a slot. The base `text` provider
+     * remains quota-blind for back-compat; new code should prefer
+     * this entry point.
+     */
+    async textForUser(userId: string | null, content: string, opts?: { task?: string; timeoutMs?: number; failOpen?: boolean; maxOutputTokens?: number }): Promise<string> {
+      if (userId) getDefaultUserAiQuota().record(userId, opts?.task ?? "text");
+      return text.summarize(content, { ...(opts?.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}), failOpen: opts?.failOpen ?? true, ...(opts?.maxOutputTokens ? { maxOutputTokens: opts.maxOutputTokens } : {}), userId });
+    },
+    /**
+     * Embedding guarded by the per-user AI quota. Returns a real
+     * vector or null (when the provider says "no embedding").
+     */
+    async embedForUser(userId: string | null, text: string, opts?: { task?: string; timeoutMs?: number; model?: string }): Promise<number[] | null> {
+      if (userId) getDefaultUserAiQuota().record(userId, opts?.task ?? "embedding");
+      const out = await embeddings.embedOne(text, { ...(opts?.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}), ...(opts?.model ? { model: opts.model } : {}), userId });
+      return out ?? null;
+    },
+    /**
+     * Quota-guarded tag generation. Returns the raw provider text
+     * (usually a JSON array). Callers parse it.
+     */
+    async tagsForUser(userId: string | null, content: string, opts?: { task?: string; timeoutMs?: number; maxOutputTokens?: number }): Promise<string> {
+      if (userId) getDefaultUserAiQuota().record(userId, opts?.task ?? "tag");
+      return text.generateTags(content, {
+        ...(opts?.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+        failOpen: true,
+        ...(opts?.maxOutputTokens ? { maxOutputTokens: opts.maxOutputTokens } : {}),
+        userId
+      }).then((tags) => JSON.stringify(tags));
     },
     tagCache,
     summaryCache,

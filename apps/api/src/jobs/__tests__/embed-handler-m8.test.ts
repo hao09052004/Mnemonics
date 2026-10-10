@@ -27,6 +27,9 @@ function createAi() {
     summaryCache: { get: () => undefined, set: () => undefined },
     embeddingCache: { get: () => undefined, set: () => undefined },
     ocrCache: { get: () => undefined, set: () => undefined },
+    textForUser: async () => '',
+    embedForUser: async () => [0.1, 0.2, 0.3],
+    tagsForUser: async () => '[]',
     health: async () => ({
       config: { freeOnly: true, demoMode: true, text: 'noop', embeddings: 'gemini', ocr: 'noop', visual: 'noop' },
       textReady: false, embeddingsReady: true, ocrReady: false, visualReady: false, notes: []

@@ -19,6 +19,15 @@ import type { Pool } from 'pg';
 import { buildSearchHitExplanation } from './search-explainability.js';
 
 /**
+ * Per-process query-embedding cache. Shared across the two
+ * semantic legs so a single search issues at most one provider
+ * call (for the query). Keyed by query text + model identity so
+ * incompatible embeddings never collide. Cleared on process
+ * restart; safe to clear manually on provider rotation.
+ */
+const embeddingCache = new Map<string, number[]>();
+
+/**
  * Minimal shape of the embedding provider this service needs.
  *
  * Declared structurally rather than imported from `@mnemonics/ai`:
@@ -28,6 +37,7 @@ import { buildSearchHitExplanation } from './search-explainability.js';
  */
 export interface EmbeddingLike {
   embedOne(text: string): Promise<number[] | null>;
+  info?(): { model?: string };
 }
 
 /** Content kinds the product exposes as filters. */
@@ -193,6 +203,36 @@ export interface SearchDeps {
 }
 
 /**
+ * Resolve the query embedding ONCE and share it across every
+ * retrieval leg. Previously each leg (item-level semantic, chunk
+ * semantic) embedded the query independently — two provider calls
+ * per search, double the latency, double the daily-quota cost.
+ *
+ * The cache key is `${text}|${model}` so a different model or
+ * preprocessing version does not reuse a stale vector. A null
+ * provider or a blank query short-circuits to null.
+ */
+export interface CachedQueryEmbedding {
+  embedding: number[];
+  model: string;
+}
+async function resolveQueryEmbedding(
+  embeddings: EmbeddingLike | undefined,
+  query: string,
+  model: string
+): Promise<number[] | null> {
+  if (!embeddings || query.length === 0) return null;
+  const cached = embeddingCache.get(`${query}|${model}`);
+  if (cached) return cached;
+  const v = await embeddings.embedOne(query);
+  if (v && v.length > 0) {
+    embeddingCache.set(`${query}|${model}`, v);
+    return v;
+  }
+  return null;
+}
+
+/**
  * Run the hybrid search. Shared by `POST /api/v1/search` and by
  * Smart Space resolution.
  */
@@ -207,10 +247,23 @@ export async function runSearch(
   const limit = Math.min(Math.max(request.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const offset = Math.max(request.offset ?? 0, 0);
 
+  // Embed the query ONCE. Both the item-level semantic leg and
+  // the chunk-level semantic leg need it; previously each leg
+  // embedded independently, doubling the provider cost and
+  // doubling the daily-quota burn. The cache key includes the
+  // model so a future multi-model deployment does not reuse an
+  // incompatible vector.
+  const queryModel = deps.embeddings?.info ? String(deps.embeddings.info().model ?? '') : '';
+  const sharedQueryVector = await resolveQueryEmbedding(
+    deps.embeddings,
+    q,
+    queryModel
+  );
+
   const [lexResults, semResults, chunkResults] = await Promise.all([
     runLexicalSearch(deps.pool, userId, q, filters),
-    runSemanticSearch(deps.pool, userId, q, deps.embeddings, filters),
-    runChunkSemanticSearch(deps.pool, userId, q, deps.embeddings, filters)
+    runSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
+    runChunkSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector)
   ]);
 
   // The chunk leg produces the same shape as the item-level legs
@@ -244,14 +297,9 @@ export async function runSearch(
   // `packages/database/src/__tests__/search-rerank.test.ts` pin
   // the blend math regardless.
   const rerankEnabled = process.env.SEARCH_RERANK_ENABLED === 'true';
-  let queryEmbeddingForRerank: number[] | null = null;
-  if (rerankEnabled && q && deps.embeddings) {
-    try {
-      queryEmbeddingForRerank = (await deps.embeddings.embedOne(q)) ?? null;
-    } catch {
-      queryEmbeddingForRerank = null;
-    }
-  }
+  // Re-use the embedding that was already resolved for the
+  // semantic legs above — no second provider call.
+  const queryEmbeddingForRerank: number[] | null = rerankEnabled && q && sharedQueryVector ? sharedQueryVector : null;
   const finalHits: RankedRow[] = rerankEnabled
     ? (rerankHits(fused, { queryEmbedding: queryEmbeddingForRerank }) as RankedRow[])
     : fused;
@@ -467,14 +515,13 @@ async function runSemanticSearch(
   pool: Pool,
   userId: string,
   query: string,
-  embeddings: EmbeddingLike | undefined,
-  filters?: SearchFilters
+  filters: SearchFilters | undefined,
+  sharedQueryVector: number[] | null
 ): Promise<RankedRow[]> {
-  if (!embeddings || query.length === 0) return [];
+  if (!sharedQueryVector || sharedQueryVector.length === 0) return [];
+  const vector = sharedQueryVector;
 
   try {
-    const vector = await embeddings.embedOne(query);
-    if (!vector || vector.length === 0) return [];
 
     const result = await pool.query<Record<string, unknown>>(
       `SELECT ie.item_id AS id, i.type, i.title, i.raw_text, i.ocr_text,
@@ -556,13 +603,13 @@ async function runChunkSemanticSearch(
   pool: Pool,
   userId: string,
   query: string,
-  embeddings: EmbeddingLike | undefined,
-  filters?: SearchFilters
+  filters: SearchFilters | undefined,
+  sharedQueryVector: number[] | null
 ): Promise<RankedRow[]> {
-  if (!embeddings || query.length === 0) return [];
+  if (!sharedQueryVector || sharedQueryVector.length === 0) return [];
+  const vector = sharedQueryVector;
+
   try {
-    const vector = await embeddings.embedOne(query);
-    if (!vector || vector.length === 0) return [];
 
     const result = await pool.query<Record<string, unknown>>(
       `SELECT c.item_id AS id, i.type, i.title, i.raw_text, i.ocr_text,
