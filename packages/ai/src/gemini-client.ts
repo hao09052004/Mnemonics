@@ -81,7 +81,18 @@ const DEFAULTS = {
   rateLimitRpm: 30,
   circuitBreakerThreshold: 5,
   circuitBreakerCooldownMs: 60_000,
-  queueWaitTimeoutMs: 30_000
+  /**
+   * Hard cap on the per-request pacer wait. The cap is
+   * mathematically a function of the RPM: in the worst case a
+   * caller has to wait the full 60-s window plus the 25-ms
+   * grace (i.e. 60 025 ms at any rpm). We pick a default of
+   * 60 025 ms so a request is always admitted in steady
+   * state; the cap is a backstop against pathological queues,
+   * not the primary admission gate. Override:
+   * GEMINI_QUEUE_WAIT_TIMEOUT_MS. Setting this below
+   * `60_025` will throw QueueWaitTimeoutError under load.
+   */
+  queueWaitTimeoutMs: 60_025
 };
 
 export interface GeminiClientOptions {
@@ -650,7 +661,7 @@ export function buildGeminiClient(
     maxRetries: num("GEMINI_MAX_RETRIES", 2) + 1, // env is "retries", we want "attempts"
     maxConcurrent: num("GEMINI_MAX_CONCURRENT_REQUESTS", 2),
     rateLimitRpm: num("GEMINI_RATE_LIMIT_RPM", 2),
-    queueWaitTimeoutMs: num("GEMINI_QUEUE_WAIT_TIMEOUT_MS", 30_000),
+    queueWaitTimeoutMs: num("GEMINI_QUEUE_WAIT_TIMEOUT_MS", 60_025),
     onTelemetry: listeners?.onTelemetry
   });
 }
