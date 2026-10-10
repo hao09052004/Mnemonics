@@ -39,7 +39,10 @@ async function getWorker(lang: string): Promise<TesseractWorkerLike> {
   //   pnpm --filter @mnemonics/ai add tesseract.js
   let createWorker: ((opts?: unknown) => Promise<TesseractWorkerLike>) | undefined;
   try {
-    // @ts-expect-error optional peer-style dep, may be absent
+    // tesseract.js is an optional dependency of @mnemonics/ai — it
+    // ships a ~30MB WASM blob, so the operator opts in by
+    // `pnpm --filter @mnemonics/ai add tesseract.js`. The dynamic
+    // import only succeeds when the package is present.
     const mod = (await import("tesseract.js")) as unknown as {
       createWorker?: (opts?: unknown) => Promise<TesseractWorkerLike>;
     };

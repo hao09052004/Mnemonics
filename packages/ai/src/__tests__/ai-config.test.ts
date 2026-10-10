@@ -54,9 +54,21 @@ describe("loadAiConfig", () => {
     const env: NodeJS.ProcessEnv = {
       AI_FREE_ONLY: "true",
       VISUAL_EMBEDDING_PROVIDER: "gemini",
-      GEMINI_VISUAL_EMBEDDING_MODEL: "gemini-embedding-2"
+      GEMINI_VISUAL_EMBEDDING_MODEL: "gemini-embedding-99-not-real"
     };
     expect(() => loadAiConfig(env)).toThrowError(/Free-Tier/);
+  });
+
+  it("accepts gemini-embedding-2 as a Free-Tier eligible visual model", () => {
+    // The dev env opts in to the cloud visual provider. The model
+    // must be on the verified-Free allow-list or the validator
+    // refuses to boot.
+    const env: NodeJS.ProcessEnv = {
+      AI_FREE_ONLY: "true",
+      VISUAL_EMBEDDING_PROVIDER: "gemini",
+      GEMINI_VISUAL_EMBEDDING_MODEL: "gemini-embedding-2"
+    };
+    expect(() => loadAiConfig(env)).not.toThrow();
   });
 
   it("has no OpenAI fields at all — OpenAI was removed", () => {

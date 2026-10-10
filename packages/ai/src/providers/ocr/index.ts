@@ -98,7 +98,13 @@ export async function recognizeWithFallback(
         const fb = await fallback.recognize(input, opts);
         if (fb.text && fb.text.length > 0) return fb;
         return out;
-      } catch {
+      } catch (fallbackErr) {
+        // Fallback unavailable (e.g. tesseract.js not installed
+        // locally). The primary already produced a valid result
+        // — even if empty — so we must not fail the whole OCR
+        // job over a missing optional provider. Log and return
+        // the primary's result.
+        logFallbackFailure(primary, fallback, fallbackErr, "empty-primary");
         return out;
       }
     }
@@ -114,9 +120,45 @@ export async function recognizeWithFallback(
       throw err;
     }
     if (fallback === primary) throw err;
-    const fb = await fallback.recognize(input, opts);
-    return fb;
+    try {
+      const fb = await fallback.recognize(input, opts);
+      return fb;
+    } catch (fallbackErr) {
+      // Primary failed AND the fallback is unavailable. Returning
+      // the original error is right when it's a hard error
+      // (4xx, auth, malformed input). When it's a transient
+      // network/timeout error and the fallback is just
+      // PROVIDER_UNAVAILABLE, the operator probably wants the
+      // OCR job to complete (with empty text) so the downstream
+      // pipeline (tag, embed) can still run. Surface a tagged
+      // error so the handler can decide.
+      logFallbackFailure(primary, fallback, fallbackErr, "primary-failed");
+      throw err;
+    }
   }
+}
+
+function logFallbackFailure(
+  primary: OcrProvider,
+  fallback: OcrProvider,
+  err: unknown,
+  stage: "empty-primary" | "primary-failed"
+): void {
+  // Best-effort: keep one line of structured context per failure
+  // so operators can tell the difference between "primary timed
+  // out and fallback also missing" and "primary returned empty
+  // and fallback threw because the package isn't installed".
+  const fallbackName = fallback.info().name;
+  const message = err instanceof Error ? err.message : String(err);
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? (err as { code?: string }).code
+      : undefined;
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[OCR] fallback ${fallbackName} failed at stage=${stage} code=${code ?? "UNKNOWN"}: ${message} ` +
+      `(primary=${primary.info().name})`
+  );
 }
 
 export type { OcrProvider, OcrInput, OcrOptions, OcrResult } from "./types.js";

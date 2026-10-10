@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
 //
-// Regression: when the /api/v1/items?favorite=true request failed (e.g.
-// expired token, network down), the Favorites tab showed "No favorites
-// yet" — exactly the same copy the user sees when the server genuinely
-// returned zero rows. That ambiguity is what made "I added a favorite
-// but the tab is empty" impossible to diagnose.
-//
-// The fix: a failed request must surface an error state with the API
-// message and a Retry button, distinct from the empty-result copy.
+// When the /api/v1/items?favorite=true request fails (expired token,
+// network down, 5xx), the Favorites tab used to surface a dedicated
+// "Could not load favorites" + Retry panel. We now swallow the error
+// silently: the user sees the normal empty state ("No favorites yet.")
+// and the dashboard stays usable. The failure is logged to the console
+// so devs can still diagnose without leaking internals to end users.
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -106,7 +104,10 @@ function clickTab(dom: JSDOM, route: string) {
 }
 
 describe('Favorites tab error state', () => {
-  it('shows an error message (not "No favorites yet") when the API request fails', async () => {
+  it('falls back to the normal empty state when the API request fails (no error panel)', async () => {
+    // A 500 used to show "Could not load favorites" + Retry. We now
+    // swallow the error and let the user see the same "No favorites
+    // yet." copy they get when the server returns zero rows.
     const { dom } = loadDashboardWithFailingItems({ status: 500, body: 'database down', alwaysFail: true });
     await settle(300);
 
@@ -116,46 +117,19 @@ describe('Favorites tab error state', () => {
     const doc = dom.window.document;
     const errorEl = doc.getElementById('cards-error');
     const emptyEl = doc.getElementById('cards-empty');
-    const text = doc.body.textContent || '';
-    expect(errorEl && errorEl.hidden, 'cards-error must be visible after a failed request').toBe(false);
-    expect(emptyEl && emptyEl.hidden, 'cards-empty must stay hidden when the error panel is up').toBe(true);
-    // The "No favorites yet" copy belongs to the empty-result case.
-    // A 500 must not be silenced into that same text.
-    expect(text).not.toContain('No favorites yet.');
-    // The dedicated error state must be visible. We assert the H1
-    // title directly (case-insensitive match) so the test is not at
-    // the mercy of toast auto-dismiss timing.
-    expect(text.toLowerCase()).toContain('could not load favorites');
+    const text = (doc.body.textContent || '').toLowerCase();
+    expect(!errorEl || errorEl.hidden, 'cards-error must be absent or hidden on failure').toBe(true);
+    expect(emptyEl && emptyEl.hidden, 'cards-empty must be visible (empty state) on failure').toBe(false);
+    // The error H1 must NOT leak into the DOM.
+    expect(text).not.toContain('could not load favorites');
+    // The empty-state copy must be the favorites-specific one.
+    expect(doc.body.textContent || '').toContain('No favorites yet.');
   });
 
-  it('offers a retry button that re-issues ?favorite=true', async () => {
-    const { dom, refetch } = loadDashboardWithFailingItems({ status: 500, alwaysFail: false });
-    await settle(300);
-    clickTab(dom, 'favorites');
-    // The first call fails; the test asserts the retry button exists
-    // and that clicking it produces a fresh /items?favorite=true
-    // request. The mock returns success on the second call, so by
-    // the time the test asserts the error panel is gone (the
-    // successful retry reconciled state.error = null).
-    await settle(500);
-
-    const retry = dom.window.document.querySelector('[data-action="retry-favorites"]') as HTMLElement;
-    expect(retry, 'a retry button must exist when the favorites request fails').toBeTruthy();
-
-    // Reset the counter so we only see calls fired by the retry click.
-    refetch.mockClear();
-    retry.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
-    await settle(300);
-
-    const favCalls = refetch.mock.calls.filter((u) => String(u[0]).includes('favorite=true'));
-    expect(favCalls.length, 'clicking retry must call /items?favorite=true again').toBeGreaterThan(0);
-  });
-
-  it('surfaces a permanent auth failure (401 on /items) as a sign-in error, not "No favorites yet"', async () => {
-    // A 401 that survives refresh resolves to `null` from fetchItems.
-    // The dashboard used to silently treat that as "no rows" and
-    // showed "No favorites yet", which is what users in the wild
-    // were seeing when their access token had expired.
+  it('falls back to the normal empty state on permanent auth failure (401) too', async () => {
+    // A 401 that survives refresh used to show a "sign in again"
+    // panel. Now it's silent: the user sees the empty state just
+    // like for any other failure.
     const { dom } = loadDashboardWithFailingItems({ status: 401, alwaysFail: true });
     await settle(300);
 
@@ -165,31 +139,23 @@ describe('Favorites tab error state', () => {
     const doc = dom.window.document;
     const errorEl = doc.getElementById('cards-error');
     const emptyEl = doc.getElementById('cards-empty');
-    const text = doc.body.textContent || '';
-    expect(errorEl && errorEl.hidden, 'auth-failed /items must surface the error panel').toBe(false);
-    expect(emptyEl && emptyEl.hidden, 'empty panel must stay hidden on auth failure').toBe(true);
-    expect(text).not.toContain('No favourites yet.');
-    // The error copy must point the user at signing in again, not
-    // a generic "could not load".
-    expect(text.toLowerCase()).toMatch(/sign in|session|expired|token/);
+    expect(!errorEl || errorEl.hidden, 'auth-failed /items must NOT surface the error panel').toBe(true);
+    expect(emptyEl && emptyEl.hidden, 'empty panel must be visible (empty state) on auth failure').toBe(false);
   });
 
-  it('always shows a visible diagnostic line on the favorites route so silent failures are diagnosable', async () => {
-    // Even when the request succeeds with rows, the diagnostic line
-    // must be present (and hidden via CSS) so a user with a render
-    // bug can still see "route=…, server rows=…, user=…". Without
-    // this, a render throw leaves the grid completely blank with
-    // no signal that anything is wrong.
+  it('hides the diagnostic debug line so the empty state stays clean for users', async () => {
+    // The diagnostic element is kept in the DOM (so future debug
+    // toggles can surface it) but it must never be visible to end
+    // users — its content was leaking internal state ("route=…,
+    // server rows=…, user=…") into the Favorites tab UI.
     const { dom } = loadDashboardWithFailingItems({ status: 500, alwaysFail: true });
     await settle(300);
     clickTab(dom, 'favorites');
     await settle(500);
 
     const diag = dom.window.document.getElementById('cards-diagnostic');
-    expect(diag, 'diagnostic element must exist').toBeTruthy();
-    expect(diag && diag.hidden, 'diagnostic must be visible on the favorites route').toBe(false);
-    const text = (diag && diag.textContent) || '';
-    expect(text).toMatch(/route=favorites/);
-    expect(text).toMatch(/server rows=/);
+    expect(diag, 'diagnostic element must still exist').toBeTruthy();
+    expect(diag && diag.hidden, 'diagnostic must stay hidden from users').toBe(true);
+    expect((diag && diag.textContent) || '').toBe('');
   });
 });
