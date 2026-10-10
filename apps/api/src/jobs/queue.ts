@@ -50,11 +50,89 @@ const DEFAULT_STALE_JOB_MS = 5 * 60_000;
 /** Minimum gap between two stale-job reaper runs. */
 const REAP_INTERVAL_MS = 60_000;
 
+function readIntEnv(name: string, dflt: number): number {
+  const v = process.env[name];
+  if (v === undefined || v === "") return dflt;
+  const n = Number.parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : dflt;
+}
+
 /**
  * JobQueue with EventEmitter for job processing callbacks
  */
 export type JobHandler = (job: Job) => Promise<void>;
 export type JobFailureHandler = (job: Job, error: string) => Promise<void>;
+
+/**
+ * Bounded concurrency for handlers that talk to a rate-limited
+ * upstream (Gemini). Capacity is the env-driven
+ * `GEMINI_MAX_CONCURRENT_REQUESTS` (default 2). When the
+ * semaphore is full, `processJob` waits up to
+ * `geminiAcquireTimeoutMs` (default 5 s) for a free slot; on
+ * timeout the job is reset to `pending` (attempts unchanged) so
+ * the next tick can re-evaluate. This is the backpressure gate
+ * that prevents a burst of jobs from stampeding the Free Tier.
+ *
+ * The semaphore is local to the queue instance; running multiple
+ * JobQueue workers would multiply the cap. That is acceptable
+ * today (the API is single-process) and documented here so a
+ * future multi-worker change knows to coordinate.
+ */
+class HandlerSemaphore {
+  private inFlight = 0;
+  private waiters: Array<() => void> = [];
+  constructor(private readonly capacity: number) {}
+  async acquire(signal?: AbortSignal, timeoutMs?: number): Promise<boolean> {
+    if (this.inFlight < this.capacity) {
+      this.inFlight += 1;
+      return true;
+    }
+    return new Promise<boolean>((resolve) => {
+      const w = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      const onAbort = () => {
+        const idx = this.waiters.indexOf(w);
+        if (idx !== -1) this.waiters.splice(idx, 1);
+        clearTimeout(timer);
+        resolve(false);
+      };
+      const timer = timeoutMs !== undefined
+        ? setTimeout(() => {
+            const idx = this.waiters.indexOf(w);
+            if (idx !== -1) this.waiters.splice(idx, 1);
+            resolve(false);
+          }, timeoutMs)
+        : undefined;
+      if (signal) signal.addEventListener("abort", onAbort, { once: true });
+      this.waiters.push(w);
+    });
+  }
+  release(): void {
+    if (this.inFlight > 0) this.inFlight -= 1;
+    const next = this.waiters.shift();
+    if (next) next();
+  }
+  get pending(): number {
+    return this.waiters.length;
+  }
+}
+
+export interface JobQueueOptions {
+  /**
+   * Max concurrent handlers that may hold the Gemini slot at
+   * once. Mirrors `GEMINI_MAX_CONCURRENT_REQUESTS`. Default 2.
+   * 0 disables the backpressure gate.
+   */
+  geminiConcurrency?: number;
+  /**
+   * How long `processJob` will wait for a free slot before
+   * resetting the job to `pending` and yielding to the next
+   * tick. Default 5 000 ms.
+   */
+  geminiAcquireTimeoutMs?: number;
+}
 
 export class JobQueue {
   private pool: Pool;
@@ -63,10 +141,15 @@ export class JobQueue {
   private onTerminalFailure?: JobFailureHandler;
   private processingInterval: NodeJS.Timeout | null = null;
   private lastReapAt = 0;
+  private readonly sem: HandlerSemaphore;
+  private readonly acquireTimeoutMs: number;
 
-  constructor(pool: Pool, onTerminalFailure?: JobFailureHandler) {
+  constructor(pool: Pool, onTerminalFailure?: JobFailureHandler, opts: JobQueueOptions = {}) {
     this.pool = pool;
     this.onTerminalFailure = onTerminalFailure;
+    const cap = opts.geminiConcurrency ?? readIntEnv("GEMINI_MAX_CONCURRENT_REQUESTS", 2);
+    this.sem = new HandlerSemaphore(Math.max(0, cap));
+    this.acquireTimeoutMs = opts.geminiAcquireTimeoutMs ?? 5_000;
   }
 
   registerHandler(type: JobType, handler: JobHandler): void {
@@ -306,8 +389,31 @@ export class JobQueue {
    * Process a single job - emits event for handlers
    */
   private async processJob(job: Job): Promise<void> {
+    // Backpressure: if the Gemini slot is full, wait briefly
+    // for a free one. On timeout we reset the job to 'pending'
+    // (attempts unchanged) so the next tick can re-evaluate
+    // rather than stampeding the upstream. The job is left
+    // visible to `getPendingJobs` again immediately.
+    const acquired = await this.sem.acquire(undefined, this.acquireTimeoutMs);
+    if (!acquired) {
+      console.warn(
+        `[JobQueue] Gemini slot busy, deferring ${job.type} job ${job.id} ` +
+          `(pending=${this.sem.pending}, acquireTimeoutMs=${this.acquireTimeoutMs})`
+      );
+      return;
+    }
+    let slotReleased = false;
+    const releaseOnce = (): void => {
+      if (slotReleased) return;
+      slotReleased = true;
+      this.sem.release();
+    };
+
     const lockedJob = await this.markProcessing(job.id);
-    if (!lockedJob) return;
+    if (!lockedJob) {
+      releaseOnce();
+      return;
+    }
 
     try {
       const handler = this.handlers.get(job.type);
@@ -328,6 +434,8 @@ export class JobQueue {
       } else {
         await this.resetForRetry(job.id);
       }
+    } finally {
+      releaseOnce();
     }
   }
 

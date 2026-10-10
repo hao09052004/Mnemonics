@@ -295,4 +295,145 @@ describe('JobQueue', () => {
       resilient.stop();
     });
   });
+
+  describe('Gemini slot backpressure', () => {
+    function makeBackpressurePool(): {
+      pool: any;
+      pendingJobs: Job[];
+    } {
+      const jobs: Job[] = [];
+      const now = () => new Date().toISOString();
+      const enqueue = (itemId: string, attempts = 0): Job => {
+        const j: Job = {
+          id: crypto.randomUUID(),
+          type: 'tag',
+          itemId,
+          userId: 'u',
+          status: 'pending',
+          payload: {},
+          attempts,
+          maxAttempts: 3,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        jobs.push(j);
+        return j;
+      };
+      const pool = {
+        query: async (sql: string, params: any[] = []) => {
+          const s = sql.trim();
+          if (s.toUpperCase().startsWith('INSERT')) {
+            const j: Job = {
+              id: params[0],
+              type: params[1],
+              itemId: params[2],
+              userId: params[3],
+              status: 'pending',
+              payload: {},
+              attempts: 0,
+              maxAttempts: params[5] ?? 3,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            };
+            jobs.push(j);
+            return { rows: [j], rowCount: 1 };
+          }
+          if (s.includes("WHERE status = 'pending'") && s.includes('ORDER BY created_at')) {
+            const pending = jobs
+              .filter((j) => j.status === 'pending' && j.attempts < j.maxAttempts)
+              .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+              .slice(0, params[0] ?? 10);
+            return { rows: pending, rowCount: pending.length };
+          }
+          if (s.includes("SET status = 'processing'")) {
+            const j = jobs.find((x) => x.id === params[0]);
+            if (j && j.status === 'pending') {
+              j.status = 'processing';
+              j.attempts += 1;
+              j.updatedAt = new Date();
+              return { rows: [j], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+          }
+          if (s.includes("SET status = 'completed'")) {
+            const j = jobs.find((x) => x.id === params[0]);
+            if (j) {
+              j.status = 'completed';
+              j.updatedAt = new Date();
+              return { rows: [j], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+          }
+          if (s.includes("SET status = 'pending'")) {
+            const j = jobs.find((x) => x.id === params[0]);
+            if (j) {
+              j.status = 'pending';
+              j.updatedAt = new Date();
+              return { rows: [j], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+      };
+      return { pool, pendingJobs: jobs };
+    }
+
+    it('admits at most geminiConcurrency handlers in parallel', async () => {
+      const { pool } = makeBackpressurePool();
+      const queue = new JobQueue(pool, undefined, { geminiConcurrency: 2, geminiAcquireTimeoutMs: 1_000 });
+      let active = 0;
+      let peak = 0;
+      let total = 0;
+      queue.registerHandler('tag', async () => {
+        active += 1;
+        peak = Math.max(peak, active);
+        total += 1;
+        await new Promise((r) => setTimeout(r, 30));
+        active -= 1;
+      });
+      for (let i = 0; i < 5; i += 1) {
+        await queue.create({ type: 'tag', itemId: `i${i}`, userId: 'u' });
+      }
+      // Run several ticks so the semaphore is exercised.
+      for (let i = 0; i < 8; i += 1) {
+        await queue.processOnce();
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      expect(peak).toBeLessThanOrEqual(2);
+      expect(total).toBe(5);
+    });
+
+    it('defers a job when the slot is full and does not lose it', async () => {
+      const { pool, pendingJobs } = makeBackpressurePool();
+      const queue = new JobQueue(pool, undefined, { geminiConcurrency: 1, geminiAcquireTimeoutMs: 50 });
+      let active = 0;
+      let peak = 0;
+      let processed: string[] = [];
+      queue.registerHandler('tag', async (job) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((r) => setTimeout(r, 40));
+        active -= 1;
+        await queue.markCompleted(job.id);
+        processed.push(job.id);
+      });
+      for (let i = 0; i < 3; i += 1) {
+        await queue.create({ type: 'tag', itemId: `i${i}`, userId: 'u' });
+      }
+      // Tick once: with capacity=1, only one handler runs.
+      await queue.processOnce();
+      expect(peak).toBeLessThanOrEqual(1);
+      // Tick again and again until all 3 are processed.
+      for (let i = 0; i < 20 && processed.length < 3; i += 1) {
+        await new Promise((r) => setTimeout(r, 10));
+        await queue.processOnce();
+      }
+      expect(processed.length).toBe(3);
+      // All jobs must end in 'completed' (not stuck 'processing').
+      for (const j of pendingJobs) {
+        expect(j.status).toBe('completed');
+      }
+    });
+  });
 });
