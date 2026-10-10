@@ -874,6 +874,116 @@ export class ApiClient {
     return data;
   }
 
+  /**
+   * Capture a URL as a link memory. Returns the new item id + status.
+   * The server validates the URL, persists the memory, and enqueues
+   * the tag → embed pipeline.
+   */
+  async createLinkCapture(
+    payload: { url: string; title?: string; note?: string; clientRequestId: string },
+    accessToken: string
+  ): Promise<{ id: string; status: string }> {
+    const r = await this.request<{ data: { id: string; status: string } }>(
+      '/api/v1/captures',
+      {
+        method: 'POST',
+        accessToken,
+        body: {
+          type: 'link',
+          sourceUrl: payload.url,
+          title: payload.title?.trim() || undefined,
+          selectedText: payload.note?.trim() || undefined,
+          clientRequestId: payload.clientRequestId
+        }
+      }
+    );
+    return r.data;
+  }
+
+  /**
+   * Capture a quick note (title + content) as a text memory. The
+   * server persists the memory, and enqueues tag → embed.
+   */
+  async createNoteCapture(
+    payload: { title: string; content: string; clientRequestId: string },
+    accessToken: string
+  ): Promise<{ id: string; status: string }> {
+    const r = await this.request<{ data: { id: string; status: string } }>(
+      '/api/v1/captures',
+      {
+        method: 'POST',
+        accessToken,
+        body: {
+          type: 'text',
+          title: payload.title.trim(),
+          rawText: payload.content,
+          clientRequestId: payload.clientRequestId
+        }
+      }
+    );
+    return r.data;
+  }
+
+  /**
+   * Multipart image upload. Mirrors `uploadDocumentCapture` in shape.
+   * Supported MIME: image/jpeg, image/png, image/webp. Max 10 MB
+   * (matches the server's multer limit).
+   */
+  async uploadImageCapture(
+    payload: {
+      file: File;
+      title?: string;
+      sourceUrl?: string;
+      note?: string;
+      clientRequestId: string;
+    },
+    accessToken: string,
+    onProgress?: (phase: 'uploading' | 'finalizing') => void
+  ): Promise<{ id: string; status: string; signedUrl?: string }> {
+    const form = new FormData();
+    form.append('file', payload.file, payload.file.name);
+    form.append('type', 'image');
+    if (payload.title) form.append('title', payload.title);
+    if (payload.sourceUrl) form.append('sourceUrl', payload.sourceUrl);
+    if (payload.note) form.append('note', payload.note);
+    form.append('clientRequestId', payload.clientRequestId);
+
+    onProgress?.('uploading');
+    const response = await fetch(this.baseUrl + '/api/v1/captures/image', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form
+    });
+    onProgress?.('finalizing');
+
+    const text = await response.text();
+    let parsed: unknown = null;
+    if (text.length > 0) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = { error: { message: text } };
+      }
+    }
+
+    if (!response.ok) {
+      const errPayload = parsed as ApiErrorPayload;
+      const message = errPayload?.error?.message || `HTTP ${response.status}`;
+      throw new ApiError(
+        response.status,
+        message,
+        errPayload?.error?.code,
+        errPayload?.error?.requestId
+      );
+    }
+
+    const data = (parsed as { data?: { id: string; status: string; signedUrl?: string } })?.data;
+    if (!data) {
+      throw new ApiError(response.status, 'Unexpected empty response', 'EMPTY_RESPONSE');
+    }
+    return data;
+  }
+
 /**
  * Content Cluster API.
  *
