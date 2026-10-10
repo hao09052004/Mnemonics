@@ -80,7 +80,8 @@ const DEFAULTS = {
   maxConcurrent: 4,
   rateLimitRpm: 30,
   circuitBreakerThreshold: 5,
-  circuitBreakerCooldownMs: 60_000
+  circuitBreakerCooldownMs: 60_000,
+  queueWaitTimeoutMs: 30_000
 };
 
 export interface GeminiClientOptions {
@@ -95,6 +96,12 @@ export interface GeminiClientOptions {
   maxConcurrent?: number;
   /** Soft RPM cap. Default 30. Override: GEMINI_RATE_LIMIT_RPM. */
   rateLimitRpm?: number;
+  /**
+   * Hard cap on how long `pace()` may sleep before admitting a
+   * request. 0 disables the cap. Default 30 000 ms. Override:
+   * GEMINI_QUEUE_WAIT_TIMEOUT_MS.
+   */
+  queueWaitTimeoutMs?: number;
   /**
    * After this many CONSECUTIVE failures the breaker opens and
    * short-circuits new requests for `circuitBreakerCooldownMs`.
@@ -202,6 +209,47 @@ class RpmPacer {
     this.stamps.shift();
     this.stamps.push(this.nowFn());
   }
+
+  /**
+   * Like `pace` but throws `QueueWaitTimeoutError` if the pacer would
+   * have to sleep more than `capMs` before admitting the next call.
+   * Returns immediately when the slot is free.
+   */
+  async paceWithCap(capMs: number, signal?: AbortSignal): Promise<void> {
+    if (capMs <= 0) {
+      await this.pace(signal);
+      return;
+    }
+    const windowMs = 60_000;
+    const now = this.nowFn();
+    while (this.stamps.length > 0 && this.stamps[0] <= now - windowMs) {
+      this.stamps.shift();
+    }
+    if (this.stamps.length < this.rpm) {
+      this.stamps.push(now);
+      return;
+    }
+    const oldest = this.stamps[0];
+    const wait = Math.max(0, oldest + windowMs - now) + 25;
+    if (wait > capMs) {
+      throw new QueueWaitTimeoutError(wait, capMs);
+    }
+    await this.sleepFn(wait, signal);
+    this.stamps.shift();
+    this.stamps.push(this.nowFn());
+  }
+}
+
+export class QueueWaitTimeoutError extends ProviderError {
+  constructor(waitMs: number, capMs: number) {
+    super({
+      message: `Gemini queue wait ${waitMs}ms exceeds cap ${capMs}ms`,
+      code: "TIMEOUT",
+      provider: "gemini",
+      retryable: true,
+      retryAfterMs: waitMs
+    });
+  }
 }
 
 export class GeminiCircuitOpenError extends ProviderError {
@@ -221,6 +269,7 @@ export class GeminiClient {
   private readonly maxRetries: number;
   private readonly sem: Semaphore;
   private readonly rpm: RpmPacer;
+  private readonly queueWaitCapMs: number;
   private readonly cbThreshold: number;
   private readonly cbCooldownMs: number;
   private readonly onTelemetry?: GeminiTelemetryListener;
@@ -238,6 +287,7 @@ export class GeminiClient {
     this.sem = new Semaphore(Math.max(1, opts.maxConcurrent ?? DEFAULTS.maxConcurrent));
     const rpm = Math.max(1, opts.rateLimitRpm ?? DEFAULTS.rateLimitRpm);
     this.rpm = new RpmPacer(rpm, opts.now ?? Date.now, opts.sleep ?? defaultSleep);
+    this.queueWaitCapMs = Math.max(0, opts.queueWaitTimeoutMs ?? DEFAULTS.queueWaitTimeoutMs);
     this.cbThreshold = opts.circuitBreakerThreshold ?? DEFAULTS.circuitBreakerThreshold;
     this.cbCooldownMs = opts.circuitBreakerCooldownMs ?? DEFAULTS.circuitBreakerCooldownMs;
     this.onTelemetry = opts.onTelemetry;
@@ -322,14 +372,22 @@ export class GeminiClient {
 
     try {
       // Pace to the RPM cap BEFORE the first attempt so a burst
-      // of capture jobs does not stampede the Free Tier.
-      await this.rpm.pace(req.signal);
+      // of capture jobs does not stampede the Free Tier. The
+      // pacer wait is bounded by `queueWaitCapMs` so a long
+      // queue wait cannot cause a request to time out before it
+      // actually fires — and the request-execution budget below
+      // starts AFTER the pacer, so the wait is not double-counted.
+      await this.rpm.paceWithCap(this.queueWaitCapMs, req.signal);
+      // Wall-clock start for the REQUEST EXECUTION budget. The pacer
+      // wait above is excluded so a long queue wait cannot cause a
+      // request to time out before it actually fires.
+      const execStartedAt = this.nowFn();
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         attempts = attempt + 1;
-        if (this.nowFn() - startedAt > totalBudget) {
+        if (this.nowFn() - execStartedAt > totalBudget) {
           lastErr = new ProviderError({
-            message: "Gemini total budget exceeded",
+            message: "Gemini request-execution budget exceeded",
             code: "TIMEOUT",
             provider: "gemini",
             retryable: true
@@ -592,6 +650,7 @@ export function buildGeminiClient(
     maxRetries: num("GEMINI_MAX_RETRIES", 2) + 1, // env is "retries", we want "attempts"
     maxConcurrent: num("GEMINI_MAX_CONCURRENT_REQUESTS", 2),
     rateLimitRpm: num("GEMINI_RATE_LIMIT_RPM", 2),
+    queueWaitTimeoutMs: num("GEMINI_QUEUE_WAIT_TIMEOUT_MS", 30_000),
     onTelemetry: listeners?.onTelemetry
   });
 }

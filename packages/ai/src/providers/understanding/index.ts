@@ -54,6 +54,13 @@ export interface BuildUnderstandingOptions {
   config: AiConfig;
   imageDescription?: LocalImageDescriptionProviderOptions;
   geminiClient?: GeminiClient;
+  /**
+   * Optional override for the TLDR request-execution budget. The
+   * budget is request-execution only (queue wait is excluded), so
+   * a longer value is appropriate for long PDF / text TLDR jobs.
+   * Defaults to 90 000 ms.
+   */
+  tldrTotalBudgetMs?: number;
 }
 
 export function buildUnderstandingProviders(
@@ -103,7 +110,8 @@ export function buildUnderstandingProviders(
     return {
       imageDescription,
       tldr: new GeminiTldrProvider(apiKey, cfg.text.geminiModel, geminiClient, {
-        maxLength: cfg.understanding.tldrMaxLength
+        maxLength: cfg.understanding.tldrMaxLength,
+        totalBudgetMs: opts.tldrTotalBudgetMs ?? 90_000
       })
     };
   }

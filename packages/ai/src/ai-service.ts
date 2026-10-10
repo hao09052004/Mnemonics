@@ -131,7 +131,11 @@ export async function createAiService(opts?: {
         : primaryOcr // no-op: chain will fail through to the last provider
     );
   const visual = buildVisualProvider(config, geminiClient);
-  const understanding = buildUnderstandingProviders({ config, geminiClient });
+  const understanding = buildUnderstandingProviders({
+    config,
+    geminiClient,
+    tldrTotalBudgetMs: 90_000
+  });
 
   const tagCache = createMemoryCache<string[]>({ defaultTtlMs: 6 * 60 * 60 * 1000 });
   const summaryCache = createMemoryCache<string>({ defaultTtlMs: 6 * 60 * 60 * 1000 });

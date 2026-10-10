@@ -15,6 +15,10 @@ export default defineConfig({
     // the suite was smaller; it now flakes on concurrent `pnpm test`
     // runs.
     testTimeout: 20_000,
+    // Several test files spin up a real Supabase pool in beforeEach
+    // and create a handful of rows. On a cold pool the first
+    // beforeEach can take >10s, so raise the hook budget to 30s.
+    hookTimeout: 30_000,
     // `pdf-parse` (a CommonJS module with a lazy internal require chain)
     // is incompatible with V8 coverage instrumentation: instrumenting its
     // internals at transform time replaces `require()` with an instrumented
