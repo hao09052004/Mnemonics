@@ -1,0 +1,1026 @@
+{
+  "memories": [
+    {
+      "id": "mem-001",
+      "title": "Wooden Chair",
+      "type": "link",
+      "raw_text": "A solid oak chair for the home. Hand-finished by Northwind.",
+      "captured_at": "2026-10-01T10:00:00.000Z",
+      "tags": ["furniture", "home"],
+      "source_url": "https://example.com/wooden-chair",
+      "classification": {
+        "detected_type": "product",
+        "category": "furniture",
+        "attributes": { "brand": "northwind", "material": "wood", "color": "brown" }
+      }
+    },
+    {
+      "id": "mem-002",
+      "title": "Glass Coffee Table",
+      "type": "link",
+      "raw_text": "Tempered glass top with steel legs.",
+      "captured_at": "2026-10-01T11:00:00.000Z",
+      "tags": ["furniture"],
+      "source_url": "https://example.com/glass-table",
+      "classification": {
+        "detected_type": "product",
+        "category": "furniture",
+        "attributes": { "brand": "northwind", "material": "glass", "color": "clear" }
+      }
+    },
+    {
+      "id": "mem-003",
+      "title": "Leather Sofa",
+      "type": "link",
+      "raw_text": "Italian leather three-seater sofa.",
+      "captured_at": "2026-10-02T09:00:00.000Z",
+      "tags": ["furniture", "living"],
+      "source_url": "https://example.com/sofa",
+      "classification": {
+        "detected_type": "product",
+        "category": "furniture",
+        "attributes": { "brand": "ikea", "material": "leather", "color": "black" }
+      }
+    },
+    {
+      "id": "mem-004",
+      "title": "Office Desk",
+      "type": "link",
+      "raw_text": "Compact desk made of bamboo with cable management.",
+      "captured_at": "2026-10-02T14:00:00.000Z",
+      "tags": ["furniture", "office"],
+      "source_url": "https://example.com/desk",
+      "classification": {
+        "detected_type": "product",
+        "category": "furniture",
+        "attributes": { "brand": "northwind", "material": "bamboo", "color": "brown" }
+      }
+    },
+    {
+      "id": "mem-005",
+      "title": "Standing Lamp",
+      "type": "link",
+      "raw_text": "Brushed steel floor lamp with linen shade.",
+      "captured_at": "2026-10-03T08:00:00.000Z",
+      "tags": ["lighting"],
+      "source_url": "https://example.com/lamp",
+      "classification": {
+        "detected_type": "product",
+        "category": "lighting",
+        "attributes": { "brand": "ikea", "material": "steel", "color": "silver" }
+      }
+    },
+    {
+      "id": "mem-006",
+      "title": "Wool Blanket",
+      "type": "link",
+      "raw_text": "Merino wool throw blanket, machine-washable.",
+      "captured_at": "2026-10-03T19:00:00.000Z",
+      "tags": ["textile"],
+      "source_url": "https://example.com/blanket",
+      "classification": {
+        "detected_type": "product",
+        "category": "textile",
+        "attributes": { "brand": "ikea", "material": "wool", "color": "gray" }
+      }
+    },
+    {
+      "id": "mem-007",
+      "title": "Ceramic Vase",
+      "type": "image",
+      "raw_text": "Hand-thrown ceramic vase, 30cm tall.",
+      "captured_at": "2026-10-04T10:00:00.000Z",
+      "tags": ["decor"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "product",
+        "category": "decor",
+        "attributes": { "brand": "northwind", "material": "ceramic", "color": "white" }
+      }
+    },
+    {
+      "id": "mem-008",
+      "title": "Cotton T-Shirt",
+      "type": "link",
+      "raw_text": "Heavy-weight cotton tee, runs small.",
+      "captured_at": "2026-10-04T15:00:00.000Z",
+      "tags": ["clothing"],
+      "source_url": "https://example.com/tshirt",
+      "classification": {
+        "detected_type": "product",
+        "category": "clothing",
+        "attributes": { "brand": "northwind", "material": "cotton", "color": "black" }
+      }
+    },
+    {
+      "id": "mem-009",
+      "title": "Cast Iron Pan",
+      "type": "link",
+      "raw_text": "Pre-seasoned 12-inch cast iron skillet.",
+      "captured_at": "2026-10-05T12:00:00.000Z",
+      "tags": ["kitchen"],
+      "source_url": "https://example.com/pan",
+      "classification": {
+        "detected_type": "product",
+        "category": "kitchen",
+        "attributes": { "brand": "northwind", "material": "iron", "color": "black" }
+      }
+    },
+    {
+      "id": "mem-010",
+      "title": "Linen Curtains",
+      "type": "link",
+      "raw_text": "Belgian linen curtains in oatmeal.",
+      "captured_at": "2026-10-05T16:00:00.000Z",
+      "tags": ["textile"],
+      "source_url": "https://example.com/curtains",
+      "classification": {
+        "detected_type": "product",
+        "category": "textile",
+        "attributes": { "brand": "ikea", "material": "linen", "color": "beige" }
+      }
+    },
+    {
+      "id": "mem-011",
+      "title": "The Magic of Distributed Systems",
+      "type": "link",
+      "raw_text": "Why consistency, availability, and partition tolerance can't all win.",
+      "captured_at": "2026-09-15T10:00:00.000Z",
+      "tags": ["engineering", "systems"],
+      "source_url": "https://example.com/distributed-systems",
+      "classification": {
+        "detected_type": "article",
+        "category": "engineering",
+        "attributes": { "author": "jane-doe", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-012",
+      "title": "A Field Guide to Postgres Indexes",
+      "type": "link",
+      "raw_text": "B-tree, hash, GIN, BRIN: when to use which, with real numbers.",
+      "captured_at": "2026-09-16T10:00:00.000Z",
+      "tags": ["engineering", "databases"],
+      "source_url": "https://example.com/postgres-indexes",
+      "classification": {
+        "detected_type": "article",
+        "category": "engineering",
+        "attributes": { "author": "jane-doe", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-013",
+      "title": "The History of the Bicycle",
+      "type": "link",
+      "raw_text": "From the draisine to the e-bike, in 12 minutes.",
+      "captured_at": "2026-09-17T10:00:00.000Z",
+      "tags": ["history"],
+      "source_url": "https://example.com/bicycle",
+      "classification": {
+        "detected_type": "article",
+        "category": "history",
+        "attributes": { "author": "john-smith", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-014",
+      "title": "On Writing Well",
+      "type": "link",
+      "raw_text": "Zinsser's lessons, summarised.",
+      "captured_at": "2026-09-18T10:00:00.000Z",
+      "tags": ["writing"],
+      "source_url": "https://example.com/writing",
+      "classification": {
+        "detected_type": "article",
+        "category": "writing",
+        "attributes": { "author": "william-zinsser", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-015",
+      "title": "Bảo mật cho ứng dụng web hiện đại",
+      "type": "link",
+      "raw_text": "Hướng dẫn bảo mật cho lập trình viên web Việt Nam.",
+      "captured_at": "2026-09-19T10:00:00.000Z",
+      "tags": ["security", "vietnamese"],
+      "source_url": "https://example.vn/security",
+      "classification": {
+        "detected_type": "article",
+        "category": "security",
+        "attributes": { "author": "minh-nguyen", "language": "vi" }
+      }
+    },
+    {
+      "id": "mem-016",
+      "title": "Phân tán dữ liệu với pgvector",
+      "type": "link",
+      "raw_text": "Cách pgvector xử lý hàng triệu vector embedding.",
+      "captured_at": "2026-09-20T10:00:00.000Z",
+      "tags": ["databases", "vietnamese"],
+      "source_url": "https://example.vn/pgvector",
+      "classification": {
+        "detected_type": "article",
+        "category": "databases",
+        "attributes": { "author": "minh-nguyen", "language": "vi" }
+      }
+    },
+    {
+      "id": "mem-017",
+      "title": "Deep Work in Practice",
+      "type": "link",
+      "raw_text": "Three habits that make focused work stick.",
+      "captured_at": "2026-09-21T10:00:00.000Z",
+      "tags": ["productivity"],
+      "source_url": "https://example.com/deep-work",
+      "classification": {
+        "detected_type": "article",
+        "category": "productivity",
+        "attributes": { "author": "cal-newport", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-018",
+      "title": "Edge Caching 101",
+      "type": "link",
+      "raw_text": "How CDN edge caches actually work.",
+      "captured_at": "2026-09-22T10:00:00.000Z",
+      "tags": ["engineering", "caching"],
+      "source_url": "https://example.com/edge",
+      "classification": {
+        "detected_type": "article",
+        "category": "engineering",
+        "attributes": { "author": "jane-doe", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-019",
+      "title": "Kiến trúc microservices cho startup",
+      "type": "link",
+      "raw_text": "Khi nào nên chuyển từ monolith sang microservices.",
+      "captured_at": "2026-09-23T10:00:00.000Z",
+      "tags": ["engineering", "vietnamese"],
+      "source_url": "https://example.vn/microservices",
+      "classification": {
+        "detected_type": "article",
+        "category": "engineering",
+        "attributes": { "author": "lan-pham", "language": "vi" }
+      }
+    },
+    {
+      "id": "mem-020",
+      "title": "Why We Sleep",
+      "type": "link",
+      "raw_text": "Walker's book summarised in 600 words.",
+      "captured_at": "2026-09-24T10:00:00.000Z",
+      "tags": ["health"],
+      "source_url": "https://example.com/sleep",
+      "classification": {
+        "detected_type": "article",
+        "category": "health",
+        "attributes": { "author": "matthew-walker", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-021",
+      "title": "Spicy Ramen",
+      "type": "link",
+      "raw_text": "A traditional Japanese ramen recipe with miso broth and chashu pork.",
+      "captured_at": "2026-08-01T18:00:00.000Z",
+      "tags": ["food", "japanese"],
+      "source_url": "https://example.com/ramen",
+      "classification": {
+        "detected_type": "recipe",
+        "category": "food",
+        "attributes": { "cuisine": "japanese", "difficulty": "medium" }
+      }
+    },
+    {
+      "id": "mem-022",
+      "title": "Sourdough Pancakes",
+      "type": "link",
+      "raw_text": "Fluffy pancakes using a sourdough discard.",
+      "captured_at": "2026-08-02T08:00:00.000Z",
+      "tags": ["food", "breakfast"],
+      "source_url": "https://example.com/pancakes",
+      "classification": {
+        "detected_type": "recipe",
+        "category": "food",
+        "attributes": { "cuisine": "american", "difficulty": "easy" }
+      }
+    },
+    {
+      "id": "mem-023",
+      "title": "Bún chả Hà Nội",
+      "type": "link",
+      "raw_text": "Công thức bún chả chuẩn vị Hà Nội.",
+      "captured_at": "2026-08-03T11:00:00.000Z",
+      "tags": ["food", "vietnamese"],
+      "source_url": "https://example.vn/buncha",
+      "classification": {
+        "detected_type": "recipe",
+        "category": "food",
+        "attributes": { "cuisine": "vietnamese", "difficulty": "medium" }
+      }
+    },
+    {
+      "id": "mem-024",
+      "title": "Tom Yum Soup",
+      "type": "link",
+      "raw_text": "Thai hot and sour soup with prawns.",
+      "captured_at": "2026-08-04T19:00:00.000Z",
+      "tags": ["food", "thai"],
+      "source_url": "https://example.com/tomyum",
+      "classification": {
+        "detected_type": "recipe",
+        "category": "food",
+        "attributes": { "cuisine": "thai", "difficulty": "medium" }
+      }
+    },
+    {
+      "id": "mem-025",
+      "title": "Mushroom Risotto",
+      "type": "link",
+      "raw_text": "Creamy arborio risotto with porcini mushrooms.",
+      "captured_at": "2026-08-05T19:30:00.000Z",
+      "tags": ["food", "italian"],
+      "source_url": "https://example.com/risotto",
+      "classification": {
+        "detected_type": "recipe",
+        "category": "food",
+        "attributes": { "cuisine": "italian", "difficulty": "medium" }
+      }
+    },
+    {
+      "id": "mem-026",
+      "title": "How a 4-Stroke Engine Works",
+      "type": "link",
+      "raw_text": "Intake, compression, power, exhaust.",
+      "captured_at": "2026-07-10T15:00:00.000Z",
+      "tags": ["engineering", "mechanical"],
+      "source_url": "https://example.com/4stroke",
+      "classification": {
+        "detected_type": "video",
+        "category": "engineering",
+        "attributes": { "duration_seconds": "420", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-027",
+      "title": "Tour de France 2026 Highlights",
+      "type": "link",
+      "raw_text": "The decisive mountain stage in 8 minutes.",
+      "captured_at": "2026-07-15T20:00:00.000Z",
+      "tags": ["sports"],
+      "source_url": "https://example.com/tdf",
+      "classification": {
+        "detected_type": "video",
+        "category": "sports",
+        "attributes": { "duration_seconds": "480", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-028",
+      "title": "How a Toaster Works",
+      "type": "link",
+      "raw_text": "The surprising physics of a $20 toaster.",
+      "captured_at": "2026-07-20T10:00:00.000Z",
+      "tags": ["engineering"],
+      "source_url": "https://example.com/toaster",
+      "classification": {
+        "detected_type": "video",
+        "category": "engineering",
+        "attributes": { "duration_seconds": "300", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-029",
+      "title": "Hướng dẫn nấu phở bò",
+      "type": "link",
+      "raw_text": "Video hướng dẫn nấu phở bò chuẩn vị Bắc.",
+      "captured_at": "2026-07-25T10:00:00.000Z",
+      "tags": ["food", "vietnamese"],
+      "source_url": "https://example.vn/pho",
+      "classification": {
+        "detected_type": "video",
+        "category": "food",
+        "attributes": { "duration_seconds": "900", "language": "vi" }
+      }
+    },
+    {
+      "id": "mem-030",
+      "title": "OSI 7 Layers in 5 Minutes",
+      "type": "link",
+      "raw_text": "From cable to application.",
+      "captured_at": "2026-07-30T12:00:00.000Z",
+      "tags": ["networking"],
+      "source_url": "https://example.com/osi",
+      "classification": {
+        "detected_type": "video",
+        "category": "networking",
+        "attributes": { "duration_seconds": "300", "language": "en" }
+      }
+    },
+    {
+      "id": "mem-031",
+      "title": "The unexamined life is not worth living.",
+      "type": "text",
+      "raw_text": "Socrates, as recorded by Plato in the Apology.",
+      "captured_at": "2026-06-01T10:00:00.000Z",
+      "tags": ["philosophy"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "quote",
+        "category": "philosophy",
+        "attributes": { "author": "socrates" }
+      }
+    },
+    {
+      "id": "mem-032",
+      "title": "Stay hungry, stay foolish.",
+      "type": "text",
+      "raw_text": "Steve Jobs, Stanford commencement, 2005.",
+      "captured_at": "2026-06-02T10:00:00.000Z",
+      "tags": ["motivation"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "quote",
+        "category": "motivation",
+        "attributes": { "author": "steve-jobs" }
+      }
+    },
+    {
+      "id": "mem-033",
+      "title": "All that is gold does not glitter.",
+      "type": "text",
+      "raw_text": "Tolkien, The Fellowship of the Ring.",
+      "captured_at": "2026-06-03T10:00:00.000Z",
+      "tags": ["literature"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "quote",
+        "category": "literature",
+        "attributes": { "author": "tolkien" }
+      }
+    },
+    {
+      "id": "mem-034",
+      "title": "The only way to do great work is to love what you do.",
+      "type": "text",
+      "raw_text": "Steve Jobs.",
+      "captured_at": "2026-06-04T10:00:00.000Z",
+      "tags": ["motivation"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "quote",
+        "category": "motivation",
+        "attributes": { "author": "steve-jobs" }
+      }
+    },
+    {
+      "id": "mem-035",
+      "title": "Simplicity is the ultimate sophistication.",
+      "type": "text",
+      "raw_text": "Leonardo da Vinci.",
+      "captured_at": "2026-06-05T10:00:00.000Z",
+      "tags": ["design"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "quote",
+        "category": "design",
+        "attributes": { "author": "leonardo-da-vinci" }
+      }
+    },
+    {
+      "id": "mem-036",
+      "title": "Passage: on distributed consensus",
+      "type": "text",
+      "raw_text": "Raft makes consensus understandable by separating leader election, log replication, and safety into three independent properties.",
+      "captured_at": "2026-05-01T10:00:00.000Z",
+      "tags": ["engineering", "highlight"],
+      "source_url": "https://example.com/raft",
+      "classification": {
+        "detected_type": "highlight",
+        "category": "engineering",
+        "attributes": { "source_title": "Designing Data-Intensive Applications" }
+      }
+    },
+    {
+      "id": "mem-037",
+      "title": "Passage: on testing",
+      "type": "text",
+      "raw_text": "Property-based testing finds edge cases that example-based testing never reaches.",
+      "captured_at": "2026-05-02T10:00:00.000Z",
+      "tags": ["testing"],
+      "source_url": "https://example.com/property-testing",
+      "classification": {
+        "detected_type": "highlight",
+        "category": "engineering",
+        "attributes": { "source_title": "Property-Based Testing with QuickCheck" }
+      }
+    },
+    {
+      "id": "mem-038",
+      "title": "Passage: on habits",
+      "type": "text",
+      "raw_text": "You do not rise to the level of your goals. You fall to the level of your systems.",
+      "captured_at": "2026-05-03T10:00:00.000Z",
+      "tags": ["productivity"],
+      "source_url": "https://example.com/systems",
+      "classification": {
+        "detected_type": "highlight",
+        "category": "productivity",
+        "attributes": { "source_title": "Atomic Habits" }
+      }
+    },
+    {
+      "id": "mem-039",
+      "title": "Passage: on writing",
+      "type": "text",
+      "raw_text": "The reader is someone with an attention span of about 30 seconds.",
+      "captured_at": "2026-05-04T10:00:00.000Z",
+      "tags": ["writing"],
+      "source_url": "https://example.com/writing-attention",
+      "classification": {
+        "detected_type": "highlight",
+        "category": "writing",
+        "attributes": { "source_title": "On Writing Well" }
+      }
+    },
+    {
+      "id": "mem-040",
+      "title": "Passage: on memory",
+      "type": "text",
+      "raw_text": "Memory is the residue of thought.",
+      "captured_at": "2026-05-05T10:00:00.000Z",
+      "tags": ["memory"],
+      "source_url": "https://example.com/memory",
+      "classification": {
+        "detected_type": "highlight",
+        "category": "memory",
+        "attributes": { "source_title": "Make It Stick" }
+      }
+    },
+    {
+      "id": "mem-041",
+      "title": "Note: 2026-Q4 OKRs",
+      "type": "text",
+      "raw_text": "Three OKRs: ship smart search, ship classifier, ship golden dataset.",
+      "captured_at": "2026-10-01T09:00:00.000Z",
+      "tags": ["okr"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "note",
+        "category": "planning",
+        "attributes": {}
+      }
+    },
+    {
+      "id": "mem-042",
+      "title": "Note: book idea",
+      "type": "text",
+      "raw_text": "Book idea: a tour of distributed systems, told through case studies.",
+      "captured_at": "2026-10-02T09:00:00.000Z",
+      "tags": ["writing"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "note",
+        "category": "writing",
+        "attributes": {}
+      }
+    },
+    {
+      "id": "mem-043",
+      "title": "Note: 2026 conference list",
+      "type": "text",
+      "raw_text": "Conferences to attend: Strange Loop, !!Con, KubeCon, Devoxx.",
+      "captured_at": "2026-10-03T09:00:00.000Z",
+      "tags": ["conferences"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "note",
+        "category": "planning",
+        "attributes": {}
+      }
+    },
+    {
+      "id": "mem-044",
+      "title": "Note: hệ thống cần tối ưu",
+      "type": "text",
+      "raw_text": "Danh sách hệ thống cần tối ưu: search, embed, classifier.",
+      "captured_at": "2026-10-04T09:00:00.000Z",
+      "tags": ["performance", "vietnamese"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "note",
+        "category": "engineering",
+        "attributes": { "language": "vi" }
+      }
+    },
+    {
+      "id": "mem-045",
+      "title": "Note: weekly review",
+      "type": "text",
+      "raw_text": "This week: shipped capture, drafted classifier, started benchmark.",
+      "captured_at": "2026-10-05T09:00:00.000Z",
+      "tags": ["review"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "note",
+        "category": "planning",
+        "attributes": {}
+      }
+    },
+    {
+      "id": "mem-046",
+      "title": "Sunset photo",
+      "type": "image",
+      "raw_text": "A wide-angle sunset over the ocean.",
+      "captured_at": "2026-04-10T18:30:00.000Z",
+      "tags": ["photo", "nature"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "photography",
+        "attributes": { "subject": "sunset" }
+      }
+    },
+    {
+      "id": "mem-047",
+      "title": "Old town street",
+      "type": "image",
+      "raw_text": "A narrow street in Hội An at dusk.",
+      "captured_at": "2026-04-12T19:00:00.000Z",
+      "tags": ["photo", "vietnamese"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "photography",
+        "attributes": { "subject": "street", "location": "hoian" }
+      }
+    },
+    {
+      "id": "mem-048",
+      "title": "Mountain peak",
+      "type": "image",
+      "raw_text": "Snow-capped mountain at dawn.",
+      "captured_at": "2026-04-14T06:00:00.000Z",
+      "tags": ["photo", "nature"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "photography",
+        "attributes": { "subject": "mountain" }
+      }
+    },
+    {
+      "id": "mem-049",
+      "title": "Coffee on the table",
+      "type": "image",
+      "raw_text": "A cup of espresso on a wooden table.",
+      "captured_at": "2026-04-16T08:00:00.000Z",
+      "tags": ["photo", "lifestyle"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "photography",
+        "attributes": { "subject": "coffee" }
+      }
+    },
+    {
+      "id": "mem-050",
+      "title": "Cat in the garden",
+      "type": "image",
+      "raw_text": "A tabby cat lounging in a sunbeam.",
+      "captured_at": "2026-04-18T15:00:00.000Z",
+      "tags": ["photo", "animals"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "photography",
+        "attributes": { "subject": "cat" }
+      }
+    },
+    {
+      "id": "mem-051",
+      "title": "Bug report screenshot",
+      "type": "screenshot",
+      "raw_text": "App shows 500 error in the corner.",
+      "captured_at": "2026-03-01T10:00:00.000Z",
+      "tags": ["bug", "screenshot"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "engineering",
+        "attributes": { "app": "internal-dashboard" }
+      }
+    },
+    {
+      "id": "mem-052",
+      "title": "Pricing page screenshot",
+      "type": "screenshot",
+      "raw_text": "Three-tier pricing table.",
+      "captured_at": "2026-03-02T10:00:00.000Z",
+      "tags": ["screenshot", "competitor"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "marketing",
+        "attributes": { "site": "competitor-a" }
+      }
+    },
+    {
+      "id": "mem-053",
+      "title": "Slack thread screenshot",
+      "type": "screenshot",
+      "raw_text": "A 12-message thread about the launch.",
+      "captured_at": "2026-03-03T10:00:00.000Z",
+      "tags": ["screenshot", "communication"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "communication",
+        "attributes": { "platform": "slack" }
+      }
+    },
+    {
+      "id": "mem-054",
+      "title": "Notion board screenshot",
+      "type": "screenshot",
+      "raw_text": "A Kanban board with 8 cards.",
+      "captured_at": "2026-03-04T10:00:00.000Z",
+      "tags": ["screenshot", "planning"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "planning",
+        "attributes": { "platform": "notion" }
+      }
+    },
+    {
+      "id": "mem-055",
+      "title": "Editor screenshot",
+      "type": "screenshot",
+      "raw_text": "Vim split window with markdown preview.",
+      "captured_at": "2026-03-05T10:00:00.000Z",
+      "tags": ["screenshot", "tools"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "image",
+        "category": "tools",
+        "attributes": { "platform": "vim" }
+      }
+    },
+    {
+      "id": "mem-056",
+      "title": "Q3 financial report.pdf",
+      "type": "document",
+      "raw_text": "Revenue up 18% YoY. Expenses down 4%.",
+      "captured_at": "2026-02-01T09:00:00.000Z",
+      "tags": ["finance", "report"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "document",
+        "category": "finance",
+        "attributes": { "pages": "12" }
+      }
+    },
+    {
+      "id": "mem-057",
+      "title": "Customer interview transcript.pdf",
+      "type": "document",
+      "raw_text": "45-minute interview with persona Maria about note-taking habits.",
+      "captured_at": "2026-02-02T09:00:00.000Z",
+      "tags": ["research"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "document",
+        "category": "research",
+        "attributes": { "pages": "8" }
+      }
+    },
+    {
+      "id": "mem-058",
+      "title": "Architecture decision record.pdf",
+      "type": "document",
+      "raw_text": "ADR-014: classify job placement. M2 ships the structured-output schema.",
+      "captured_at": "2026-02-03T09:00:00.000Z",
+      "tags": ["engineering", "adr"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "document",
+        "category": "engineering",
+        "attributes": { "pages": "3" }
+      }
+    },
+    {
+      "id": "mem-059",
+      "title": "User research synthesis.pdf",
+      "type": "document",
+      "raw_text": "Synthesis of 12 interviews, grouped into 4 themes.",
+      "captured_at": "2026-02-04T09:00:00.000Z",
+      "tags": ["research"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "document",
+        "category": "research",
+        "attributes": { "pages": "22" }
+      }
+    },
+    {
+      "id": "mem-060",
+      "title": "Báo cáo thị trường Việt Nam.pdf",
+      "type": "document",
+      "raw_text": "Phân tích thị trường SaaS Việt Nam 2026.",
+      "captured_at": "2026-02-05T09:00:00.000Z",
+      "tags": ["vietnamese", "report"],
+      "source_url": null,
+      "classification": {
+        "detected_type": "document",
+        "category": "business",
+        "attributes": { "pages": "30", "language": "vi" }
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "q-001",
+      "q": "wooden furniture",
+      "relevant_ids": ["mem-001", "mem-004"],
+      "labels": ["structured", "hybrid"]
+    },
+    {
+      "id": "q-002",
+      "q": "brand:northwind material:wood",
+      "relevant_ids": ["mem-001", "mem-004", "mem-007", "mem-008", "mem-009"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-003",
+      "q": "recipes this week",
+      "relevant_ids": ["mem-021", "mem-022", "mem-023", "mem-024", "mem-025"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-004",
+      "q": "japanese ramen",
+      "relevant_ids": ["mem-021"],
+      "labels": ["lexical", "semantic"]
+    },
+    {
+      "id": "q-005",
+      "q": "italian leather",
+      "relevant_ids": ["mem-003"],
+      "labels": ["structured", "hybrid"]
+    },
+    {
+      "id": "q-006",
+      "q": "phân tán dữ liệu",
+      "relevant_ids": ["mem-016"],
+      "labels": ["lexical"]
+    },
+    {
+      "id": "q-007",
+      "q": "consensus raft",
+      "relevant_ids": ["mem-036"],
+      "labels": ["semantic"]
+    },
+    {
+      "id": "q-008",
+      "q": "steve jobs quote",
+      "relevant_ids": ["mem-032", "mem-034"],
+      "labels": ["structured", "hybrid"]
+    },
+    {
+      "id": "q-009",
+      "q": "ikea furniture",
+      "relevant_ids": ["mem-003", "mem-005", "mem-006", "mem-010"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-010",
+      "q": "black clothing",
+      "relevant_ids": ["mem-008"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-011",
+      "q": "deep work",
+      "relevant_ids": ["mem-017", "mem-036"],
+      "labels": ["semantic", "hybrid"]
+    },
+    {
+      "id": "q-012",
+      "q": "OSI layers",
+      "relevant_ids": ["mem-030"],
+      "labels": ["lexical", "semantic"]
+    },
+    {
+      "id": "q-013",
+      "q": "vietnamese food recipe",
+      "relevant_ids": ["mem-023", "mem-029"],
+      "labels": ["structured", "lexical"]
+    },
+    {
+      "id": "q-014",
+      "q": "socrates",
+      "relevant_ids": ["mem-031"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-015",
+      "q": "atomic habits",
+      "relevant_ids": ["mem-038"],
+      "labels": ["semantic"]
+    },
+    {
+      "id": "q-016",
+      "q": "4-stroke engine",
+      "relevant_ids": ["mem-026"],
+      "labels": ["lexical"]
+    },
+    {
+      "id": "q-017",
+      "q": "kanban board",
+      "relevant_ids": ["mem-054"],
+      "labels": ["semantic"]
+    },
+    {
+      "id": "q-018",
+      "q": "bún chả",
+      "relevant_ids": ["mem-023"],
+      "labels": ["lexical"]
+    },
+    {
+      "id": "q-019",
+      "q": "research interview",
+      "relevant_ids": ["mem-057", "mem-059"],
+      "labels": ["lexical", "semantic"]
+    },
+    {
+      "id": "q-020",
+      "q": "color:beige",
+      "relevant_ids": ["mem-010"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-021",
+      "q": "before 2026-08-01",
+      "relevant_ids": ["mem-046", "mem-047", "mem-048", "mem-049", "mem-050", "mem-051", "mem-052", "mem-053", "mem-054", "mem-055", "mem-056", "mem-057", "mem-058", "mem-059", "mem-060"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-022",
+      "q": "documents this year",
+      "relevant_ids": ["mem-056", "mem-057", "mem-058", "mem-059", "mem-060"],
+      "labels": ["structured", "hybrid"]
+    },
+    {
+      "id": "q-023",
+      "q": "pho bo",
+      "relevant_ids": ["mem-029"],
+      "labels": ["lexical", "semantic"]
+    },
+    {
+      "id": "q-024",
+      "q": "highlights engineering",
+      "relevant_ids": ["mem-036", "mem-037"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-025",
+      "q": "okr planning",
+      "relevant_ids": ["mem-041", "mem-043", "mem-045"],
+      "labels": ["lexical", "semantic"]
+    },
+    {
+      "id": "q-026",
+      "q": "photography nature",
+      "relevant_ids": ["mem-046", "mem-048"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-027",
+      "q": "cat",
+      "relevant_ids": ["mem-050"],
+      "labels": ["lexical"]
+    },
+    {
+      "id": "q-028",
+      "q": "tolkien",
+      "relevant_ids": ["mem-033"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-029",
+      "q": "kind:image detected:image",
+      "relevant_ids": ["mem-046", "mem-047", "mem-048", "mem-049", "mem-050"],
+      "labels": ["structured"]
+    },
+    {
+      "id": "q-030",
+      "q": "leonardo da vinci",
+      "relevant_ids": ["mem-035"],
+      "labels": ["structured"]
+    }
+  ]
+}
