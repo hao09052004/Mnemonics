@@ -92,9 +92,12 @@ The pre-M4 baseline is **411 tests** (across the four
 M4 push adds:
 
 - `@mnemonics/bench` — 8 tests (4 dataset + 4 integration)
-- `apps/api` — 7 E2E acceptance tests A–G
+- `apps/api` — 7 E2E acceptance tests A–G (`acceptance-m4.test.ts`)
+- `apps/api` — 5 §20 review-focus tests (`review-focus-m4.test.ts`)
+- `apps/api` — 2 PATCH `/items/:id` user-attribute tests
+- `@mnemonics/database` — 2 Vietnamese type-hint tests in the query parser
 
-Post-M4 floor: **819 tests** (verified on `feat/core-capture-classification-smart-search`):
+Post-M4 floor: **828 tests** (verified on `feat/core-capture-classification-smart-search`):
 
 | Package          | Tests | Skipped |
 |------------------|------:|--------:|
@@ -102,10 +105,15 @@ Post-M4 floor: **819 tests** (verified on `feat/core-capture-classification-smar
 | `@mnemonics/ai`      | 137 | 1 |
 | `apps/extension`     | 78  | 0 |
 | `apps/web`           | 143 | 0 |
-| `@mnemonics/database`| 100 | 0 |
-| `apps/api`           | 318 | 1 |
+| `@mnemonics/database`| 102 | 0 |
+| `apps/api`           | 325 | 1 |
 | `@mnemonics/bench`   | 8   | 0 |
-| **Total**            | **819** | **2** |
+| **Total**            | **828** | **2** |
+
+The M4 push adds 17 new tests on top of the pre-M4 floor
+of 411 (5 §20 review-focus + 8 bench + 2 PATCH items
+attribute-override + 2 query-parser Vietnamese type
+hints).
 
 ---
 

@@ -185,4 +185,19 @@ describe('parseQuery (M3)', () => {
     expect(r.structured?.detectedType).toEqual(['recipe']);
 >>>>>>> 421dc0c (feat(search): M3 smart search & dynamic smart spaces (parser + structured leg))
   });
+
+  // Spec 0005 §20 review focus 4: Vietnamese type hints.
+  it('parses the Vietnamese "công thức" phrase as a recipe hint', () => {
+    const r = parseQuery('công thức phở bò', NOW);
+    expect(r.structured?.detectedType).toEqual(['recipe']);
+    // The phrase is consumed; "phở bò" stays in residualQ
+    // for the semantic leg.
+    expect(r.residualQ).toContain('phở');
+  });
+
+  it('parses the Vietnamese "bài viết" phrase as an article hint', () => {
+    const r = parseQuery('bài viết về bảo mật', NOW);
+    expect(r.structured?.detectedType).toEqual(['article']);
+    expect(r.residualQ).toContain('bảo');
+  });
 });

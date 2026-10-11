@@ -149,13 +149,35 @@ export class ClassifyHandler {
     return;
   }
 
+    // Spec 0005 §20 review-focus 1: if the previous
+    // classification row has any `evidence[k] = 'user'`,
+    // those keys are user-set and must NOT be overwritten
+    // by the classifier. Merge: keep user values, fill the
+    // rest with the new classifier result.
+    const userOverrides: Record<string, string> = {};
+    if (previous && previous.evidence) {
+      for (const [k, v] of Object.entries(previous.evidence)) {
+        if (v === 'user' && previous.attributes && k in previous.attributes) {
+          userOverrides[k] = String(previous.attributes[k]);
+        }
+      }
+    }
+    const mergedAttributes: Record<string, unknown> = {
+      ...(result.attributes || {}),
+      ...userOverrides
+    };
+    const mergedEvidence: Record<string, string> = {
+      ...(result.evidence || {}),
+      ...Object.fromEntries(Object.keys(userOverrides).map((k) => [k, 'user']))
+    };
+
     await this.safeUpsert(classifications, job, {
       detectedType: result.detectedType,
       category: result.category,
       description: result.description,
-      attributes: result.attributes,
+      attributes: mergedAttributes,
       entities: result.entities,
-      evidence: result.evidence,
+      evidence: mergedEvidence,
       confidence: result.confidence,
       provider: classifier.info().name,
       model: classifier.info().model,

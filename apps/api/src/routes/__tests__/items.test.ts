@@ -324,6 +324,88 @@ describe('PATCH /api/v1/items/:id (favorite)', () => {
   });
 });
 
+describe('PATCH /api/v1/items/:id (user attribute override)', () => {
+  const repoItem: FakeRepoItem = {
+    id: 'i1',
+    userId: 'u1',
+    status: 'ready',
+    type: 'link',
+    title: 'Wooden Chair',
+    sourceUrl: null,
+    rawText: null,
+    ocrText: null,
+    ocrEngine: null,
+    ocrConfidence: null,
+    capturedAt: new Date('2026-09-18T09:00:00.000Z')
+  };
+
+  it('forwards the attributes body to a jsonb_set update on item_classifications', async () => {
+    const rows = baseRows.map((r) => ({ ...r }));
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const pool = createFakePool(rows);
+    // Capture the second UPDATE (item_classifications) when
+    // called with `attributes`. The fake pool forwards
+    // every statement to a recorder.
+    (pool as any).query = (sql: string, params: unknown[]) => {
+      captured.push({ sql, params });
+      if (sql.startsWith('UPDATE items')) {
+        const id = params[params.length - 1];
+        const r = rows.find((x) => x.id === id);
+        if (r) return { rows: [r], rowCount: 1 };
+      }
+      if (sql.startsWith('UPDATE item_classifications')) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    };
+    const repo = {
+      async findById(id: string) {
+        return id === repoItem.id ? { ...repoItem } : null;
+      }
+    };
+    const app = express();
+    app.use(express.json());
+    app.use('/api/v1', createItemRouter({ pool, repository: repo as any, expectedToken: 't', developmentUserId: 'u1' }));
+
+    const response = await request(app)
+      .patch('/api/v1/items/i1')
+      .set('Authorization', 'Bearer t')
+      .send({ attributes: { brand: 'MyBrand' } });
+
+    expect(response.status).toBe(200);
+    // The handler should have called the
+    // item_classifications UPDATE that sets attributes
+    // and evidence.
+    const clsUpdate = captured.find((c) => c.sql.startsWith('UPDATE item_classifications'));
+    expect(clsUpdate).toBeDefined();
+    // The UPDATE should set brand and the evidence key.
+    expect(clsUpdate!.sql).toContain('attributes = jsonb_set');
+    expect(clsUpdate!.sql).toContain("'user'::text");
+  });
+
+  it('returns 200 with empty attributes (touches updated_at)', async () => {
+    const rows = baseRows.map((r) => ({ ...r }));
+    const pool = createFakePool(rows);
+    const repo = {
+      async findById(id: string) {
+        return id === repoItem.id ? { ...repoItem } : null;
+      }
+    };
+    const app = express();
+    app.use(express.json());
+    app.use('/api/v1', createItemRouter({ pool, repository: repo as any, expectedToken: 't', developmentUserId: 'u1' }));
+    const response = await request(app)
+      .patch('/api/v1/items/i1')
+      .set('Authorization', 'Bearer t')
+      .send({ attributes: {} });
+    // Empty attributes is a no-op for the classification
+    // update but the items row still gets `updated_at`
+    // touched (which is a legitimate behaviour — it signals
+    // a user action). 200 with the unchanged item.
+    expect(response.status).toBe(200);
+  });
+});
+
 describe('DELETE /api/v1/items/:id', () => {
   const owned: FakeRepoItem = {
     id: 'i1',

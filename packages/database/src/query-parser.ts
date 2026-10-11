@@ -263,7 +263,20 @@ const TYPE_HINTS: Record<string, string> = {
   notes: 'note',
   images: 'image',
   documents: 'document',
-  webpages: 'webpage'
+  webpages: 'webpage',
+  // Vietnamese type hints (spec 0005 §20 review focus 4).
+  // These are common nouns a Vietnamese-speaking user would
+  // type; the parser strips them and routes the residual
+  // through the semantic leg.
+  'công thức': 'recipe',
+  'bài viết': 'article',
+  'video': 'video',
+  'sản phẩm': 'product',
+  'trích dẫn': 'quote',
+  'đoạn trích': 'highlight',
+  'ghi chú': 'note',
+  'hình ảnh': 'image',
+  'tài liệu': 'document'
 };
 
 const STRUCTURED_KEYS = [
@@ -418,12 +431,28 @@ export function parseQuery(input: string, now: Date = new Date()): ParsedQuery {
     trace.push({ kind: 'date-after', value: afterDate[1] });
   }
 
+  // Pass 2a: multi-word type hints (Vietnamese phrases like
+  // "công thức phở bò" or "bài viết về bảo mật"). The
+  // per-token pass below would split them apart; this pass
+  // matches them first and removes the tokens from the
+  // residual.
+  const lowerInput = input.toLowerCase();
+  const typeCounts = new Map<string, number>();
+  const multiWordHints = Object.entries(TYPE_HINTS)
+    .filter(([k]) => k.includes(' '))
+    .sort((a, b) => b[0].length - a[0].length); // longest first
+  for (const [phrase, kind] of multiWordHints) {
+    if (lowerInput.includes(phrase)) {
+      typeCounts.set(kind, (typeCounts.get(kind) ?? 0) + 1);
+      trace.push({ kind: 'type-hint', value: phrase });
+    }
+  }
+
   // Pass 2: type hints and structured tokens. We work on the
   // token list so "brand:ikea" doesn't accidentally leak into
   // the residual.
   const tokens = input.split(/\s+/).map(cleanToken).filter(Boolean);
   const structured: SearchFiltersStructured = {};
-  const typeCounts = new Map<string, number>();
   // Track each structured key with all values it saw. A
   // contradiction (two different values) drops the whole key.
   const structuredByKey: Record<StructuredKey, Set<string>> = {
