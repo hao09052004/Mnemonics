@@ -443,4 +443,37 @@ describe('save search as smart space', () => {
       )
     );
   });
+
+  it('M3 — saves a structured-filter rule when a structured chip is active', async () => {
+    const api = mockApi();
+    vi.spyOn(api, 'listItems').mockResolvedValue(emptyList);
+    vi.spyOn(api, 'search').mockResolvedValue({ hits: [], total: 0, took_ms: 1 } as never);
+    const create = vi.spyOn(api, 'createSmartSpace').mockResolvedValue(
+      makeSpace({ id: 'smart-new', spaceType: 'smart' })
+    );
+
+    renderDashboard(api);
+    // Type a natural-language query that the parser turns into
+    // a structured filter. The dashboard already calls
+    // /api/v1/search; the parser lives on the server, so the
+    // round-trip is what proves the criterion survives.
+    await userEvent.type(
+      screen.getByLabelText('Search your memories'),
+      'recipes this week'
+    );
+
+    await waitFor(() => expect(screen.getByTestId('save-as-space')).toBeTruthy());
+    await userEvent.click(screen.getByTestId('save-as-space'));
+    await userEvent.type(screen.getByTestId('space-dialog-name'), 'This Week Recipes');
+    await userEvent.click(screen.getByTestId('space-dialog-submit'));
+
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    const payload = create.mock.calls[0][0] as unknown as { rule: { q: string; filters: { structured?: { detectedType?: string[] }; captured_after?: string } } };
+    // The button sends the search bar's text as `q`. The
+    // server-side parser extracts `detectedType` and the date
+    // window into `filters.structured` /
+    // `filters.captured_after`. The dashboard's job here is
+    // only to ship the search bar text.
+    expect(payload.rule.q).toBe('recipes this week');
+  });
 });

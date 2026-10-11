@@ -131,6 +131,50 @@ function applyQueryParser(req: SearchRequest, parsedQ: ReturnType<typeof parseQu
   return merged;
 }
 
+/**
+ * M3 — merge the deterministic query-parser output into a
+ * SearchRequest. Existing values win (so the user can pass
+ * explicit `filters` AND a natural-language `q` at the same
+ * time, and the explicit values take precedence).
+ */
+function applyQueryParser(req: SearchRequest, parsedQ: ReturnType<typeof parseQuery>): SearchRequest {
+  const merged: SearchRequest = {
+    ...req,
+    filters: req.filters ? { ...req.filters } : {}
+  };
+  if (!merged.filters) {
+    merged.filters = {};
+  }
+  if (parsedQ.captured_after && !merged.filters.captured_after) {
+    merged.filters.captured_after = parsedQ.captured_after;
+  }
+  if (parsedQ.captured_before && !merged.filters.captured_before) {
+    merged.filters.captured_before = parsedQ.captured_before;
+  }
+  if (parsedQ.structured) {
+    const existingStructured = merged.filters.structured ?? {};
+    const outStructured: SearchFilters['structured'] = { ...existingStructured };
+    for (const k of ['detectedType','category','brand','material','color','merchant','author'] as const) {
+      const incoming = parsedQ.structured[k];
+      if (incoming && incoming.length > 0 && (!outStructured[k] || outStructured[k]!.length === 0)) {
+        // Cast to the right array type — Zod inferred `string` so we
+        // re-narrow at the boundary by trusting the parser's
+        // controlled vocabulary.
+        (outStructured as Record<string, unknown>)[k] = incoming;
+      }
+    }
+    merged.filters.structured = outStructured;
+  }
+  if (parsedQ.residualQ && !req.q) {
+    merged.q = parsedQ.residualQ;
+  } else if (parsedQ.residualQ && req.q) {
+    merged.q = `${req.q} ${parsedQ.residualQ}`.trim();
+  } else if (!req.q) {
+    merged.q = '';
+  }
+  return merged;
+}
+
 export function createSearchRouter(deps: SearchRouterDeps): Application {
   const {
     pool,

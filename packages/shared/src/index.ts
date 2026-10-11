@@ -173,6 +173,59 @@ export const captureResponseSchema = z.object({
 });
 export type CaptureResponse = z.infer<typeof captureResponseSchema>;
 
+/* -------------------------------------------------------------------------- */
+/*  Search / Smart Spaces (spec 0005 §7)                                      */
+/* -------------------------------------------------------------------------- */
+
+/** Semantic kinds written by the classifier (spec 0005 §5.2). */
+export const detectedTypeSchema = z.enum([
+  'article','product','recipe','video','quote','highlight',
+  'webpage','image','note','document','other'
+]);
+
+/**
+ * The new "structured" filter group. Each field is an
+ * any-of match against the same key on
+ * `item_classifications`; distinct fields are AND-ed.
+ */
+export const searchFiltersStructuredSchema = z.object({
+  detectedType: z.array(detectedTypeSchema).optional(),
+  category: z.array(z.string().min(1).max(80)).max(16).optional(),
+  brand: z.array(z.string().min(1).max(80)).max(16).optional(),
+  material: z.array(z.string().min(1).max(80)).max(16).optional(),
+  color: z.array(z.string().min(1).max(80)).max(16).optional(),
+  merchant: z.array(z.string().min(1).max(80)).max(16).optional(),
+  author: z.array(z.string().min(1).max(120)).max(16).optional()
+}).strict();
+
+/** Content kinds (storage shape, unchanged). */
+export const searchKindSchema = z.enum([
+  'link','text','image','screenshot','document'
+]);
+
+/**
+ * The full filter object the search route and Smart Spaces
+ * accept. `structured` is new in M3; everything else is
+ * unchanged.
+ */
+export const searchFiltersSchema = z.object({
+  tags: z.array(z.string().min(1).max(80)).max(32).optional(),
+  kind: z.array(searchKindSchema).optional(),
+  captured_after: z.string().datetime({ offset: true }).optional(),
+  captured_before: z.string().datetime({ offset: true }).optional(),
+  favorite: z.boolean().optional(),
+  structured: searchFiltersStructuredSchema.optional()
+}).strict();
+export type SearchFilters = z.infer<typeof searchFiltersSchema>;
+
+export const searchRequestSchema = z.object({
+  q: z.string().max(500).optional(),
+  filters: searchFiltersSchema.optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional()
+}).strict();
+export type SearchRequest = z.infer<typeof searchRequestSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string().min(1),

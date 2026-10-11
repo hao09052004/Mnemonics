@@ -492,8 +492,11 @@ export {
   SEARCH_KINDS,
   DEFAULT_LIMIT,
   MAX_LIMIT,
+  STRUCT_WEIGHT,
+  DETECTED_TYPES,
   type SearchRequest,
   type SearchFilters,
+  type SearchFiltersStructured,
   type SearchKind,
   type SearchHit,
   type SearchResponse,
@@ -545,6 +548,9 @@ export {
   type ContentClusterSummary,
   type ClusterPreviewItem
 } from './clusters.js';
+
+export { parseQuery } from './query-parser.js';
+export type { ParsedQuery, DateWindow } from './query-parser.js';
 
 export function createClassificationRepository(pool: Pool): ClassificationRepository {
   return {
