@@ -33,7 +33,7 @@ export type ExtractedPage = {
 function readMeta(doc: Document, keys: string[]): string | undefined {
   for (const k of keys) {
     const el = doc.querySelector(`meta[property="${k}"], meta[name="${k}"]`);
-    if (el && el.content) return el.content;
+    if (el && (el as HTMLMetaElement).content) return (el as HTMLMetaElement).content;
   }
   return undefined;
 }
@@ -63,7 +63,7 @@ function readJsonLd(doc: Document): Record<string, unknown>[] {
 }
 
 function readCanonical(doc: Document): string | undefined {
-  const link = doc.querySelector('link[rel="canonical"]');
+  const link = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
   return link && link.href ? link.href : undefined;
 }
 
