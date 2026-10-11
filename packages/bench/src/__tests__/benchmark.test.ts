@@ -67,7 +67,8 @@ describe.skipIf(skipIfNoDb)('M4 benchmark', () => {
       classifier: { total: 60, f1: 1.0, perClass: { product: 1 }, mismatches: [] },
       e2e: [
         { id: 'A', name: 'capture+classify', passed: true, durationMs: 120 },
-        { id: 'B', name: 'detected chip', passed: true, durationMs: 50 }
+        { id: 'B', name: 'detected chip', passed: true, durationMs: 50 },
+        { id: 'H', name: 'user-attribute override', passed: true, durationMs: 80 }
       ],
       testCounts: { database: 100, ai: 50, api: 311, web: 200, bench: 10 },
       rankingWeights: { lex: 0.4, sem: 0.6, struct: 0.5, rrfK: 60 },
@@ -76,7 +77,7 @@ describe.skipIf(skipIfNoDb)('M4 benchmark', () => {
     });
     expect(md).toContain('## 1. Search Relevance Benchmark');
     expect(md).toContain('## 2. Classifier F1');
-    expect(md).toContain('## 3. E2E Acceptance (Tests A–G)');
+    expect(md).toContain('## 3. E2E Acceptance (Tests A–H)');
     expect(md).toContain('## 4. Per-package Test Counts');
     expect(md).toContain('## 5. Ranking Weights (pinned)');
     expect(md).toContain('## 6. Database Migrations Applied');

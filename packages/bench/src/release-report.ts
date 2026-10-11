@@ -10,7 +10,7 @@ import type { BenchmarkReport } from './benchmark.js';
 import type { ClassifierF1Report } from './classifier-harness.js';
 
 export interface E2EResult {
-  id: string;            // "A".."G"
+  id: string;            // "A".."H"
   name: string;
   passed: boolean;
   durationMs?: number;
@@ -61,7 +61,7 @@ export function generateReleaseReport(
     `## 2. Classifier F1`,
     f1Section,
     ``,
-    `## 3. E2E Acceptance (Tests A–G)`,
+    `## 3. E2E Acceptance (Tests A–H)`,
     e2eSection,
     ``,
     `## 4. Per-package Test Counts`,
