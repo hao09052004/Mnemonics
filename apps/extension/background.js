@@ -845,6 +845,25 @@ chrome.contextMenus.onClicked.addListener(function (info, tab) {
 // Trao dữ liệu ảnh chụp màn hình giữa popup và trang cropper.
 // Dùng background memory để tránh lỗi ảnh dataURL quá lớn khi truyền qua storage.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.type === 'EXTRACT_SOURCE_METADATA') {
+    const url = msg.url;
+    if (!url || !/^https?:\/\//i.test(url)) {
+      sendResponse({ ok: false, error: 'invalid url' });
+      return true;
+    }
+    // Service workers are not subject to CORS the way a page
+    // context fetch is; we read the raw HTML and run the same
+    // extraction against it in the worker. Failure (offline,
+    // CORS, blocked host) returns ok:false so the popup falls
+    // back to the existing tab-title path.
+    readAndExtract(url)
+      .then((data) => sendResponse({ ok: true, data: data || null }))
+      .catch((err) =>
+        sendResponse({ ok: false, error: err && err.message ? err.message : 'extraction failed' })
+      );
+    return true;
+  }
+
   if (msg && msg.type === 'SET_PENDING_SCREENSHOT') {
     mnemonicsPendingScreenshot = msg.payload || null;
     sendResponse({ ok: true });
@@ -1123,3 +1142,67 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // (deleteItemOnServer is declared earlier in this file. Single source of truth.)
+
+// ----- M1 source-metadata extraction (service-worker side) -----
+//
+// Fetches the raw HTML of the active page and runs the same
+// extraction that the unit tests exercise. The service worker
+// already has `host_permissions: <all_urls>`, so this fetch is
+// not subject to CORS the way a page-context fetch would be.
+//
+// The Readability library is loaded via dynamic import so the
+// background script does not pay for it on the first run.
+let _extractionModule = null;
+async function getExtractionModule() {
+  if (_extractionModule) return _extractionModule;
+  try {
+    // The bundler (we ship the extension as-is) resolves this
+    // through the extension package's node_modules at build
+    // time. In the un-built dev path, fall back to no extraction.
+    const mod = await import('./extraction.js');
+    _extractionModule = mod;
+    return mod;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function readAndExtract(url) {
+  // Bound the network read so a slow site never blocks the popup.
+  const controller = typeof AbortController !== 'undefined'
+    ? new AbortController() : null;
+  const timer = controller
+    ? setTimeout(() => controller.abort(), 3500)
+    : null;
+  let html = '';
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      credentials: 'omit',
+      signal: controller ? controller.signal : undefined
+    });
+    if (!res.ok) return null;
+    const raw = await res.text();
+    html = raw.length > 400_000 ? raw.slice(0, 400_000) : raw;
+  } catch (_) {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (!html) return null;
+  const mod = await getExtractionModule();
+  if (!mod) return null;
+  // Build a DOM in the worker. We do not have a real `document`,
+  // so use a minimal stub. For the spec's 11 known shapes
+  // (JSON-LD, OG, Readability), the meta + JSON-LD extraction
+  // works on any compliant HTML string.
+  try {
+    const { JSDOM } = await import('jsdom');
+    const dom = new JSDOM(html, { url: url });
+    const result = await mod.extractPageMetadata(dom.window.document, url);
+    return result;
+  } catch (_) {
+    return null;
+  }
+}

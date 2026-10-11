@@ -3,6 +3,7 @@ var currentTags = [];
 var tagTimer = null;
 var currentPageUrl = '';
 var currentPageTitle = '';
+var currentSourceMetadata = null;
 var pendingScreenshotData = '';
 var pendingScreenshotTitle = '';
 var pendingScreenshotRequestId = null;
@@ -53,6 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('tab-url').textContent = url.replace(/^https?:\/\//, '').slice(0, 55);
         document.getElementById('cap-title').value = title.slice(0, 80);
         if (title) autoTagsFromContent(title);
+        // M1: extract structured page metadata so the M2 classifier
+        // has the JSON-LD + Open Graph + Readability data without
+        // a second round-trip to the source URL.
+        extractAndStoreSourceMetadata(tabs[0].id);
       }
     });
   }
@@ -419,7 +424,11 @@ async function saveCapture() {
     clientRequestId: pendingCaptureRequestId || crypto.randomUUID(),
     savedAt: new Date().toISOString(),
     date: 'Vừa xong',
-    serverSynced: true
+    serverSynced: true,
+    // M1: attach the parsed page metadata, when available. The
+    // background script forwards it; the API persists it on
+    // `items.source_metadata` for M2 to read.
+    sourceMetadata: currentSourceMetadata || null
   };
 
   if (currentType === 'link') {
@@ -460,5 +469,35 @@ function renderRecent() {
   var container = document.getElementById('recent-list');
   if (container) {
     container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Mở dashboard để xem dữ liệu từ server</div>';
+  }
+}
+
+/**
+ * M1: pull parsed page metadata out of the active tab and
+ * store it on `currentSourceMetadata` so the next save includes
+ * it. The extraction itself happens in the service worker
+ * (where @mozilla/readability is loaded) to keep the popup
+ * snappy and to dodge page-context CORS on the JSDOM.
+ *
+ * The work is fire-and-forget; failure leaves
+ * `currentSourceMetadata` null and the save still succeeds.
+ */
+function extractAndStoreSourceMetadata(tabId) {
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+    return;
+  }
+  try {
+    chrome.runtime.sendMessage(
+      { type: 'EXTRACT_SOURCE_METADATA', url: currentPageUrl },
+      function(response) {
+        if (!response || !response.ok || !response.data) {
+          currentSourceMetadata = null;
+          return;
+        }
+        currentSourceMetadata = response.data;
+      }
+    );
+  } catch (_) {
+    currentSourceMetadata = null;
   }
 }
