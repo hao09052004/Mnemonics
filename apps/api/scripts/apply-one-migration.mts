@@ -25,9 +25,15 @@ const path = join(process.cwd(), '..', '..', 'packages', 'database', 'migrations
 
 try {
   await pool.query(readFileSync(path, 'utf8'));
+  // The `schema_migrations` ledger has an `id` column (NOT NULL
+  // text, no default) and a `filename` column. The bulk apply
+  // script uses `INSERT ... (filename) ...` which only works if
+  // `id` has a default; the live deployment ledger does not, so
+  // we pass an explicit `id` derived from the filename.
   await pool.query(
-    'INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING',
-    [file]
+    `INSERT INTO schema_migrations (id, filename) VALUES ($1, $2)
+     ON CONFLICT (filename) DO NOTHING`,
+    [file, file]
   );
   console.log(`applied ${file}`);
 } catch (error) {

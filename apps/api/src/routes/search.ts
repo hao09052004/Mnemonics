@@ -20,9 +20,11 @@ import {
   hasMeaningfulCriteria,
   runSearch,
   SEARCH_KINDS,
+  type SearchFilters,
   type SearchKind,
   type SearchRequest
 } from '@mnemonics/database';
+import { parseQuery } from '@mnemonics/database';
 import type { EmbeddingProvider } from '@mnemonics/ai';
 
 export interface SearchRouterDeps {
@@ -50,7 +52,25 @@ const searchRequestSchema = z
         kind: z.array(z.enum(kindTuple)).max(10).optional(),
         captured_after: z.string().datetime().optional(),
         captured_before: z.string().datetime().optional(),
-        favorite: z.boolean().optional()
+        favorite: z.boolean().optional(),
+        structured: z
+          .object({
+            detectedType: z
+              .array(
+                z.enum([
+                  'article','product','recipe','video','quote','highlight',
+                  'webpage','image','note','document','other'
+                ])
+              )
+              .optional(),
+            category: z.array(z.string().max(80)).max(16).optional(),
+            brand: z.array(z.string().max(80)).max(16).optional(),
+            material: z.array(z.string().max(80)).max(16).optional(),
+            color: z.array(z.string().max(80)).max(16).optional(),
+            merchant: z.array(z.string().max(80)).max(16).optional(),
+            author: z.array(z.string().max(120)).max(16).optional()
+          })
+          .optional()
       })
       .optional(),
     limit: z.number().int().min(1).max(100).optional().default(20),
@@ -60,7 +80,56 @@ const searchRequestSchema = z
   .refine((v) => hasMeaningfulCriteria(v as SearchRequest), {
     message: 'Provide q or at least one filter',
     path: ['q']
-  });
+  })
+  .and(
+    z.object({
+      mode: z.enum(['lexical', 'semantic', 'hybrid']).optional().default('hybrid')
+    })
+  );
+
+/**
+ * M3 — merge the deterministic query-parser output into a
+ * SearchRequest. Existing values win (so the user can pass
+ * explicit `filters` AND a natural-language `q` at the same
+ * time, and the explicit values take precedence).
+ */
+function applyQueryParser(req: SearchRequest, parsedQ: ReturnType<typeof parseQuery>): SearchRequest {
+  const merged: SearchRequest = {
+    ...req,
+    filters: req.filters ? { ...req.filters } : {}
+  };
+  if (!merged.filters) {
+    merged.filters = {};
+  }
+  if (parsedQ.captured_after && !merged.filters.captured_after) {
+    merged.filters.captured_after = parsedQ.captured_after;
+  }
+  if (parsedQ.captured_before && !merged.filters.captured_before) {
+    merged.filters.captured_before = parsedQ.captured_before;
+  }
+  if (parsedQ.structured) {
+    const existingStructured = merged.filters.structured ?? {};
+    const outStructured: SearchFilters['structured'] = { ...existingStructured };
+    for (const k of ['detectedType','category','brand','material','color','merchant','author'] as const) {
+      const incoming = parsedQ.structured[k];
+      if (incoming && incoming.length > 0 && (!outStructured[k] || outStructured[k]!.length === 0)) {
+        // Cast to the right array type — Zod inferred `string` so we
+        // re-narrow at the boundary by trusting the parser's
+        // controlled vocabulary.
+        (outStructured as Record<string, unknown>)[k] = incoming;
+      }
+    }
+    merged.filters.structured = outStructured;
+  }
+  if (parsedQ.residualQ && !req.q) {
+    merged.q = parsedQ.residualQ;
+  } else if (parsedQ.residualQ && req.q) {
+    merged.q = `${req.q} ${parsedQ.residualQ}`.trim();
+  } else if (!req.q) {
+    merged.q = '';
+  }
+  return merged;
+}
 
 export function createSearchRouter(deps: SearchRouterDeps): Application {
   const {
@@ -94,13 +163,36 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
         return;
       }
 
-      const { q, filters, limit, offset, explain } = parsed.data;
-      const result = await runSearch({ pool, embeddings }, req.userId!, {
-        q,
-        filters,
-        limit,
-        offset
-      });
+      const { q, filters, limit, offset, explain, mode } = parsed.data;
+
+      // Semantic-search entitlement gate. The Memory plan
+      // is limited to lexical + hybrid (the vector leg is
+      // only used for tie-breaking). Mastery unlocks pure
+      // semantic search.
+      if (mode === 'semantic' && pool) {
+        const { getEntitlement } = await import('../entitlements.js');
+        const ent = await getEntitlement(pool, req.userId!);
+        if (!ent.semanticSearchEnabled) {
+          res.status(402).json({
+            error: {
+              code: 'MASTERY_REQUIRED',
+              message: 'Semantic search is part of the Mastery plan. Upgrade to use AI Semantic Search.',
+              requestId: req.id
+            },
+            data: { plan: ent.family, validUntil: ent.validUntil }
+          });
+          return;
+        }
+      }
+
+      // M3 — parse the free-text query into structured filters
+      // and a residual `q` for the semantic leg. Existing
+      // explicit values win.
+      const parsedQuery = q ? parseQuery(q) : null;
+      const merged: SearchRequest = parsedQuery
+        ? applyQueryParser({ q, filters, limit, offset }, parsedQuery)
+        : { q, filters, limit, offset };
+      const result = await runSearch({ pool, embeddings }, req.userId!, merged);
 
       res.json({
         hits: result.hits.map((hit) => ({
