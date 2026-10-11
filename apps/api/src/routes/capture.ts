@@ -186,7 +186,8 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
 
         const item = await repository.createPendingItem({
           userId,
-          capture
+          capture,
+          sourceMetadata: capture.sourceMetadata ?? null
         });
 
         // Enqueue jobs based on capture type
@@ -340,7 +341,8 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         const item = await repository.createPendingImageItem({
           userId,
           itemId,
-          capture
+          capture,
+          sourceMetadata: capture.sourceMetadata ?? null
         });
 
         // Images are ordered: OCR -> tag -> embed.
@@ -527,7 +529,8 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
           item = await repository.createPendingDocumentItem({
             userId,
             itemId,
-            capture
+            capture,
+            sourceMetadata: capture.sourceMetadata ?? null
           });
         } catch (dbErr) {
           // Storage is uploaded but the DB insert failed. Remove the

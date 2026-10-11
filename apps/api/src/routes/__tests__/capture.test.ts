@@ -63,13 +63,16 @@ describe('capture route', () => {
         status: 'pending'
       }
     });
-    expect(repo.createPendingItem).toHaveBeenCalledWith({
-      userId: USER_ID,
-      capture: expect.objectContaining({
-        clientRequestId: capturePayload().clientRequestId,
-        type: 'text'
+    expect(repo.createPendingItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: USER_ID,
+        capture: expect.objectContaining({
+          clientRequestId: capturePayload().clientRequestId,
+          type: 'text'
+        }),
+        sourceMetadata: null
       })
-    });
+    );
     expect(createJob).toHaveBeenCalledTimes(2);
     expect(createJob).toHaveBeenNthCalledWith(1, 'tag', '00000000-0000-4000-8000-000000000010', USER_ID);
     expect(createJob).toHaveBeenNthCalledWith(2, 'enrich', '00000000-0000-4000-8000-000000000010', USER_ID);
