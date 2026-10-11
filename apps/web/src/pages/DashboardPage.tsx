@@ -7,6 +7,9 @@ import {
   type CaptureAction,
 } from '../components/dashboard/CaptureSheet';
 import { DocumentCaptureDialog } from '../components/dashboard/DocumentCaptureDialog';
+import { LinkCaptureDialog } from '../components/dashboard/LinkCaptureDialog';
+import { NoteCaptureDialog } from '../components/dashboard/NoteCaptureDialog';
+import { ImageCaptureDialog } from '../components/dashboard/ImageCaptureDialog';
 import { CreateSpaceDialog } from '../components/spaces/CreateSpaceDialog';
 import { SpacePicker } from '../components/spaces/SpacePicker';
 import { hasActiveCriteria, ruleFromView } from '../lib/space-rule';
@@ -38,6 +41,9 @@ export function DashboardPage({ api }: DashboardPageProps) {
   const [filter, setFilter] = useState<MemoryLabel | 'all'>('all');
   const [captureOpen, setCaptureOpen] = useState(false);
   const [documentCaptureOpen, setDocumentCaptureOpen] = useState(false);
+  const [linkCaptureOpen, setLinkCaptureOpen] = useState(false);
+  const [noteCaptureOpen, setNoteCaptureOpen] = useState(false);
+  const [imageCaptureOpen, setImageCaptureOpen] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
   const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
   const [favoritingIds, setFavoritingIds] = useState<ReadonlySet<string>>(new Set());
@@ -45,6 +51,11 @@ export function DashboardPage({ api }: DashboardPageProps) {
   const [smartDialogOpen, setSmartDialogOpen] = useState(false);
   const [smartCreating, setSmartCreating] = useState(false);
   const [smartError, setSmartError] = useState<string | null>(null);
+  // Pagination state. Default page size 50; users with 200+ memories
+  // can page through every item via the "Load more" button.
+  const PAGE_SIZE = 50;
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const epoch = useRef(0);
 
   /**
@@ -71,9 +82,10 @@ export function DashboardPage({ api }: DashboardPageProps) {
         setError('TOKEN_EXPIRED');
         return;
       }
-      const r = await api.listItems(token, { limit: 50 });
+      const r = await api.listItems(token, { limit: PAGE_SIZE, offset: 0 });
       if (e !== epoch.current) return;
       setItems(r.items);
+      setTotalCount(r.total);
       setSearchHits(null);
     } catch (err) {
       if (e !== epoch.current) return;
@@ -82,6 +94,40 @@ export function DashboardPage({ api }: DashboardPageProps) {
       if (e === epoch.current) setLoading(false);
     }
   }, [api, session]);
+
+  /**
+   * Fetch the next page of items and append it. No-op when the
+   * server has already returned every item.
+   */
+  const loadMore = useCallback(async () => {
+    if (!session) return;
+    if (loadingMore) return;
+    if (items.length >= totalCount && totalCount > 0) return;
+    setLoadingMore(true);
+    try {
+      const token = await api.getValidAccessToken();
+      if (!token) {
+        setError('TOKEN_EXPIRED');
+        return;
+      }
+      const r = await api.listItems(token, {
+        limit: PAGE_SIZE,
+        offset: items.length
+      });
+      setItems((prev) => {
+        // Dedup by id — defensive against a row being re-indexed
+        // between two pages.
+        const seen = new Set(prev.map((x) => String(x.id)));
+        const additions = r.items.filter((x) => !seen.has(String(x.id)));
+        return [...prev, ...additions];
+      });
+      setTotalCount(r.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load more');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [api, session, items.length, totalCount, loadingMore]);
 
   const runSearch = useCallback(
     async (q: string) => {
@@ -275,9 +321,17 @@ export function DashboardPage({ api }: DashboardPageProps) {
       setDocumentCaptureOpen(true);
       return;
     }
-    if (a === 'note' || a === 'link') {
-      setQuery('');
-      setSearchHits(null);
+    if (a === 'link') {
+      setLinkCaptureOpen(true);
+      return;
+    }
+    if (a === 'note') {
+      setNoteCaptureOpen(true);
+      return;
+    }
+    if (a === 'image') {
+      setImageCaptureOpen(true);
+      return;
     }
   };
 
@@ -325,13 +379,17 @@ export function DashboardPage({ api }: DashboardPageProps) {
         onSearch={runSearch}
         filter={filter}
         onFilterChange={setFilter}
-        onOpen={() => undefined}
+        onOpen={(id) => navigate(`/app/items/${id}`)}
         onCapture={() => setCaptureOpen(true)}
         onDelete={handleDelete}
         deletingIds={deletingIds}
         onToggleFavorite={handleToggleFavorite}
         favoritingIds={favoritingIds}
         onAddToSpace={(ids) => setSpacePickerIds(ids)}
+        hasMore={items.length < totalCount}
+        loadingMore={loadingMore}
+        onLoadMore={() => void loadMore()}
+        totalCount={totalCount}
       >
         {/* Only offered once a search or filter is active. With no
             criteria the stored rule would match every memory, which is
@@ -387,6 +445,27 @@ export function DashboardPage({ api }: DashboardPageProps) {
           // background and the next reload will show the real title.
           void loadList();
         }}
+      />
+
+      <LinkCaptureDialog
+        api={api}
+        open={linkCaptureOpen}
+        onClose={() => setLinkCaptureOpen(false)}
+        onSaved={() => void loadList()}
+      />
+
+      <NoteCaptureDialog
+        api={api}
+        open={noteCaptureOpen}
+        onClose={() => setNoteCaptureOpen(false)}
+        onSaved={() => void loadList()}
+      />
+
+      <ImageCaptureDialog
+        api={api}
+        open={imageCaptureOpen}
+        onClose={() => setImageCaptureOpen(false)}
+        onSaved={() => void loadList()}
       />
     </DashboardShell>
   );

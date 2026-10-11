@@ -86,6 +86,24 @@ export interface AiConfig {
    */
   ollamaForceCpu: boolean;
 
+  /**
+   * Three distinct Gemini timeouts so a long RPM-pacer wait cannot
+   * steal the request-execution budget:
+   *
+   *   geminiQueueWaitTimeoutMs — hard cap on how long `pace()`
+   *     may sleep before a request is started.
+   *   geminiRequestTimeoutMs   — per HTTP attempt, AbortController
+   *     timeout.
+   *   geminiTotalBudgetMs      — overall request-execution budget
+   *     (excludes queue wait).
+   *   geminiTldrTotalBudgetMs  — caller-side deadline for the full
+   *     TLDR operation.
+   */
+  geminiQueueWaitTimeoutMs: number;
+  geminiRequestTimeoutMs: number;
+  geminiTotalBudgetMs: number;
+  geminiTldrTotalBudgetMs: number;
+
   vision: {
     /**
      * Visual embedding provider. The text and visual spaces are
@@ -243,6 +261,33 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       localFallback: readBool(env, "OCR_LOCAL_FALLBACK", true)
     },
     ollamaForceCpu: readBool(env, "OLLAMA_FORCE_CPU", false),
+    /**
+     * Three distinct timeouts so a long RPM-pacer wait cannot
+     * steal the request-execution budget. The pacer wait is
+     * bounded at one full RPM window plus 25-ms grace so a
+     * request is always admitted in steady state (the cap is
+     * a backstop against pathological queues, not the primary
+     * admission gate).
+     *
+     *   geminiQueueWaitTimeoutMs — hard cap on how long `pace()`
+     *     may sleep before a request is started. Defaults to
+     *     60 025 ms (one full 60-s RPM window plus the 25-ms
+     *     grace); 0 disables. The previous default of 30 000 ms
+     *     was mathematically too tight for rpm ≤ 2: when two
+     *     slots are already filled at the start of a window,
+     *     the next caller has to wait the full window and the
+     *     30 000-ms cap fired first as `QueueWaitTimeoutError`.
+     *   geminiRequestTimeoutMs   — per HTTP attempt, AbortController
+     *     timeout. Defaults to 20 000 ms.
+     *   geminiTotalBudgetMs      — overall request-execution budget
+     *     (excludes queue wait). Defaults to 60 000 ms.
+     *   geminiTldrTotalBudgetMs  — caller-side deadline for the
+     *     full TLDR operation. Defaults to 90 000 ms.
+     */
+    geminiQueueWaitTimeoutMs: readInt(env, "GEMINI_QUEUE_WAIT_TIMEOUT_MS", 60_025),
+    geminiRequestTimeoutMs: readInt(env, "GEMINI_REQUEST_TIMEOUT_MS", 20_000),
+    geminiTotalBudgetMs: readInt(env, "GEMINI_TOTAL_BUDGET_MS", 60_000),
+    geminiTldrTotalBudgetMs: readInt(env, "GEMINI_TLDR_TOTAL_BUDGET_MS", 90_000),
     vision: {
       provider: visionProvider,
       clipModel:

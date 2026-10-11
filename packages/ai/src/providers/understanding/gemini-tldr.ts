@@ -28,7 +28,6 @@ import { GeminiClient, type GeminiTask } from "../../gemini-client.js";
 import type { TldrInput, TldrProvider, TldrResult } from "../../understanding/types.js";
 
 const PROMPT_VERSION = "gemini-tldr-v1";
-const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_INPUT_CHARS = 6000;
 
 const PROMPT = `You write a one-line summary (≤ {MAX} chars) of a personal memory.
@@ -49,7 +48,7 @@ export class GeminiTldrProvider implements TldrProvider {
     private readonly apiKey: string,
     private readonly model: string,
     private readonly client: GeminiClient,
-    private readonly options: { maxLength?: number; maxInputChars?: number } = {}
+    private readonly options: { maxLength?: number; maxInputChars?: number; totalBudgetMs?: number } = {}
   ) {
     if (!apiKey) throw new Error("GeminiTldrProvider: apiKey is required");
   }
@@ -85,7 +84,7 @@ export class GeminiTldrProvider implements TldrProvider {
           maxOutputTokens: 256
         }
       },
-      totalBudgetMs: DEFAULT_TIMEOUT_MS
+      totalBudgetMs: this.options.totalBudgetMs ?? 90_000
     });
     const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const tldr = raw.trim().slice(0, maxLength);

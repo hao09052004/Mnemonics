@@ -122,6 +122,7 @@ export class OcrHandler {
         bytes: prep.bytes,
         mimeType: prep.mimeType,
         correlationId: job.id,
+        userId: job.userId
       });
 
       // Persist counter only on a successful cloud call. Local

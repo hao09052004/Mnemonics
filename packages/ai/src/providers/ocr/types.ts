@@ -22,6 +22,14 @@ export interface OcrInput {
   language?: string;
   /** Optional correlation id for logging. */
   correlationId?: string;
+  /**
+   * Optional user id for the per-user AI quota counter. When set,
+   * the OCR wrapper consults the daily quota and short-circuits with
+   * a non-retryable RATE_LIMITED ProviderError when the user is at
+   * the limit. A null userId is treated as "no quota check" so
+   * internal/operator jobs (e.g. a one-off re-embed) are not throttled.
+   */
+  userId?: string | null;
 }
 
 export interface OcrResult {

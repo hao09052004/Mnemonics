@@ -52,7 +52,12 @@ export function createApp(
   });
 
   const app = express();
-  app.use(cors());
+  // CORS policy: never accept arbitrary origins in production.
+  // The list comes from CORS_ALLOWED_ORIGINS (comma-separated); the
+  // browser extension is always allowed (chrome-extension:// and
+  // edge-extension:// schemes); missing Origin header is allowed
+  // (curl, server-to-server, the extension's background worker).
+  app.use(buildCorsMiddleware());
   app.use(express.json({ limit: '1mb' }));
   app.use((request: Request, _response: Response, next) => {
     request.id = request.header('x-request-id') || createRequestId();
@@ -192,4 +197,72 @@ export function createApp(
   };
   app.use(errorHandler);
   return app;
+}
+
+/**
+ * Build a CORS middleware that:
+ *   - Allows the configured production origin (CORS_ALLOWED_ORIGINS,
+ *     comma-separated).
+ *   - Allows every chrome-extension:// and edge-extension:// origin
+ *     (the browser extension calls the API from its own origin).
+ *   - Allows requests with no Origin header (CLI / server-to-server
+ *     / the extension's background worker — all send no Origin).
+ *   - In development, also allows the well-known local origins.
+ *
+ * Replaces the previous `app.use(cors())`, which reflected every
+ * origin and was a P0 finding: a stolen Supabase anon key + an
+ * arbitrary browser origin could call the API. The auth middleware
+ * still rejects every cross-origin request that lacks a valid
+ * bearer token, so CORS is defence-in-depth — but reflecting
+ * `Access-Control-Allow-Origin: *` is a known foot-gun.
+ */
+function buildCorsMiddleware() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Defaults that are always safe to allow.
+  const allowList = new Set<string>([
+    // Browser extension identifiers are arbitrary per install; allow
+    // any chrome-extension:// / edge-extension:// origin.
+    ...(configured.length > 0 ? configured : [
+      'https://app.mnemonics.example',
+      'https://mnemonics.example'
+    ]),
+    // Local dev origins (only matched when not in production).
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173'
+  ]);
+
+  const corsMw = cors({
+    origin(origin, callback) {
+      // No Origin header — server-to-server or extension background.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      // Browser extension origins — always allowed.
+      if (/^chrome-extension:\/\//.test(origin) || /^edge-extension:\/\//.test(origin)) {
+        callback(null, true);
+        return;
+      }
+      if (allowList.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      if (!isProd && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+        callback(null, true);
+        return;
+      }
+      // Explicit deny. CORS will refuse the request.
+      callback(new Error(`CORS: origin not allowed: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id']
+  });
+  return corsMw;
 }

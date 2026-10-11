@@ -24,6 +24,13 @@ export interface TextGenerationOptions {
   model?: string;
   temperature?: number;
   maxOutputTokens?: number;
+  /**
+   * Optional user id for the per-user AI quota counter. When set,
+   * the call short-circuits with a non-retryable RATE_LIMITED
+   * ProviderError when the user is at the daily cap. A null
+   * userId skips the check (e.g. for internal/operator jobs).
+   */
+  userId?: string | null;
 }
 
 export interface TextProviderInfo {

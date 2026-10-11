@@ -97,6 +97,10 @@ function buildApp(uid: string): Application {
 }
 
 beforeEach(async () => {
+  // DB connection + row creation can exceed the 10 s default hook
+  // budget on a busy dev machine, so raise it explicitly. The
+  // first test in this file used to fail with "Hook timed out in
+  // 10000ms" because the Supabase pool was cold.
   pool = createPool(DATABASE_URL);
   userId = await createUser(`api-a-${Date.now()}-${Math.random()}@t.local`);
   otherUserId = await createUser(`api-b-${Date.now()}-${Math.random()}@t.local`);

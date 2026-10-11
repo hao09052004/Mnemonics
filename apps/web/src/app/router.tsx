@@ -14,6 +14,7 @@ import { RediscoverPage } from '../pages/RediscoverPage';
 import { RemindersStubPage } from '../pages/RemindersStubPage';
 import { ClustersPage } from '../pages/ClustersPage';
 import { ClusterDetailPage } from '../pages/ClusterDetailPage';
+import { ItemDetailPage } from '../pages/ItemDetailPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { ApiClient } from '../lib/api-client';
 import { productConfig } from '../config/product';
@@ -61,6 +62,7 @@ export function AppRouter({ api }: AppRouterProps) {
         <Route path="/app/spaces/:id" element={<SpaceDetailPage api={api} />} />
         <Route path="/app/clusters" element={<ClustersPage api={api} />} />
         <Route path="/app/clusters/:id" element={<ClusterDetailPage api={api} />} />
+        <Route path="/app/items/:id" element={<ItemDetailPage api={api} />} />
         <Route path="/app/rediscover" element={<RediscoverPage api={api} />} />
         <Route path="/app/reminders" element={<RemindersStubPage />} />
         <Route path="*" element={<NotFoundPage />} />

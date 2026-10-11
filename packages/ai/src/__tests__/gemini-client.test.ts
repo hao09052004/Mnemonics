@@ -277,4 +277,77 @@ describe("GeminiClient", () => {
     ).rejects.toBeInstanceOf(ProviderError);
     expect((fetcher as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBe(1);
   });
+
+  it("paces RPM at the configured rate and never throws QueueWaitTimeout in steady state", async () => {
+    // Repro: with rpm=2 and a window that starts full, the
+    // previous default cap of 30 000 ms threw because the wait
+    // for the third caller equalled the full window (60 000 ms
+    // + 25 ms grace). With cap=60 025 ms, every caller is
+    // admitted without throwing. The wait that does occur is
+    // bounded by the full window length (it cannot exceed
+    // 60 025 ms) and is in the expected range.
+    const fetcher = makeFetch(() => jsonResponse(200, { ok: true }));
+    const sleeps: number[] = [];
+    let now = 0;
+    const client = new GeminiClient({
+      fetch: fetcher,
+      maxRetries: 1,
+      maxConcurrent: 8,
+      rateLimitRpm: 2,
+      queueWaitTimeoutMs: 60_025,
+      now: () => now,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        now += ms; // advance the clock past the sleep
+      }
+    });
+    // Fire 4 requests; first 2 fill the window instantly,
+    // later ones must wait bounded amounts (cumulatively no
+    // more than the full window each, never throwing).
+    const out = await Promise.all(
+      [0, 1, 2, 3].map(() =>
+        client.call<{ ok: boolean }>({
+          apiKey: "k",
+          model: "m",
+          task: "text",
+          path: "x",
+          body: {}
+        })
+      )
+    );
+    expect(out.map((o) => o.ok)).toEqual([true, true, true, true]);
+    // No single sleep may exceed the cap.
+    for (const ms of sleeps) {
+      expect(ms).toBeLessThanOrEqual(60_025);
+    }
+    // The total wait across the queue is bounded by ~one full
+    // window per extra request (rpm=2, so for 4 requests
+    // roughly 2 windows of wait in aggregate).
+    expect(sleeps.reduce((a, b) => a + b, 0)).toBeLessThan(180_000);
+  });
+
+  it("throws QueueWaitTimeoutError when the configured cap is too tight for rpm", async () => {
+    // Sanity check that the cap is actually enforced when an
+    // operator sets it tighter than the natural window. This
+    // is the path that fires for npm=2 with cap=30_000.
+    const fetcher = makeFetch(() => jsonResponse(200, { ok: true }));
+    const client = new GeminiClient({
+      fetch: fetcher,
+      maxRetries: 1,
+      maxConcurrent: 8,
+      rateLimitRpm: 2,
+      queueWaitTimeoutMs: 30_000, // too tight: 60_025 > 30_000
+      now: () => 0,
+      sleep: async () => undefined
+    });
+    // Fill the window with two admissions.
+    await Promise.all([
+      client.call({ apiKey: "k", model: "m", task: "text", path: "x", body: {} }),
+      client.call({ apiKey: "k", model: "m", task: "text", path: "x", body: {} })
+    ]);
+    // The third caller must throw QueueWaitTimeoutError.
+    await expect(
+      client.call({ apiKey: "k", model: "m", task: "text", path: "x", body: {} })
+    ).rejects.toMatchObject({ code: "TIMEOUT", provider: "gemini" });
+  });
 });

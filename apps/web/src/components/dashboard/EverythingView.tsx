@@ -53,6 +53,21 @@ interface EverythingViewProps {
     text: string;
     action?: { label: string; onClick: () => void };
   };
+  /**
+   * Show a "Load more" affordance. When the parent has more pages
+   * to fetch, it sets this to true and supplies `onLoadMore`. The
+   * button is hidden otherwise. Search mode hides it too — search
+   * results are capped server-side.
+   */
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+  /**
+   * Total memory count. Distinct from `items.length` (which is the
+   * current page). When provided, displayed as "X of Y" so users
+   * with 200+ memories can see how much remains.
+   */
+  totalCount?: number;
 }
 
 /**
@@ -80,7 +95,11 @@ export function EverythingView({
   onAddToSpace,
   hideCardAddToSpace,
   children,
-  emptyState
+  emptyState,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  totalCount
 }: EverythingViewProps) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -125,7 +144,11 @@ export function EverythingView({
           <h1>Everything</h1>
           <p>Your saved memories in one place.</p>
         </div>
-        <span className="memory-count">{items.length} memories</span>
+        <span className="memory-count">
+          {typeof totalCount === 'number' && totalCount > items.length
+            ? `${items.length} of ${totalCount} memories`
+            : `${items.length} memories`}
+        </span>
       </header>
 
       {selectMode ? (
@@ -244,6 +267,18 @@ export function EverythingView({
           ))}
         </div>
       )}
+      {!query && hasMore && onLoadMore ? (
+        <div className="everything-load-more" data-testid="load-more">
+          <button
+            type="button"
+            className="ghost"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
+        </div>
+      ) : null}
     </main>
   );
 }
