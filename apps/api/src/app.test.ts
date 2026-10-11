@@ -101,7 +101,7 @@ describe('POST /api/v1/captures', () => {
       .send(validCapture);
 
     expect(response.status).toBe(201);
-    expect(jobs).toEqual(['tag', 'enrich']);
+    expect(jobs).toEqual(['tag', 'enrich', 'classify']);
   });
 
   it('enqueues OCR as the first stage for image captures', async () => {
@@ -119,7 +119,7 @@ describe('POST /api/v1/captures', () => {
       .attach('file', Buffer.from('fake-image'), { filename: 'capture.png', contentType: 'image/png' });
 
     expect(response.status).toBe(201);
-    expect(jobs).toEqual(['ocr']);
+    expect(jobs).toEqual(['ocr', 'classify']);
   });
 
   it('creates a pending item immediately', async () => {

@@ -93,9 +93,20 @@ export {
 } from "./user-quota.js";
 
 export {
-  NoopContentClassifier,
-  DETECTED_TYPES,
-  type ClassificationInput,
-  type ClassificationResult,
-  type DetectedType
-} from "./content-classifier.js";
+  buildContentClassifier,
+  GeminiContentClassifier,
+  NoopContentClassifier
+} from "./providers/classification/index.js";
+export type {
+  ContentClassifier,
+  ContentClassifierInfo,
+  ClassificationInput,
+  ClassificationResult,
+  EvidenceSource
+} from "./providers/classification/index.js";
+export {
+  classificationResultSchema,
+  detectedTypeSchema,
+  classificationStatusSchema,
+  evidenceSourceSchema
+} from "./providers/classification/index.js";

@@ -44,6 +44,46 @@ export type OcrQuotaRow = {
   callsUsed: number;
 };
 
+/**
+ * One row in `item_classifications` (spec 0005 §5.1).
+ *
+ * Status is independent of `items.status` — a failed classifier
+ * must NEVER flip the item to `failed`. The classifier writes a
+ * new row at a new `classifier_version`; the primary key on
+ * `item_id` means each item has at most one classification row
+ * at a time.
+ */
+export type ClassificationStatus =
+  | 'pending' | 'processing' | 'ready' | 'failed' | 'skipped';
+
+export type ClassificationRow = {
+  itemId: string;
+  userId: string;
+  detectedType: string | null;
+  category: string | null;
+  description: string | null;
+  attributes: Record<string, unknown>;
+  entities: Array<Record<string, unknown>>;
+  evidence: Record<string, string>;
+  confidence: number | null;
+  provider: string | null;
+  model: string | null;
+  classifierVersion: string;
+  status: ClassificationStatus;
+  errorCode: string | null;
+  contentHash: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type UpsertClassification = Omit<ClassificationRow, 'createdAt' | 'updatedAt'>;
+
+export interface ClassificationRepository {
+  upsert(row: UpsertClassification): Promise<void>;
+  findByItemId(itemId: string, userId: string): Promise<ClassificationRow | null>;
+  listByUser(userId: string): Promise<ClassificationRow[]>;
+}
+
 export interface ItemRepository {
   findById(id: string): Promise<StoredItem | null>;
   findByClientRequestId(userId: string, clientRequestId: string): Promise<StoredItem | null>;
@@ -505,3 +545,92 @@ export {
   type ContentClusterSummary,
   type ClusterPreviewItem
 } from './clusters.js';
+
+export function createClassificationRepository(pool: Pool): ClassificationRepository {
+  return {
+    async upsert(row) {
+      // Ownership guard runs first. The DB trigger
+      // `enforce_item_classification_ownership` is a backstop,
+      // but checking here gives a clean error message and
+      // avoids a confusing "null in user_id" report.
+      const item = await pool.query<{ user_id: string }>(
+        `SELECT user_id FROM items WHERE id = $1`,
+        [row.itemId]
+      );
+      if (!item.rows[0]) {
+        throw new Error('OWNERSHIP_MISMATCH: parent item not found');
+      }
+      if (item.rows[0].user_id !== row.userId) {
+        throw new Error('OWNERSHIP_MISMATCH: item.user_id != row.userId');
+      }
+      await pool.query(
+        `INSERT INTO item_classifications
+          (item_id, user_id, detected_type, category, description,
+           attributes, entities, evidence, confidence, provider, model,
+           classifier_version, status, error_code, content_hash, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb,
+                 $9, $10, $11, $12, $13, $14, $15, NOW())
+         ON CONFLICT (item_id) DO UPDATE SET
+          detected_type = EXCLUDED.detected_type,
+          category = EXCLUDED.category,
+          description = EXCLUDED.description,
+          attributes = EXCLUDED.attributes,
+          entities = EXCLUDED.entities,
+          evidence = EXCLUDED.evidence,
+          confidence = EXCLUDED.confidence,
+          provider = EXCLUDED.provider,
+          model = EXCLUDED.model,
+          classifier_version = EXCLUDED.classifier_version,
+          status = EXCLUDED.status,
+          error_code = EXCLUDED.error_code,
+          content_hash = EXCLUDED.content_hash,
+          updated_at = NOW()`,
+        [
+          row.itemId, row.userId, row.detectedType, row.category,
+          row.description,
+          JSON.stringify(row.attributes || {}),
+          JSON.stringify(row.entities || []),
+          JSON.stringify(row.evidence || {}),
+          row.confidence, row.provider, row.model,
+          row.classifierVersion, row.status, row.errorCode, row.contentHash
+        ]
+      );
+    },
+    async findByItemId(itemId, userId) {
+      const r = await pool.query(
+        `SELECT * FROM item_classifications WHERE item_id = $1 AND user_id = $2`,
+        [itemId, userId]
+      );
+      return r.rows[0] ? mapRow(r.rows[0]) : null;
+    },
+    async listByUser(userId) {
+      const r = await pool.query(
+        `SELECT * FROM item_classifications WHERE user_id = $1 ORDER BY updated_at DESC`,
+        [userId]
+      );
+      return r.rows.map(mapRow);
+    }
+  };
+}
+
+function mapRow(row: any): ClassificationRow {
+  return {
+    itemId: row.item_id,
+    userId: row.user_id,
+    detectedType: row.detected_type,
+    category: row.category,
+    description: row.description,
+    attributes: row.attributes || {},
+    entities: row.entities || [],
+    evidence: row.evidence || {},
+    confidence: row.confidence,
+    provider: row.provider,
+    model: row.model,
+    classifierVersion: row.classifier_version,
+    status: row.status,
+    errorCode: row.error_code,
+    contentHash: row.content_hash,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}

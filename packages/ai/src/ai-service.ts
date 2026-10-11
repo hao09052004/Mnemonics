@@ -27,6 +27,10 @@ import {
   type UnderstandingProviders
 } from "./providers/understanding/index.js";
 import {
+  buildContentClassifier,
+  type ContentClassifier
+} from "./providers/classification/index.js";
+import {
   MemoryCache,
   createMemoryCache,
   type CacheStore
@@ -43,6 +47,7 @@ export interface AiService {
   readonly fallbackOcr: OcrProvider;
   readonly visual: VisualProvider;
   readonly understanding: UnderstandingProviders;
+  readonly classifier: ContentClassifier;
   /** Run OCR with primary → fallback chain. */
   recognizeWithFallback(input: OcrInput): Promise<OcrResult>;
   /**
@@ -137,6 +142,17 @@ export async function createAiService(opts?: {
     tldrTotalBudgetMs: 90_000
   });
 
+  // The classifier's Gemini availability is best-effort: we
+  // treat the construction of the client itself as "available"
+  // (real readiness is asserted by the first classify call).
+  // We always prefer Gemini when AI_FREE_ONLY is on.
+  const classifier = buildContentClassifier({
+    freeOnly: config.freeOnly,
+    apiKey: config.text.geminiApiKey ?? null,
+    model: config.text.geminiModel,
+    geminiClient
+  });
+
   const tagCache = createMemoryCache<string[]>({ defaultTtlMs: 6 * 60 * 60 * 1000 });
   const summaryCache = createMemoryCache<string>({ defaultTtlMs: 6 * 60 * 60 * 1000 });
   const embeddingCache = createMemoryCache<number[]>({ defaultTtlMs: 24 * 60 * 60 * 1000 });
@@ -150,6 +166,7 @@ export async function createAiService(opts?: {
     fallbackOcr,
     visual,
     understanding,
+    classifier,
     async recognizeWithFallback(input) {
       // Per-user daily quota. The check sits OUTSIDE the cache so
       // a throttled user still consumes their daily budget (the

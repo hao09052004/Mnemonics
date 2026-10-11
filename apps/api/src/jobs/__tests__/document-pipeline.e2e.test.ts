@@ -225,6 +225,32 @@ function createFakeHarness() {
         return { rows: [], rowCount: 1 };
       }
 
+      // Classify job — M2 stub. We don't need a real
+      // classification for the e2e; the handler will
+      // return early when the AI service has no
+      // `classifier` field (the test stub). Acknowledge the
+      // raw queries the handler would issue if the
+      // classifier were present.
+      if (upper.startsWith('SELECT USER_ID FROM ITEMS WHERE ID')) {
+        const item = items.get(String(params[0]));
+        if (item) return { rows: [{ user_id: item.userId }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      }
+      if (upper.startsWith('SELECT') && upper.includes('FROM ITEMS WHERE ID')) {
+        const item = items.get(String(params[0]));
+        return { rows: item ? [item] : [], rowCount: item ? 1 : 0 };
+      }
+      if (upper.startsWith('INSERT INTO ITEM_CLASSIFICATIONS') ||
+          upper.startsWith('SELECT * FROM ITEM_CLASSIFICATIONS')) {
+        return { rows: [], rowCount: 0 };
+      }
+      // Reaper UPDATE (the queue's stale-job sweeper).
+      if (upper.startsWith('UPDATE JOBS') &&
+          upper.includes("STATUS = 'PROCESSING'") &&
+          upper.includes('ATTEMPTS >= MAX_ATTEMPTS')) {
+        return { rows: [], rowCount: 0 };
+      }
+
       throw new Error('Unhandled pool query: ' + norm);
     }
   };

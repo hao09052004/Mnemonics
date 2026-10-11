@@ -12,6 +12,7 @@ import { TagHandler } from './handlers/tag.js';
 import { EmbedHandler } from './handlers/embed.js';
 import { UnderstandingHandler } from './handlers/enrich.js';
 import { ExtractDocumentHandler } from './handlers/extract-document.js';
+import { ClassifyHandler } from './handlers/classify.js';
 import type { ItemRepository, SpaceRepository, EnrichmentRepository } from '@mnemonics/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ImageStorage } from '../storage.js';
@@ -86,6 +87,12 @@ export function createJobRouter(deps: JobRouterDeps): {
     pool
   });
 
+  const classifyHandler = new ClassifyHandler({
+    queue,
+    pool,
+    ai
+  });
+
   // Register job handlers using EventEmitter
   queue.registerHandler('ocr', (job) => ocrHandler.handle(job));
   queue.registerHandler('tag', (job) => tagHandler.handle(job));
@@ -94,6 +101,7 @@ export function createJobRouter(deps: JobRouterDeps): {
     queue.registerHandler('enrich', (job) => enrichmentHandler.handle(job as unknown as { id: string; itemId: string; userId: string; payload: Record<string, unknown> }));
   }
   queue.registerHandler('extract_document', (job) => extractDocumentHandler.handle(job));
+  queue.registerHandler('classify', (job) => classifyHandler.handle(job));
 
   // Create router
   const router = express.Router() as Application;
@@ -134,7 +142,7 @@ export function createJobRouter(deps: JobRouterDeps): {
     res: { json: (data: unknown) => void; status: (code: number) => { json: (data: unknown) => void } }
   ) => {
     const { itemId, type } = req.params;
-    const validTypes = ['ocr', 'tag', 'embed', 'enrich', 'extract_document'];
+    const validTypes = ['ocr', 'tag', 'embed', 'enrich', 'extract_document', 'classify'];
 
     if (!validTypes.includes(type)) {
       res.status(400).json({ error: { code: 'INVALID_JOB_TYPE', message: `Job type must be one of: ${validTypes.join(', ')}` } });
@@ -149,7 +157,7 @@ export function createJobRouter(deps: JobRouterDeps): {
     }
 
     const job = await queue.create({
-      type: type as 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document',
+      type: type as 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document' | 'classify',
       itemId,
       userId: item.userId,
       payload: req.body || {}
