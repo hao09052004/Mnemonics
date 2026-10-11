@@ -114,6 +114,17 @@ export function createPaymentOrdersRouter(deps: PaymentOrdersRouterDeps): Router
           }
         }
       });
+      // Funnel: checkout started. We do NOT store the amount in
+      // the metadata (the order_id is enough to link back).
+      try {
+        const { emitAnalyticsEvent } = await import('../analytics.js');
+        emitAnalyticsEvent(deps.pool, {
+          userId: req.userId,
+          eventName: 'checkout_started',
+          entityType: order.planId,
+          metadata: { orderId: String(order.id) }
+        });
+      } catch {/* swallow */}
     } catch (e) {
       const r = orderErrorResponse(e, 'ORDER_CREATE_FAILED', res);
       res.status(r.status).json(r.body);

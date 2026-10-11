@@ -13,6 +13,7 @@ import type { ImageStorage } from '../storage.js';
 import type { AuthenticatedRequest } from '../auth.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { enforceCaptureLimit, CaptureLimitReached } from '../entitlements.js';
+import { emitAnalyticsEvent } from '../analytics.js';
 
 export interface CaptureRouterDeps {
   repository: ItemRepository;
@@ -203,6 +204,14 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         }
 
         response.status(201).json({ data: { id: item.id, status: item.status } });
+        if (pool) {
+          emitAnalyticsEvent(pool, {
+            userId,
+            eventName: 'memory_created',
+            entityType: capture.type,
+            metadata: { hasSourceUrl: Boolean(capture.sourceUrl) }
+          });
+        }
       } catch (error) {
         next(error);
       }

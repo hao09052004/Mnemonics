@@ -22,6 +22,8 @@ import { createAuditLogsRouter } from './routes/audit-logs.js';
 import { createBillingRouter } from './routes/billing.js';
 import { createPaymentOrdersRouter } from './routes/payment-orders.js';
 import { createPaymentWebhookRouter } from './routes/payment-webhook.js';
+import { createPersonalAnalyticsRouter } from './routes/analytics-me.js';
+import { createAdminAnalyticsRouter } from './routes/analytics-admin.js';
 
 export interface AuthDeps {
   users: SupabaseUsersFacade;
@@ -134,6 +136,27 @@ export function createApp(
   if (options?.pool && supabase) {
     app.use('/api/v1/admin', createAdminRouter({ pool: options.pool, supabase }));
     app.use('/api/v1/admin/audit-logs', createAuditLogsRouter({ pool: options.pool, supabase }));
+    app.use(
+      '/api/v1/admin/analytics',
+      createAdminAnalyticsRouter({
+        pool: options.pool,
+        supabase,
+        getRequestTimings: () => {
+          // Lazy import to avoid a cycle; the monitoring module
+          // owns the ring buffer.
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const mod = require('./monitoring/metrics.js') as { metrics?: { getRequestTimings?: () => unknown } };
+            const fn = mod.metrics?.getRequestTimings;
+            if (typeof fn === 'function') {
+              return fn.call(mod.metrics) as Array<{ route: string; p50_ms: number; p95_ms: number; n: number }>;
+            }
+          } catch {/* fall through */}
+          return [];
+        }
+      })
+    );
+    app.use('/api/v1/analytics', createPersonalAnalyticsRouter({ pool: options.pool, supabase }));
     app.use('/api/v1/billing', createBillingRouter({ pool: options.pool, supabase }));
     const billingEnabled = () => process.env.BILLING_ENABLED === 'true';
     const bankBin = process.env.PAYMENT_BANK_BIN ?? '970436';

@@ -68,7 +68,7 @@ const app = createApp(
 	imageStorage,
 	supabase,
 	authDeps,
-	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true', demoMode }
+	{ autoConfirmRegistration: process.env.AUTH_AUTO_CONFIRM === 'true', demoMode, pool }
 );
 
 // Set up job queue
@@ -98,7 +98,8 @@ const captureRouter = createCaptureRouter({
 	createJob,
 	supabase,
 	expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
-	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
+	developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001',
+	pool
 });
 
 // Mount search router

@@ -193,6 +193,21 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
         ? applyQueryParser({ q, filters, limit, offset }, parsedQuery)
         : { q, filters, limit, offset };
       const result = await runSearch({ pool, embeddings }, req.userId!, merged);
+      // Emit a single analytics event per search call. We record
+      // the mode + the filter shape but never the query text
+      // (privacy contract — see migration 031).
+      const searchMode = (merged.filters && (merged.filters as { mode?: string }).mode) || 'lexical';
+      if (req.userId) {
+        const { emitAnalyticsEvent } = await import('../analytics.js');
+        emitAnalyticsEvent(pool, {
+          userId: req.userId,
+          eventName: searchMode === 'semantic' ? 'semantic_search_performed' : 'search_performed',
+          metadata: {
+            hasFilters: Boolean(merged.filters),
+            hitCount: result.total
+          }
+        });
+      }
 
       res.json({
         hits: result.hits.map((hit) => ({
