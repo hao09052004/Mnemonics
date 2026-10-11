@@ -55,6 +55,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
   const navItems: { label: string; to: string }[] = [
     { label: 'Product', to: '/#product' },
     { label: 'How it works', to: '/#how' },
+    { label: 'Bảng giá', to: '/pricing' },
     { label: 'Browser extension', to: '/browser-extension' },
     { label: 'Privacy', to: '/#privacy' }
   ];
