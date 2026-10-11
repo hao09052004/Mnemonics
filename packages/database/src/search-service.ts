@@ -37,7 +37,7 @@ const embeddingCache = new Map<string, number[]>();
  */
 export interface EmbeddingLike {
   embedOne(text: string): Promise<number[] | null>;
-  info?(): { model?: string };
+  info?(): { name?: string; model?: string };
 }
 
 /** Content kinds the product exposes as filters. */
@@ -224,6 +224,21 @@ async function resolveQueryEmbedding(
   if (!embeddings || query.length === 0) return null;
   const cached = embeddingCache.get(`${query}|${model}`);
   if (cached) return cached;
+
+  // Mirror the Noop guard from apps/api/src/jobs/handlers/embed.ts:
+  // a Noop provider means NEITHER Gemini NOR a local model is
+  // usable, and inventing a query vector would be compared against
+  // real stored vectors and silently return arbitrary neighbours.
+  // Returning null here degrades search to lexical-only, which is
+  // the same visible, correct behaviour the embed handler already
+  // promises. Without this guard the search route 500s in any
+  // environment where GEMINI_API_KEY is unset (CI demo, local
+  // docker, offline dev). Lexical-only is still a useful search.
+  const providerName = embeddings.info?.()?.name ?? "";
+  if (providerName === "noop" || providerName.endsWith("+noop")) {
+    return null;
+  }
+
   const v = await embeddings.embedOne(query);
   if (v && v.length > 0) {
     embeddingCache.set(`${query}|${model}`, v);
@@ -259,6 +274,21 @@ export async function runSearch(
     q,
     queryModel
   );
+
+  // Surface the lexical-only degradation so an operator inspecting
+  // logs sees the same warning the embed handler emits. The smoke
+  // test does not assert on this; the message is operational, not
+  // contract.
+  if (q && sharedQueryVector === null && deps.embeddings?.info) {
+    const providerName = deps.embeddings.info().name ?? "unknown";
+    if (providerName === "noop" || providerName.endsWith("+noop")) {
+      console.warn(
+        `[search-service] query embedding provider is '${providerName}'; ` +
+          `search will run lexical-only. Set GEMINI_API_KEY or 'ollama pull bge-m3' ` +
+          `to restore semantic + chunk recall.`
+      );
+    }
+  }
 
   const [lexResults, semResults, chunkResults] = await Promise.all([
     runLexicalSearch(deps.pool, userId, q, filters),

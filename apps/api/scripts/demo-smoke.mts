@@ -87,9 +87,6 @@ async function main() {
   await assert(ready.status === 'ready', 'capture pipeline reaches ready');
 
   const search = await api('/search?q=idempotency');
-  if (!search.response.ok) {
-    console.error('[diag] search status', search.response.status, 'body', JSON.stringify(search.body));
-  }
   await assert(search.response.ok, 'search endpoint works in demo mode');
   await assert(
     Array.isArray(search.body?.hits) && search.body.hits.some((hit: any) => hit.id === itemId),
