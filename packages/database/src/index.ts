@@ -4,6 +4,12 @@ import type { CaptureInput, ItemStatus } from '@mnemonics/shared';
 export type NewItem = {
   userId: string;
   capture: CaptureInput;
+  /**
+   * Optional parsed page metadata (JSON-LD, Open Graph, Readability).
+   * Added in M1 of spec 0005. The column is nullable, so omitting
+   * the field is a backwards-compatible no-op.
+   */
+  sourceMetadata?: Record<string, unknown> | null;
 };
 
 export type NewImageItem = NewItem & {
@@ -118,11 +124,11 @@ export function createItemRepository(pool: Pool): ItemRepository {
       return result.rows[0] ?? null;
     },
 
-    async createPendingItem({ userId, capture }) {
+    async createPendingItem({ userId, capture, sourceMetadata = null }) {
       const result = await pool.query<StoredItem>(
         `INSERT INTO items
-          (user_id, type, title, source_url, raw_text, captured_at, status, client_request_id)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+          (user_id, type, title, source_url, raw_text, captured_at, status, client_request_id, source_metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8::jsonb)
          RETURNING id, user_id AS "userId", status, type, title,
                    source_url AS "sourceUrl", raw_text AS "rawText",
                    ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
@@ -138,13 +144,14 @@ export function createItemRepository(pool: Pool): ItemRepository {
           capture.sourceUrl ?? null,
           capture.type === 'image' ? capture.selectedText ?? null : capture.selectedText ?? null,
           capture.capturedAt ?? new Date(),
-          capture.clientRequestId
+          capture.clientRequestId,
+          sourceMetadata === null ? null : JSON.stringify(sourceMetadata)
         ]
       );
       return result.rows[0];
     },
 
-    async createPendingImageItem({ userId, capture, itemId }) {
+    async createPendingImageItem({ userId, capture, itemId, sourceMetadata = null }) {
       if (capture.type !== 'image' && capture.type !== 'screenshot') {
         throw new Error('Image repository requires an image or screenshot capture');
       }
@@ -154,8 +161,8 @@ export function createItemRepository(pool: Pool): ItemRepository {
         await client.query('BEGIN');
         const itemResult = await client.query<StoredItem>(
           `INSERT INTO items
-            (id, user_id, type, title, source_url, raw_text, captured_at, status, client_request_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
+            (id, user_id, type, title, source_url, raw_text, captured_at, status, client_request_id, source_metadata)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9::jsonb)
            RETURNING id, user_id AS "userId", status, type, title,
                      source_url AS "sourceUrl", raw_text AS "rawText",
                      ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
@@ -164,7 +171,17 @@ export function createItemRepository(pool: Pool): ItemRepository {
                      ocr_processed_at AS "ocrProcessedAt",
                      ocr_error_code AS "ocrErrorCode",
                      captured_at AS "capturedAt"`,
-          [itemId, userId, capture.type, capture.title, capture.sourceUrl ?? null, capture.selectedText ?? null, capture.capturedAt ?? new Date(), capture.clientRequestId]
+          [
+            itemId,
+            userId,
+            capture.type,
+            capture.title,
+            capture.sourceUrl ?? null,
+            capture.selectedText ?? null,
+            capture.capturedAt ?? new Date(),
+            capture.clientRequestId,
+            sourceMetadata === null ? null : JSON.stringify(sourceMetadata)
+          ]
         );
         await client.query(
           `INSERT INTO assets (item_id, storage_key, mime_type, size_bytes)
@@ -181,7 +198,7 @@ export function createItemRepository(pool: Pool): ItemRepository {
       }
     },
 
-    async createPendingDocumentItem({ userId, capture, itemId }) {
+    async createPendingDocumentItem({ userId, capture, itemId, sourceMetadata = null }) {
       if (capture.type !== 'document') {
         throw new Error('Document repository requires a document capture');
       }
@@ -195,16 +212,16 @@ export function createItemRepository(pool: Pool): ItemRepository {
         // canonical `<user>/<item>/<filename>` key.
         const itemResult = await client.query<StoredItem>(
           `INSERT INTO items
-            (id, user_id, type, title, source_url, raw_text, captured_at, status, client_request_id)
-           VALUES ($1, $2, $3, $4, $5, NULL, $6, 'pending', $7)
+            (id, user_id, type, title, source_url, raw_text, captured_at, status, client_request_id, source_metadata)
+           VALUES ($1, $2, $3, $4, $5, NULL, $6, 'pending', $7, $8::jsonb)
            RETURNING id, user_id AS "userId", status, type, title,
-                     source_url AS "sourceUrl", raw_text AS "rawText",
-                     ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
-                     ocr_confidence AS "ocrConfidence",
-                     ocr_language AS "ocrLanguage",
-                     ocr_processed_at AS "ocrProcessedAt",
-                     ocr_error_code AS "ocrErrorCode",
-                     captured_at AS "capturedAt"`,
+                    source_url AS "sourceUrl", raw_text AS "rawText",
+                    ocr_text AS "ocrText", ocr_engine AS "ocrEngine",
+                    ocr_confidence AS "ocrConfidence",
+                    ocr_language AS "ocrLanguage",
+                    ocr_processed_at AS "ocrProcessedAt",
+                    ocr_error_code AS "ocrErrorCode",
+                    captured_at AS "capturedAt"`,
           [
             itemId,
             userId,
@@ -212,7 +229,8 @@ export function createItemRepository(pool: Pool): ItemRepository {
             capture.title,
             capture.sourceUrl ?? null,
             capture.capturedAt ?? new Date(),
-            capture.clientRequestId
+            capture.clientRequestId,
+            sourceMetadata === null ? null : JSON.stringify(sourceMetadata)
           ]
         );
         await client.query(

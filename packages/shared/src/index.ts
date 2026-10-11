@@ -73,6 +73,36 @@ export const documentReferenceSchema = z.object({
   originalFilename: z.string().trim().min(1).max(255).optional()
 }).strict();
 
+/**
+ * Optional parsed page metadata sent alongside a capture.
+ *
+ * Added in M1 of spec 0005. The schema is permissive on shape (it
+ * only constrains the keys the server reads today) and `strict()`
+ * so a misspelled field is rejected at the API boundary instead
+ * of being silently dropped.
+ */
+export const sourceMetadataSchema = z
+  .object({
+    ogTitle: z.string().max(2000).optional(),
+    ogDescription: z.string().max(5000).optional(),
+    ogImage: z.string().url().max(2048).optional(),
+    canonicalUrl: z.string().url().max(2048).optional(),
+    jsonLd: z.array(z.record(z.unknown())).max(20).optional(),
+    article: z
+      .object({
+        title: z.string().max(2000).optional(),
+        byline: z.string().max(500).optional(),
+        excerpt: z.string().max(2000).optional(),
+        contentHtml: z.string().max(500_000).optional(),
+        textContent: z.string().max(100_000).optional()
+      })
+      .nullable()
+      .optional(),
+    contentHash: z.string().max(128).optional()
+  })
+  .strict();
+export type SourceMetadata = z.infer<typeof sourceMetadataSchema>;
+
 export const captureInputSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('link'),
@@ -80,7 +110,8 @@ export const captureInputSchema = z.discriminatedUnion('type', [
     sourceUrl: sourceUrlSchema,
     selectedText: z.string().trim().max(100_000).optional(),
     capturedAt: capturedAtSchema,
-    clientRequestId: z.string().uuid()
+    clientRequestId: z.string().uuid(),
+    sourceMetadata: sourceMetadataSchema.optional()
   }).strict(),
   z.object({
     type: z.literal('text'),
@@ -88,7 +119,8 @@ export const captureInputSchema = z.discriminatedUnion('type', [
     sourceUrl: sourceUrlSchema,
     selectedText: z.string().trim().min(1).max(100_000),
     capturedAt: capturedAtSchema,
-    clientRequestId: z.string().uuid()
+    clientRequestId: z.string().uuid(),
+    sourceMetadata: sourceMetadataSchema.optional()
   }).strict(),
   z.object({
     type: z.literal('image'),
@@ -97,7 +129,8 @@ export const captureInputSchema = z.discriminatedUnion('type', [
     image: imageReferenceSchema,
     selectedText: z.string().trim().max(100_000).optional(),
     capturedAt: capturedAtSchema,
-    clientRequestId: z.string().uuid()
+    clientRequestId: z.string().uuid(),
+    sourceMetadata: sourceMetadataSchema.optional()
   }).strict(),
   // `screenshot` is the extension's screenshot flow. The capture
   // shape is identical to `image`; we keep them as separate types
@@ -111,7 +144,8 @@ export const captureInputSchema = z.discriminatedUnion('type', [
     image: imageReferenceSchema,
     selectedText: z.string().trim().max(100_000).optional(),
     capturedAt: capturedAtSchema,
-    clientRequestId: z.string().uuid()
+    clientRequestId: z.string().uuid(),
+    sourceMetadata: sourceMetadataSchema.optional()
   }).strict(),
   // `document` captures an uploaded PDF / TXT / Markdown file. The
   // route is multipart-only, so the storage key is a placeholder at
@@ -124,7 +158,8 @@ export const captureInputSchema = z.discriminatedUnion('type', [
     document: documentReferenceSchema,
     selectedText: z.string().trim().max(100_000).optional(),
     capturedAt: capturedAtSchema,
-    clientRequestId: z.string().uuid()
+    clientRequestId: z.string().uuid(),
+    sourceMetadata: sourceMetadataSchema.optional()
   }).strict()
 ]);
 
