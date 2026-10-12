@@ -11,7 +11,8 @@
     "build": "npm run build --workspace=@mnemonics/web",
     "lint": "npm run build --workspace=@mnemonics/web",
     "package:extension": "node scripts/package-extension.mjs chrome",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
