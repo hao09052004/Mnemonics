@@ -104,14 +104,14 @@ function RelatedCard({
         ...style
       }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brand)', fontWeight: 700 }}>
         {tag}
       </div>
-      <div style={{ marginTop: 10, fontFamily: 'var(--font-display)', fontSize: isLg ? 22 : 15, lineHeight: 1.3 }}>
+      <div style={{ marginTop: 10, fontFamily: 'var(--font-display)', fontSize: isLg ? 22 : 15, lineHeight: 1.3, color: 'var(--ink)', fontWeight: 600 }}>
         {title}
       </div>
       {excerpt && (
-        <div style={{ marginTop: 10, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>{excerpt}</div>
+        <div style={{ marginTop: 10, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.5 }}>{excerpt}</div>
       )}
     </div>
   );

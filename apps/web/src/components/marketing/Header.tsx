@@ -68,9 +68,9 @@ export function Header({ floatOnTop = true }: HeaderProps) {
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        backdropFilter: 'saturate(150%) blur(12px)',
-        WebkitBackdropFilter: 'saturate(150%) blur(12px)',
-        background: faded ? 'rgba(247,245,239,0.78)' : 'rgba(247,245,239,0.6)',
+        backdropFilter: 'saturate(150%) blur(16px)',
+        WebkitBackdropFilter: 'saturate(150%) blur(16px)',
+        background: faded ? 'rgba(17, 19, 24, 0.92)' : 'rgba(17, 19, 24, 0.75)',
         borderBottom: '1px solid var(--border)',
         transition: 'background 0.2s ease'
       }}

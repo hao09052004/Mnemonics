@@ -159,8 +159,8 @@ function ArticleCard() {
         boxShadow: 'var(--shadow-md)'
       }}
     >
-      <div style={{ height: 96, background: 'linear-gradient(135deg, #ede9fe, #fde4cf)', borderRadius: 10 }} />
-      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600 }}>The quiet rise of personal AI</div>
+      <div style={{ height: 96, background: 'linear-gradient(135deg, rgba(139, 111, 248, 0.25), rgba(245, 158, 11, 0.2))', borderRadius: 10, border: '1px solid var(--border)' }} />
+      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>The quiet rise of personal AI</div>
       <div style={{ marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>theverge.com · 6 min read</div>
     </div>
   );
@@ -171,20 +171,21 @@ function QuoteCard() {
     <div
       style={{
         width: 240,
-        background: 'var(--ink)',
-        color: '#fff',
+        background: 'var(--surface-hover)',
+        border: '1px solid var(--border-strong)',
+        color: 'var(--ink)',
         borderRadius: 16,
         padding: 16,
         boxShadow: 'var(--shadow-md)'
       }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brand)', fontWeight: 700 }}>
         Highlight
       </div>
-      <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-display)' }}>
+      <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-display)', color: 'var(--ink)' }}>
         “The best interface is the one that disappears.”
       </div>
-      <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>— Naoto Fukasawa</div>
+      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>— Naoto Fukasawa</div>
     </div>
   );
 }
@@ -201,7 +202,7 @@ function ScreenshotCard() {
         boxShadow: 'var(--shadow-md)'
       }}
     >
-      <div style={{ height: 70, background: 'linear-gradient(135deg, #fde4cf, #fff)', borderRadius: 8 }} />
+      <div style={{ height: 70, background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(139, 111, 248, 0.2))', borderRadius: 8, border: '1px solid var(--border)' }} />
       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>Screenshot · cropped</div>
     </div>
   );

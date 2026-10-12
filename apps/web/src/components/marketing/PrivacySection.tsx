@@ -72,8 +72,8 @@ function Promise({ title, body }: { title: string; body: string }) {
         padding: 18
       }}
     >
-      <div style={{ fontWeight: 700, fontSize: 15 }}>{title}</div>
-      <p style={{ marginTop: 8, color: 'var(--muted)', fontSize: 14, lineHeight: 1.55 }}>{body}</p>
+      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>{title}</div>
+      <p style={{ marginTop: 8, color: 'var(--ink-soft)', fontSize: 14, lineHeight: 1.55 }}>{body}</p>
     </li>
   );
 }

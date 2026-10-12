@@ -14,7 +14,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'link',
     title: 'The quiet rise of personal AI',
     body: 'a really long article about how small models and personal context are reshaping what we expect from software',
-    tone: 'linear-gradient(135deg, #ede9fe, #fdfcf8)',
+    tone: 'linear-gradient(135deg, rgba(139, 111, 248, 0.2), var(--surface))',
     tag: 'theverge.com',
     size: 'tall'
   },
@@ -22,7 +22,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'quote',
     title: '“The best interface is the one that disappears.”',
     body: '— Naoto Fukasawa',
-    tone: 'var(--ink)',
+    tone: 'var(--surface-hover)',
     tag: 'Highlight',
     size: 'md'
   },
@@ -30,7 +30,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'image',
     title: 'Moodboard · brutalist prints',
     body: 'Saved from are.na',
-    tone: 'linear-gradient(135deg, #fde4cf, #fff)',
+    tone: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), var(--surface))',
     tag: 'Image',
     size: 'wide'
   },
@@ -38,7 +38,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'note',
     title: 'Idea — re-entry moments',
     body: 'When a user returns after a long gap, the dashboard should greet them with their most recent cluster rather than chronological.',
-    tone: 'var(--bg-elevated)',
+    tone: 'var(--surface)',
     tag: 'Quick note',
     size: 'md'
   },
@@ -46,7 +46,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'screenshot',
     title: 'Stripe dashboard · settings tree',
     body: 'Captured for future reference',
-    tone: 'linear-gradient(135deg, #f7f5ef, #ede9fe)',
+    tone: 'linear-gradient(135deg, rgba(139, 111, 248, 0.15), var(--surface))',
     tag: 'Screenshot',
     size: 'sm'
   },
@@ -54,7 +54,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'link',
     title: 'A field guide to personal knowledge systems',
     body: 'Long read on building a second brain without burning out',
-    tone: 'linear-gradient(135deg, #fdfcf8, #fde4cf)',
+    tone: 'var(--surface)',
     tag: 'long-form',
     size: 'sm'
   },
@@ -62,7 +62,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'quote',
     title: '“Make the right thing easy.”',
     body: '— A mentor, years ago',
-    tone: 'var(--brand)',
+    tone: 'linear-gradient(135deg, rgba(139, 111, 248, 0.25), var(--surface))',
     tag: 'Highlight',
     size: 'md'
   },
@@ -70,7 +70,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'file',
     title: 'Q3 OKRs — workspace draft',
     body: 'PDF · 12 pages',
-    tone: 'linear-gradient(135deg, #fff, #f7f5ef)',
+    tone: 'var(--surface)',
     tag: 'File',
     size: 'tall'
   },
@@ -78,7 +78,7 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
     kind: 'note',
     title: 'A list of questions I want to ask the team',
     body: 'A scratch pad for one-on-ones',
-    tone: 'var(--bg-elevated)',
+    tone: 'var(--surface)',
     tag: 'Note',
     size: 'wide'
   }
@@ -122,9 +122,9 @@ export function MemoryMasonry() {
               style={{
                 breakInside: 'avoid',
                 marginBottom: 22,
-                padding: 18,
-                background: card.tone.startsWith('linear') || card.tone.startsWith('var') ? card.tone : 'var(--surface)',
-                color: card.tone === 'var(--ink)' || card.tone === 'var(--brand)' ? '#fff' : 'var(--ink)',
+                padding: 20,
+                background: card.tone,
+                color: 'var(--ink)',
                 border: '1px solid var(--border)',
                 minHeight: SIZE_TO_HEIGHT[card.size]
               }}
@@ -134,7 +134,8 @@ export function MemoryMasonry() {
                   fontSize: 11,
                   letterSpacing: '0.16em',
                   textTransform: 'uppercase',
-                  opacity: 0.7
+                  color: 'var(--brand)',
+                  fontWeight: 700
                 }}
               >
                 {card.tag}
@@ -145,7 +146,8 @@ export function MemoryMasonry() {
                   fontFamily: card.kind === 'quote' ? 'var(--font-display)' : 'var(--font-sans)',
                   fontSize: card.kind === 'quote' ? 22 : 17,
                   lineHeight: 1.35,
-                  fontWeight: card.kind === 'quote' ? 500 : 600
+                  fontWeight: card.kind === 'quote' ? 500 : 600,
+                  color: 'var(--ink)'
                 }}
               >
                 {card.title}
@@ -155,7 +157,7 @@ export function MemoryMasonry() {
                   marginTop: 10,
                   fontSize: 13,
                   lineHeight: 1.5,
-                  opacity: 0.78
+                  color: 'var(--ink-soft)'
                 }}
               >
                 {card.body}

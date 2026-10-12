@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mnemonics/shared": "workspace:*",
+    "@mnemonics/shared": "*",
     "pg": "^8.16.3"
   },
   "devDependencies": {

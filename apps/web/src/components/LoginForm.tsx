@@ -100,12 +100,12 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '64px auto', padding: 24 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, textAlign: 'center', marginBottom: 32 }}>
+    <div style={{ maxWidth: 400, margin: '24px auto', padding: 12, color: 'var(--ink)' }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, textAlign: 'center', marginBottom: 24, color: 'var(--ink)' }}>
         Mnemonics
       </h1>
 
-      <h2 style={{ fontSize: 18, marginBottom: 16, textAlign: 'center' }}>
+      <h2 style={{ fontSize: 18, marginBottom: 16, textAlign: 'center', color: 'var(--ink-soft)' }}>
         {mode === 'login' ? 'Đăng nhập' : 'Đăng ký'}
       </h2>
 
@@ -116,7 +116,14 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Tên (tùy chọn)"
-            style={{ padding: '12px 16px', border: '1px solid #ddd', borderRadius: 8 }}
+            style={{
+              padding: '12px 16px',
+              background: 'var(--bg)',
+              border: '1px solid var(--border-strong)',
+              borderRadius: 8,
+              color: 'var(--ink)',
+              fontSize: 14
+            }}
           />
         )}
 
@@ -126,7 +133,14 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
           required
-          style={{ padding: '12px 16px', border: '1px solid #ddd', borderRadius: 8 }}
+          style={{
+            padding: '12px 16px',
+            background: 'var(--bg)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 8,
+            color: 'var(--ink)',
+            fontSize: 14
+          }}
         />
 
         <input
@@ -136,14 +150,28 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
           placeholder="Mật khẩu"
           required
           minLength={10}
-          style={{ padding: '12px 16px', border: '1px solid #ddd', borderRadius: 8 }}
+          style={{
+            padding: '12px 16px',
+            background: 'var(--bg)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 8,
+            color: 'var(--ink)',
+            fontSize: 14
+          }}
         />
 
         {info && (
           <div
             role="status"
             data-testid="login-info"
-            style={{ padding: 12, background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 8, color: '#047857', fontSize: 13 }}
+            style={{
+              padding: 12,
+              background: 'rgba(52, 211, 153, 0.15)',
+              border: '1px solid rgba(52, 211, 153, 0.3)',
+              borderRadius: 8,
+              color: '#6ee7b7',
+              fontSize: 13
+            }}
           >
             {info}
           </div>
@@ -152,7 +180,14 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
         {error && (
           <div
             role="alert"
-            style={{ padding: 12, background: '#fee', border: '1px solid #fcc', borderRadius: 8, color: '#dc2626', fontSize: 13 }}
+            style={{
+              padding: 12,
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 8,
+              color: '#fca5a5',
+              fontSize: 13
+            }}
           >
             {error}
           </div>
@@ -165,14 +200,15 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
             disabled={loading}
             data-testid="demo-login-btn"
             style={{
-              padding: '10px 16px',
-              background: '#0f172a',
+              padding: '11px 16px',
+              background: 'var(--brand)',
               color: 'white',
               border: 'none',
               borderRadius: 8,
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: 14,
-              fontWeight: 700
+              fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(139, 111, 248, 0.3)'
             }}
           >
             ⚡ Đăng nhập Demo
@@ -184,9 +220,9 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
           disabled={loading}
           style={{
             padding: '12px 16px',
-            background: loading ? '#ccc' : '#4f46e5',
-            color: 'white',
-            border: 'none',
+            background: loading ? 'rgba(255, 255, 255, 0.1)' : 'var(--surface-hover)',
+            color: 'var(--ink)',
+            border: '1px solid var(--border-strong)',
             borderRadius: 8,
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: 16,
@@ -204,9 +240,9 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
             style={{
               padding: '6px',
               background: 'transparent',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--border)',
               borderRadius: 8,
-              color: '#475569',
+              color: 'var(--ink-soft)',
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: 600
@@ -228,9 +264,10 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
             padding: '8px',
             background: 'transparent',
             border: 'none',
-            color: '#4f46e5',
+            color: 'var(--brand)',
             cursor: 'pointer',
-            fontSize: 14
+            fontSize: 14,
+            marginTop: 8
           }}
         >
           {mode === 'login' ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}

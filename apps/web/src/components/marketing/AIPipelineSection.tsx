@@ -73,16 +73,18 @@ export function AIPipelineSection() {
                 style={{
                   fontFamily: 'var(--font-display)',
                   fontSize: 36,
-                  color: 'var(--muted-soft)',
+                  color: 'var(--brand)',
+                  opacity: 0.7,
+                  fontWeight: 700,
                   lineHeight: 1
                 }}
               >
                 {String(i + 1).padStart(2, '0')}
               </div>
-              <div style={{ marginTop: 12, fontSize: 17, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
+              <div style={{ marginTop: 12, fontSize: 17, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--ink)' }}>
                 {s.title}
               </div>
-              <p style={{ marginTop: 8, fontSize: 14, color: 'var(--muted)', lineHeight: 1.55 }}>{s.body}</p>
+              <p style={{ marginTop: 8, fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.55 }}>{s.body}</p>
               <Pip tone={s.tone} />
             </li>
           ))}

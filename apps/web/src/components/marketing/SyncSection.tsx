@@ -75,13 +75,13 @@ function SyncCard({ label, title, body, icon }: { label: string; title: string; 
       style={{ padding: 22, minHeight: 200, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brand)', fontWeight: 700 }}>
           {label}
         </div>
         <div style={{ fontSize: 20 }} aria-hidden>{icon}</div>
       </div>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>{title}</div>
-      <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.55, margin: 0 }}>{body}</p>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--ink)', fontWeight: 700 }}>{title}</div>
+      <p style={{ fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.55, margin: 0 }}>{body}</p>
     </div>
   );
 }

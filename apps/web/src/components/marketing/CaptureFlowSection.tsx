@@ -81,13 +81,21 @@ function FlowTile({
   return (
     <div
       className="card"
-      style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 18, minHeight: 360 }}
+      style={{
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 18,
+        minHeight: 360,
+        background: 'var(--surface)',
+        border: '1px solid var(--border)'
+      }}
     >
-      <div style={{ fontSize: 12, letterSpacing: '0.16em', color: 'var(--muted)', fontWeight: 700 }}>{number}</div>
+      <div style={{ fontSize: 13, letterSpacing: '0.16em', color: 'var(--brand)', fontWeight: 700 }}>{number}</div>
       <div style={{ minHeight: 180 }}>{mockup}</div>
       <div>
-        <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-display)' }}>{title}</div>
-        <p style={{ marginTop: 8, color: 'var(--muted)', fontSize: 14, lineHeight: 1.55 }}>{body}</p>
+        <div style={{ fontSize: 19, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--ink)' }}>{title}</div>
+        <p style={{ marginTop: 8, color: 'var(--ink-soft)', fontSize: 14, lineHeight: 1.55 }}>{body}</p>
       </div>
     </div>
   );
@@ -98,7 +106,7 @@ function HighlightMockup() {
     <div
       style={{
         background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--border-strong)',
         borderRadius: 12,
         padding: 16,
         position: 'relative'
@@ -112,11 +120,13 @@ function HighlightMockup() {
           position: 'absolute',
           right: 14,
           top: 36,
-          background: 'var(--ink)',
-          color: '#fff',
+          background: 'var(--brand)',
+          color: '#ffffff',
           fontSize: 12,
-          padding: '6px 10px',
-          borderRadius: 8
+          fontWeight: 600,
+          padding: '6px 12px',
+          borderRadius: 8,
+          boxShadow: '0 4px 12px rgba(139, 111, 248, 0.4)'
         }}
       >
         Save to Mnemonics
@@ -127,7 +137,9 @@ function HighlightMockup() {
 
 function Mark() {
   return (
-    <span style={{ background: 'var(--warm-soft)', padding: '0 4px', borderRadius: 4 }}>interface</span>
+    <span style={{ background: 'rgba(139, 111, 248, 0.25)', color: '#c4b5fd', padding: '1px 6px', borderRadius: 4, fontWeight: 500 }}>
+      interface
+    </span>
   );
 }
 
@@ -136,7 +148,7 @@ function ImageMockup() {
     <div
       style={{
         background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--border-strong)',
         borderRadius: 12,
         padding: 16,
         position: 'relative'
@@ -146,8 +158,9 @@ function ImageMockup() {
         style={{
           width: '100%',
           height: 90,
-          background: 'linear-gradient(135deg, #ede9fe, #fde4cf)',
-          borderRadius: 8
+          background: 'linear-gradient(135deg, rgba(139, 111, 248, 0.3), rgba(245, 158, 11, 0.25))',
+          borderRadius: 8,
+          border: '1px solid var(--border)'
         }}
       />
       <div
@@ -155,11 +168,13 @@ function ImageMockup() {
           position: 'absolute',
           right: 14,
           bottom: 14,
-          background: 'var(--ink)',
-          color: '#fff',
+          background: 'var(--brand)',
+          color: '#ffffff',
           fontSize: 12,
-          padding: '6px 10px',
-          borderRadius: 8
+          fontWeight: 600,
+          padding: '6px 12px',
+          borderRadius: 8,
+          boxShadow: '0 4px 12px rgba(139, 111, 248, 0.4)'
         }}
       >
         Save image to Mnemonics
@@ -173,7 +188,7 @@ function ScreenshotMockup() {
     <div
       style={{
         background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--border-strong)',
         borderRadius: 12,
         padding: 12,
         position: 'relative',
@@ -184,7 +199,7 @@ function ScreenshotMockup() {
         style={{
           width: '100%',
           height: '100%',
-          background: 'linear-gradient(135deg, #f7f5ef, #fff)',
+          background: 'rgba(255, 255, 255, 0.02)',
           border: '1px dashed var(--border-strong)',
           borderRadius: 8,
           position: 'relative'
@@ -199,7 +214,8 @@ function ScreenshotMockup() {
             width: '70%',
             height: '60%',
             border: '2px dashed var(--brand)',
-            borderRadius: 6
+            borderRadius: 6,
+            background: 'rgba(139, 111, 248, 0.1)'
           }}
         />
         <div
@@ -208,11 +224,12 @@ function ScreenshotMockup() {
             right: 12,
             bottom: 12,
             background: 'var(--brand)',
-            color: '#fff',
+            color: '#ffffff',
             fontSize: 12,
-            padding: '6px 10px',
+            padding: '6px 12px',
             borderRadius: 8,
-            fontWeight: 600
+            fontWeight: 600,
+            boxShadow: '0 4px 12px rgba(139, 111, 248, 0.4)'
           }}
         >
           Save crop
