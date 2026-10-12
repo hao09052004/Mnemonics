@@ -11,8 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mnemonics/database": "*",
-    "@mnemonics/shared": "*",
+    "@mnemonics/database": "workspace:*",
+    "@mnemonics/shared": "workspace:*",
     "pg": "^8.16.3"
   },
   "devDependencies": {
