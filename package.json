@@ -11,7 +11,20 @@
     "build": "npm run build --workspace=@mnemonics/web",
     "lint": "npm run build --workspace=@mnemonics/web",
     "package:extension": "node scripts/package-extension.mjs chrome",
-    "test": "vitest run"
+    "test": "pnpm -r --workspace-concurrency=1 run test",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
+    "gates:all": "node scripts/gates.mjs",
+    "gates:agents": "node scripts/gates.mjs agents",
+    "gates:skills": "node scripts/gates.mjs skills",
+    "gates:spec-sync": "node scripts/gates.mjs spec-sync",
+    "gates:coverage": "node scripts/gates.mjs coverage",
+    "gates:knowledge-regression": "node scripts/gates.mjs knowledge-regression",
+    "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && pnpm --filter @mnemonics/api demo:setup",
+    "demo:prepare": "pnpm demo:setup",
+    "demo:api": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && pnpm --filter @mnemonics/api exec tsx scripts/demo-server.mts",
+    "demo:web": "pnpm --filter @mnemonics/web demo",
+    "demo:reset": "pnpm demo:setup",
+    "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-full.mts"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

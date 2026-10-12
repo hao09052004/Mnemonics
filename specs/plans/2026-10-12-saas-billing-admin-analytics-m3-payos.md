@@ -1,9 +1,19 @@
-# M3 — VietQR Payments
+# M3 — PayOS Payments
 
-> **Goal:** Add a server-side payment-order state machine,
-> dynamic VietQR generation, a SePay-compatible webhook
-> adapter with signature verification, and subscription
-> activation/expiration on verified payment.
+> **Goal:** Add a server-side payment-order state machine
+> that delegates the checkout UI to PayOS (a hosted
+> aggregator that fronts ~40 Vietnamese banks — VCB, TCB,
+> MB, ACB, BIDV, VPBank, …), verify inbound webhooks with
+> HMAC-SHA256, and activate the subscription on a verified
+> payment.
+>
+> **Why we switched from SePay:** the original M3 design
+> used SePay + a backend-built EMV NAPAS-247 QR. That
+> pipeline only fronts Vietcombank, which is a poor UX
+> for the ~40 banks PayOS supports. Replacing SePay with
+> PayOS keeps the same `payment_orders` / `payment_events`
+> tables; only the provider adapter, the env contract, and
+> the QR-generation code are swapped.
 
 **Architecture:**
 
@@ -19,13 +29,16 @@
   subscription transitions.
 - New module `apps/api/src/payments/`:
   - `orders.ts` — createOrder, markPaid, markExpired.
-  - `vietqr.ts` — build the dynamic QR payload (NAPAS 247
-    format) for a given order. Uses a constant recipient from
-    env (`PAYMENT_BANK_BIN`, `PAYMENT_BANK_ACCOUNT`,
-    `PAYMENT_BANK_HOLDER`).
-  - `providers/sepay.ts` — verify webhook signature, parse
-    the inbound payload, normalise to `PaymentEvent`.
-  - `webhook.ts` — the route handler. Idempotent, transactional.
+    `createOrder` now ALSO calls PayOS
+    `POST /v2/payment-requests` to fetch a `checkoutUrl`
+    before returning to the client.
+  - `providers/payos.ts` — verify webhook signature (HMAC
+    over sorted `data` fields), parse the inbound payload,
+    normalise to `PayosWebhookEvent`, and expose
+    `createPaymentLink` / `confirmWebhook` for the
+    operator runbook.
+  - `webhook.ts` (in `apps/api/src/routes/`) — the route
+    handler. Idempotent, transactional.
 - `applyEntitlement` (already in M2) is called by the webhook
   after the order is marked `paid`.
 - New route `apps/api/src/routes/payment-orders.ts`:

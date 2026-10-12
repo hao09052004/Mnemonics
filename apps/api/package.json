@@ -14,9 +14,9 @@
     "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts"
   },
   "dependencies": {
-    "@mnemonics/ai": "*",
-    "@mnemonics/database": "*",
-    "@mnemonics/shared": "*",
+    "@mnemonics/ai": "workspace:*",
+    "@mnemonics/database": "workspace:*",
+    "@mnemonics/shared": "workspace:*",
     "@supabase/supabase-js": "^2.57.4",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",

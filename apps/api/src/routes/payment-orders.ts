@@ -1,21 +1,22 @@
 /**
  * Payment order routes (user-facing).
  *
- * `POST /api/v1/billing/orders` — create a pending order.
+ * `POST /api/v1/billing/orders` — create a pending order and
+ *   return a PayOS-hosted checkout URL the frontend redirects
+ *   the user to.
  * `GET  /api/v1/billing/orders/:id` — read the current state.
  * `GET  /api/v1/billing/orders` — list the caller's history.
  * `POST /api/v1/billing/orders/:id/cancel` — cancel a pending order.
  *
- * The dynamic VietQR is returned by `POST /orders`; the
- * frontend renders the QR via any standard library (e.g.
- * `qrcode.react`).
+ * PayOS renders its own QR / hosted page; we no longer ship
+ * a raw EMV NAPAS-247 string from the backend.
  */
 import { Router, type Response } from 'express';
 import type { Pool } from 'pg';
 import { z } from 'zod';
-import QRCode from 'qrcode';
 import { requireAuth, type AuthedRequest } from '../rbac.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PayosAdapter } from '../payments/providers/payos.js';
 import {
   createOrder,
   getOrder,
@@ -34,9 +35,7 @@ const createOrderSchema = z
 export interface PaymentOrdersRouterDeps {
   pool: Pool;
   supabase: SupabaseClient;
-  bankBin: string;
-  bankAccount: string;
-  bankHolder: string;
+  payos: PayosAdapter;
   /** When false, all order endpoints return 503. */
   enabled: () => boolean;
 }
@@ -48,24 +47,17 @@ function orderErrorResponse(e: unknown, defaultCode: string, res: Response): { s
       body: { error: { code: e.code, message: e.message } }
     };
   }
+  if (e instanceof Error && /payos/i.test(e.message)) {
+    return {
+      status: 502,
+      body: { error: { code: 'PAYOS_PROVIDER_ERROR', message: e.message } }
+    };
+  }
   console.error('[payment-orders]', defaultCode, e);
   return {
     status: 500,
     body: { error: { code: defaultCode, message: 'Đã xảy ra lỗi máy chủ' } }
   };
-}
-
-async function buildQrPng(payload: string): Promise<string> {
-  // The frontend also has `qrcode`; we ship a data URL so
-  // the page renders even when the user's network blocks
-  // the public CDN.
-  const dataUrl = await QRCode.toDataURL(payload, {
-    errorCorrectionLevel: 'M',
-    margin: 2,
-    width: 320,
-    color: { dark: '#000000', light: '#ffffff' }
-  });
-  return dataUrl;
 }
 
 export function createPaymentOrdersRouter(deps: PaymentOrdersRouterDeps): Router {
@@ -90,27 +82,20 @@ export function createPaymentOrdersRouter(deps: PaymentOrdersRouterDeps): Router
       const order = await createOrder(deps.pool, {
         userId: req.userId,
         planId: parsed.data.planId as PlanId,
-        bankBin: deps.bankBin,
-        bankAccount: deps.bankAccount,
-        bankHolder: deps.bankHolder
+        payos: deps.payos
       });
-      const qrPng = await buildQrPng(order.qrPayload);
       res.status(201).json({
         data: {
           order: {
             ...order,
             // The bigint `id` is serialized as a string for
             // JSON safety; downstream code can parse it.
-            qrPayload: undefined   // do not leak the raw EMV string
+            checkoutUrl: order.checkoutUrl
           },
-          qr: {
-            payload: order.qrPayload,
-            dataUrl: qrPng
-          },
-          recipient: {
-            bank: deps.bankHolder,
-            bin: deps.bankBin,
-            account: deps.bankAccount
+          checkout: {
+            url: order.checkoutUrl,
+            orderCode: order.orderCode,
+            amount: order.amountVnd
           }
         }
       });
@@ -122,7 +107,7 @@ export function createPaymentOrdersRouter(deps: PaymentOrdersRouterDeps): Router
           userId: req.userId,
           eventName: 'checkout_started',
           entityType: order.planId,
-          metadata: { orderId: String(order.id) }
+          metadata: { orderId: String(order.id), orderCode: order.orderCode }
         });
       } catch {/* swallow */}
     } catch (e) {

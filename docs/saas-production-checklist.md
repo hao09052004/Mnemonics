@@ -70,12 +70,12 @@ Kết quả kỳ vọng: 75/75 pass.
 | `SUPABASE_JWT_SECRET` | ✓ | verify JWT |
 | `DATABASE_URL` | ✓ | Postgres + pgvector |
 | `BILLING_ENABLED` | ✓ | mặc định `false` cho go-live lần đầu |
-| `PAYMENT_PROVIDER` | ✓ | `sepay` |
-| `PAYMENT_BANK_BIN` | ✓ | `970436` |
-| `PAYMENT_BANK_ACCOUNT` | ✓ | `9912780019` |
-| `PAYMENT_BANK_HOLDER` | ✓ | `DAO QUYNH LE` |
-| `SEPAY_WEBHOOK_SECRET` | ✓ | random 32 bytes |
-| `SEPAY_API_KEY` | optional | cho SePay dashboard |
+| `PAYMENT_PROVIDER` | ✓ | `payos` |
+| `PAYMENT_RETURN_URL` | ✓ | frontend HTTPS URL |
+| `PAYMENT_CANCEL_URL` | ✓ | frontend HTTPS URL |
+| `PAYOS_CLIENT_ID` | ✓ | my.payos.vn → Kênh thanh toán |
+| `PAYOS_API_KEY` | ✓ | my.payos.vn → Kênh thanh toán |
+| `PAYOS_CHECKSUM_KEY` | ✓ | my.payos.vn → Kênh thanh toán |
 | `MEMORY_MONTHLY_CAPTURE_LIMIT` | ✓ | `50` |
 | `ADMIN_DASHBOARD_ENABLED` | ✓ | `true` |
 | `ANALYTICS_ENABLED` | ✓ | `true` |
@@ -93,8 +93,8 @@ Kết quả kỳ vọng: 75/75 pass.
 | `VITE_API_URL` | ✓ | URL của API |
 | `VITE_DEMO_MODE` | optional | `true` chỉ cho demo |
 
-> ⚠️ KHÔNG BAO GIỜ expose `SUPABASE_SERVICE_ROLE_KEY`, `SEPAY_WEBHOOK_SECRET`,
-> `GEMINI_API_KEY` qua biến `VITE_*` — chúng sẽ bị bundle vào JS gửi cho browser.
+> ⚠️ KHÔNG BAO GIỜ expose `SUPABASE_SERVICE_ROLE_KEY`, `PAYOS_API_KEY`,
+> `PAYOS_CHECKSUM_KEY`, `GEMINI_API_KEY` qua biến `VITE_*` — chúng sẽ bị bundle vào JS gửi cho browser.
 
 ---
 
@@ -118,19 +118,34 @@ Checklist:
 
 ## 4. SePay setup (provider)
 
-### 4.1 Tạo tài khoản SePay
+### 4.1 Tạo tài khoản PayOS
 
-- [ ] Đăng ký tài khoản merchant tại <https://sepay.vn>.
-- [ ] Kết nối Vietcombank `9912780019` (cùng chủ tài khoản `DAO QUYNH LE`).
-- [ ] Verify merchant (theo quy trình SePay, có thể mất 1–3 ngày).
+- [ ] Đăng ký tài khoản merchant tại <https://my.payos.vn>.
+- [ ] Tạo "kênh thanh toán" cho production.
+- [ ] Lấy `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`.
+- [ ] Verify merchant (theo quy trình PayOS, có thể mất 1–3 ngày).
 
 ### 4.2 Cấu hình webhook
 
-Trong SePay dashboard:
-- [ ] Webhook URL: `https://<api-domain>/api/v1/billing/webhooks/sepay`
-- [ ] Copy webhook secret, paste vào env `SEPAY_WEBHOOK_SECRET`.
-- [ ] Bật event: `transaction.created` (hoặc tương đương).
-- [ ] Test gửi một giao dịch giả để verify endpoint.
+PayOS dùng một quy trình đăng ký webhook hơi khác SePay:
+backend phải gọi `POST /v2/confirm-webhook` một lần để
+PayOS test endpoint. Operator chạy:
+
+```bash
+curl -X POST https://api.payos.vn/v2/confirm-webhook \
+  -H "x-client-id: $PAYOS_CLIENT_ID" \
+  -H "x-api-key: $PAYOS_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"webhookUrl": "https://<api-domain>/api/v1/billing/webhooks/payos"}'
+```
+
+PayOS sẽ POST một test event tới URL đó. Backend phải
+verify HMAC và trả 200 → PayOS marks URL là "registered".
+
+Trong PayOS dashboard:
+- [ ] Webhook URL: `https://<api-domain>/api/v1/billing/webhooks/payos` (sau khi confirm).
+- [ ] Bật event: `payment.success`, `payment.cancelled`.
+- [ ] Test gửi một giao dịch giả (PayOS cung cấp nút "Send test webhook") để verify endpoint.
 
 ### 4.3 Cấu hình QR động
 
@@ -165,7 +180,7 @@ pnpm --filter @mnemonics/api bootstrap:admin \
 
 ## 6. Security review
 
-- [ ] Không có secret nào trong source code (`grep -r "SEPAY\|GEMINI\|SUPABASE_SERVICE" apps/`).
+- [ ] Không có secret nào trong source code (`grep -r "PAYOS\|GEMINI\|SUPABASE_SERVICE" apps/`).
 - [ ] Build web không chứa secret (kiểm tra file `dist/assets/*.js`).
 - [ ] CORS chỉ allow origin production.
 - [ ] Rate limit đã bật cho `/auth/login`, `/auth/register`, `/billing/orders`.
@@ -250,7 +265,7 @@ Trước khi go-live, chạy toàn bộ journey trên staging:
 
 ### 9.2 Soft launch (T+0)
 
-- [ ] `BILLING_ENABLED=true` chỉ bật sau khi SePay verified.
+- [ ] `BILLING_ENABLED=true` chỉ bật sau khi PayOS verified.
 - [ ] Admin test với 1 order thật, số tiền 29.000 VND.
 - [ ] Verify webhook, verify activation.
 - [ ] Monitor 24h.
@@ -268,7 +283,7 @@ Trước khi go-live, chạy toàn bộ journey trên staging:
 | Tình huống | Hành động |
 |---|---|
 | Bug nghiêm trọng ở billing | Set `BILLING_ENABLED=false`. User đã trả tiền vẫn giữ subscription. |
-| Webhook SePay trục trặc | Disable endpoint bằng cách đổi `SEPAY_WEBHOOK_SECRET` (sai secret → SePay nhận 401, retry). |
+| Webhook PayOS trục trặc | Disable endpoint bằng cách xoá `PAYOS_CHECKSUM_KEY` (PayOS nhận 401, retry theo backoff policy của nó). |
 | Schema migration fail | Roll forward bằng cách chạy fix migration. KHÔNG xóa bảng đã tạo. |
 | Admin bị compromise | Tạm suspend admin qua DB, rotate secret, điều tra. |
 | SePay account bị đóng | Tạm tắt `BILLING_ENABLED`, manual reconcile qua sao kê. |
@@ -311,7 +326,7 @@ Trước khi bật `BILLING_ENABLED=true` cần confirm:
 ## 14. Liên kết
 
 - `docs/billing-system.md`
-- `docs/vietqr-integration.md`
+- `docs/payos-integration.md`
 - `docs/rbac-security.md`
 - `docs/admin-dashboard.md`
 - `docs/analytics-metrics.md`
