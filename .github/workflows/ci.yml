@@ -24,7 +24,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          # pnpm's default cache key is just pnpm-lock.yaml. When a
+          # `package.json` specifier changes but the resolved lockfile
+          # entry is identical (e.g. the dep was already pinned by
+          # another importer), the lockfile hash does not change and
+          # the cache still hits, even though the install step needs
+          # a different manifest. Hash all workspace package.json
+          # files into the key so the cache invalidates whenever any
+          # `dependencies` or `devDependencies` field changes.
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/*/package.json
+            packages/*/package.json
+            apps/extension/package.json
+            apps/web/package.json
+            apps/api/package.json
+            packages/ai/package.json
+            packages/database/package.json
+            packages/shared/package.json
+            packages/ui/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -69,7 +88,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          # pnpm's default cache key is just pnpm-lock.yaml. When a
+          # `package.json` specifier changes but the resolved lockfile
+          # entry is identical (e.g. the dep was already pinned by
+          # another importer), the lockfile hash does not change and
+          # the cache still hits, even though the install step needs
+          # a different manifest. Hash all workspace package.json
+          # files into the key so the cache invalidates whenever any
+          # `dependencies` or `devDependencies` field changes.
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/*/package.json
+            packages/*/package.json
+            apps/extension/package.json
+            apps/web/package.json
+            apps/api/package.json
+            packages/ai/package.json
+            packages/database/package.json
+            packages/shared/package.json
+            packages/ui/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -258,7 +296,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          # pnpm's default cache key is just pnpm-lock.yaml. When a
+          # `package.json` specifier changes but the resolved lockfile
+          # entry is identical (e.g. the dep was already pinned by
+          # another importer), the lockfile hash does not change and
+          # the cache still hits, even though the install step needs
+          # a different manifest. Hash all workspace package.json
+          # files into the key so the cache invalidates whenever any
+          # `dependencies` or `devDependencies` field changes.
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/*/package.json
+            packages/*/package.json
+            apps/extension/package.json
+            apps/web/package.json
+            apps/api/package.json
+            packages/ai/package.json
+            packages/database/package.json
+            packages/shared/package.json
+            packages/ui/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -354,7 +411,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          # pnpm's default cache key is just pnpm-lock.yaml. When a
+          # `package.json` specifier changes but the resolved lockfile
+          # entry is identical (e.g. the dep was already pinned by
+          # another importer), the lockfile hash does not change and
+          # the cache still hits, even though the install step needs
+          # a different manifest. Hash all workspace package.json
+          # files into the key so the cache invalidates whenever any
+          # `dependencies` or `devDependencies` field changes.
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/*/package.json
+            packages/*/package.json
+            apps/extension/package.json
+            apps/web/package.json
+            apps/api/package.json
+            packages/ai/package.json
+            packages/database/package.json
+            packages/shared/package.json
+            packages/ui/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -401,7 +477,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          # pnpm's default cache key is just pnpm-lock.yaml. When a
+          # `package.json` specifier changes but the resolved lockfile
+          # entry is identical (e.g. the dep was already pinned by
+          # another importer), the lockfile hash does not change and
+          # the cache still hits, even though the install step needs
+          # a different manifest. Hash all workspace package.json
+          # files into the key so the cache invalidates whenever any
+          # `dependencies` or `devDependencies` field changes.
           cache: "pnpm"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/*/package.json
+            packages/*/package.json
+            apps/extension/package.json
+            apps/web/package.json
+            apps/api/package.json
+            packages/ai/package.json
+            packages/database/package.json
+            packages/shared/package.json
+            packages/ui/package.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
