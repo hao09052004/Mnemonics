@@ -127,11 +127,27 @@ describe('payos adapter', () => {
     expect(() => adapter.parseWebhook(JSON.stringify({ data: { orderCode: 1, amount: -1 } }))).toThrow(PayosError);
   });
 
-  it('parseWebhook rejects when the MNX reference is not in the description', () => {
+  it('parseWebhook rejects when the MNX reference is not in a success event description', () => {
+    // For code='00' (real transfer) the reference MUST be in
+    // the description — that's how we match the inbound event
+    // back to our order row.
     const raw = JSON.stringify({
-      data: { orderCode: 1, amount: 1000, description: 'random text' }
+      data: { orderCode: 1, amount: 1000, description: 'random text', code: '00' }
     });
     expect(() => adapter.parseWebhook(raw)).toThrow(PayosError);
+  });
+
+  it('parseWebhook tolerates a missing MNX reference in a non-success event', () => {
+    // For code !== '00' (cancel / expire / etc.) no transfer
+    // happened — the description may be empty or arbitrary.
+    // The webhook router short-circuits these events before
+    // looking the order up, so the parser must not throw.
+    const raw = JSON.stringify({
+      data: { orderCode: 1, amount: 1000, description: 'random text', code: '01' }
+    });
+    const event = adapter.parseWebhook(raw);
+    expect(event.code).toBe('01');
+    expect(event.reference).toBe('');
   });
 
   it('parseWebhook extracts the MNX reference from the description', () => {

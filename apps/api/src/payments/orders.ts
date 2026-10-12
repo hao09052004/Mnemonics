@@ -182,8 +182,13 @@ export async function createOrder(pool: Pool, args: CreateOrderArgs): Promise<Pa
   // PayOS `description` is capped at 25 characters. We keep
   // the MNX reference because the webhook parser also pulls
   // it from `description` (the only field PayOS passes
-  // through verbatim) to match the order back.
-  const description = `Mnemonics ${planId} ${reference}`.slice(0, 25);
+  // through verbatim) to match the order back. We deliberately
+  // drop the human-friendly "Mnemonics" prefix — the
+  // reference is the only field the parser needs, and the
+  // bank transfer statement already shows the merchant
+  // name. Worst-case layout: "mastery-yearly MNXGUP4G" = 22
+  // chars (well under 25).
+  const description = `${planId} ${reference}`.slice(0, 25);
   const expiresAt = new Date(Date.now() + (args.ttlMinutes ?? 30) * 60 * 1000);
   // Insert the order as `pending` first. We need a row in
   // the database BEFORE we can hand the user a URL; if the

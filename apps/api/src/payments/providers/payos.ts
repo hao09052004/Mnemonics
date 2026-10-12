@@ -260,21 +260,29 @@ export function createPayosAdapter(cfg: PayosConfig): PayosAdapter {
     }
     const description = typeof data.description === 'string' ? data.description : '';
     // Our MNX reference lives in the description (e.g.
-    // "Mnemonics mastery-monthly MNX8K4P2"). The description
-    // has a 25-char limit at the PayOS side, which we enforce
+    // "mastery-monthly MNX8K4P2"). The description has a
+    // 25-char limit at the PayOS side, which we enforce
     // when we build the request. Here we extract the tag.
-    const refMatch = description.match(/\bMNX[0-9A-Z]{5}\b/);
-    if (!refMatch) {
+    //
+    // For non-success events (code !== '00', e.g. user
+    // cancellation at the PayOS hosted page) no transfer
+    // has happened, so the description may legitimately be
+    // empty or contain arbitrary text. We still parse the
+    // event but leave `reference` blank; the webhook router
+    // short-circuits non-success events before it tries to
+    // look the order up by reference.
+    const code = typeof data.code === 'string' ? data.code : (typeof body.code === 'string' ? body.code : '');
+    const refMatch = code === '00' ? description.match(/\bMNX[0-9A-Z]{5}\b/) : null;
+    if (code === '00' && !refMatch) {
       throw new PayosError('PAYLOAD_MALFORMED', 'Transfer reference (MNX tag) not found in description', 400);
     }
-    const code = typeof data.code === 'string' ? data.code : (typeof body.code === 'string' ? body.code : '');
     const desc = typeof data.desc === 'string' ? data.desc : (typeof body.desc === 'string' ? body.desc : '');
     const paidAtRaw = data.transactionDateTime ?? data.transactionDate ?? body.transactionDateTime;
     const paidAt = paidAtRaw ? new Date(paidAtRaw) : new Date();
     return {
       orderCode,
       amount: Math.round(amount),
-      reference: refMatch[0],
+      reference: refMatch ? refMatch[0] : '',
       code,
       desc,
       paidAt: Number.isNaN(paidAt.getTime()) ? new Date() : paidAt,
