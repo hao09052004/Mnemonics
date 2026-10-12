@@ -12,7 +12,17 @@
  */
 
 import type { Pool } from 'pg';
-import { DetectedType } from './query-parser.js';
+
+/**
+ * Controlled vocabulary for `item_classifications.detected_type`.
+ * Mirrors the CHECK constraint in migration 025. A copy lives
+ * here (not imported from `@mnemonics/ai`) so the database
+ * package stays a leaf-level dependency — `ai` imports shared,
+ * not the other way around.
+ */
+export type DetectedType =
+  | 'article' | 'product' | 'recipe' | 'video' | 'quote' | 'highlight'
+  | 'webpage' | 'image' | 'note' | 'document' | 'other';
 
 export type ClassificationStatus =
   | 'pending'
@@ -56,11 +66,12 @@ export interface ClassificationUpsertInput {
   classifierVersion: string;
   status: ClassificationStatus;
   errorCode?: string | null;
-  contentHash: string;
+  contentHash: string | null;
 }
 
 export interface ClassificationRepository {
   findByItemId(itemId: string, userId: string): Promise<ItemClassification | null>;
+  listByUser(userId: string): Promise<ItemClassification[]>;
   upsert(input: ClassificationUpsertInput): Promise<ItemClassification>;
 }
 
@@ -122,7 +133,35 @@ export function createClassificationRepository(pool: Pool): ClassificationReposi
       return row ? rowToClassification(row) : null;
     },
 
+    async listByUser(userId) {
+      const result = await pool.query<ClassificationRow>(
+        `SELECT item_id, user_id, detected_type, category, description,
+                attributes, entities, evidence, confidence, provider, model,
+                classifier_version, status, error_code, content_hash,
+                created_at, updated_at
+           FROM item_classifications
+          WHERE user_id = $1
+          ORDER BY updated_at DESC`,
+        [userId]
+      );
+      return result.rows.map(rowToClassification);
+    },
+
     async upsert(input) {
+      // Ownership guard runs first. The DB trigger
+      // `enforce_item_classification_ownership` is a backstop,
+      // but checking here gives a clean error message and
+      // avoids a confusing "null in user_id" report.
+      const item = await pool.query<{ user_id: string }>(
+        `SELECT user_id FROM items WHERE id = $1`,
+        [input.itemId]
+      );
+      if (!item.rows[0]) {
+        throw new Error('OWNERSHIP_MISMATCH: parent item not found');
+      }
+      if (item.rows[0].user_id !== input.userId) {
+        throw new Error('OWNERSHIP_MISMATCH: item.user_id != row.userId');
+      }
       const result = await pool.query<ClassificationRow>(
         `INSERT INTO item_classifications
            (item_id, user_id, detected_type, category, description,

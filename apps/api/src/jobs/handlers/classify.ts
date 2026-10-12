@@ -30,7 +30,7 @@
  *     job failed and the item remains `ready`/usable.
  */
 import type { Pool } from 'pg';
-import { createClassificationRepository, createItemRepository } from '@mnemonics/database';
+import { createClassificationRepository, createItemRepository, type DetectedType } from '@mnemonics/database';
 import type { ContentClassifier, AiService } from '@mnemonics/ai';
 import { contentHash as hashText } from '@mnemonics/ai';
 import type { Job, JobQueue } from '../queue.js';
@@ -213,7 +213,7 @@ export class ClassifyHandler {
     classifications: ReturnType<typeof createClassificationRepository>,
     job: Job,
     payload: {
-      detectedType: string | null;
+      detectedType: DetectedType | null;
       category: string | null;
       description: string | null;
       attributes: Record<string, unknown>;

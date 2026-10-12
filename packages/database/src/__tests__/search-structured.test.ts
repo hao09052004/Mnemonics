@@ -46,7 +46,7 @@ async function seedItemWithClassification(
   title: string,
   body: string,
   classification: {
-    detectedType: string;
+    detectedType: 'article' | 'product' | 'recipe' | 'video' | 'quote' | 'highlight' | 'webpage' | 'image' | 'note' | 'document' | 'other';
     category?: string;
     attributes?: Record<string, unknown>;
   }
