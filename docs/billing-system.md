@@ -123,32 +123,30 @@ Server:
 2. Từ chối nếu user đang có subscription `mastery` còn hiệu lực > 7 ngày.
 3. Tra `billing_plans` để lấy `amount_vnd` (KHÔNG tin tưởng client gửi giá).
 4. Tạo order với status `pending`, snapshot `amount_vnd` từ DB.
-5. Tạo `reference` 8 ký tự ASCII (A–Z, 2–9) đảm bảo unique.
-6. Tính nội dung QR: EMVCo NAPAS-247 với:
-   - bank BIN = 970436
-   - account = 9912780019
-   - amount = `amount_vnd`
-   - description = `reference`
-7. Trả `{ order, qr: { payload, dataUrl }, recipient }` về client.
-8. Lưu `payment_event` type=`qr_generated`.
+5. Tạo `reference` 8 ký tự ASCII (A–Z, 2–9) đảm bảo unique + `order_code` integer (PayOS dùng để tra cứu).
+6. Gọi PayOS `POST /v2/payment-requests` với `orderCode`, `amount`, `description="Mnemonics <plan> <reference>"`, `returnUrl`, `cancelUrl` + `signature=HMAC-SHA256(checksum_key, sorted_query_string)`.
+7. Lưu `checkout_url` trả về từ PayOS trong order.
+8. Trả `{ order, checkout: { url, orderCode, amount } }` về client.
+9. Lưu `payment_event` type=`checkout_started`.
+
+> Lưu ý: PayOS chủ động dựng trang thanh toán (hosted checkout). Backend KHÔNG build VietQR / EMV NAPAS-247 nữa. Người dùng bấm nút → frontend redirect sang `checkoutUrl` → chọn ngân hàng → quét QR PayOS sinh ra. Cách này mở rộng số ngân hàng hỗ trợ (VCB, TCB, MB, ACB, BIDV, VPBank, …) so với SePay trước đây.
 
 ### 3.2 Webhook xác minh (M3)
 
 ```
-POST /api/v1/billing/webhooks/sepay
-Headers: X-Sepay-Signature: hmac-sha256(rawBody, SEPAY_WEBHOOK_SECRET)
-Body: { id, gateway, transactionDate, accountNumber, amount, description, ... }
+POST /api/v1/billing/webhooks/payos
+Body: { code, desc, data: { orderCode, amount, description, accountNumber, reference, transactionDateTime, ... }, signature }
 ```
 
 Server:
-1. **Verify HMAC** trên raw body — sai chữ ký → 401.
-2. **Idempotency**: nếu `id` (tx id) đã tồn tại trong `payment_events` với `event_type='webhook_verified'` → 200 OK, không xử lý lại.
-3. Kiểm tra `accountNumber` khớp với beneficiary cấu hình → sai → 422.
-4. Parse `description` tìm order `reference` 8 ký tự → không thấy → 422.
+1. **Verify HMAC** trên `data` object — tính `HMAC-SHA256(checksum_key, sorted_data_fields_concat)`, so sánh với `body.signature` bằng `crypto.timingSafeEqual`. Sai chữ ký → 401.
+2. **Idempotency**: nếu `(provider='payos', provider_txn_id=orderCode)` đã tồn tại trong `payment_events` với `event_type='payment.in'` → 200 OK, không xử lý lại.
+3. Parse `description` tìm `reference` 8 ký tự (MNX…) → không thấy → 400.
+4. Nếu `code !== '00'` (e.g. cancelled) → 200 OK, không advance order, ghi event để admin đối soát.
 5. Trong một transaction SQL:
-   - `SELECT … FOR UPDATE` order với `status='pending'` và `reference=…`.
+   - `SELECT … FOR UPDATE` order với `order_code=$orderCode`.
    - So sánh `amount` với `order.amount_vnd` → sai → set `rejected`.
-   - Cập nhật order → `status='paid'`, `paid_at=now()`, `provider_tx_id=…`.
+   - Cập nhật order → `status='paid'`, `paid_at=now()`, `provider_txn_id=orderCode`.
    - Tìm/cập nhật `subscriptions`:
      - Nếu `valid_until < now()` hoặc null → set `valid_from=now()`, `valid_until=now() + interval`.
      - Nếu đang active → cộng dồn: `valid_until = valid_until + interval`.
