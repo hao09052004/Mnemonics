@@ -1,0 +1,22 @@
+{
+  "$schema": "https://docs.cursor.com/hooks",
+  "version": 1,
+  "hooks": {
+    "postEdit": [
+      {
+        "matcher": { "pathPattern": "**/*.md" },
+        "command": "quality-gates/hooks/post-edit.cmd"
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": { "tool": "Bash" },
+        "command": "quality-gates/hooks/pre-tool-use.cmd Bash"
+      },
+      {
+        "matcher": { "tool": "Write" },
+        "command": "quality-gates/hooks/pre-tool-use.cmd Write"
+      }
+    ]
+  }
+}

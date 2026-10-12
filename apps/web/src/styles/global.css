@@ -1,0 +1,248 @@
+/**
+ * Global reset + base typography for Mnemonics.
+ *
+ * - Imports the locally bundled Inter Variable so the app does not
+ *   depend on runtime Google Fonts.
+ * - The dark "second brain" canvas is the default for the root
+ *   document. The marketing theme is re-enabled on the public site
+ *   by toggling `data-theme="marketing"` on the body element from the
+ *   marketing-only routes.
+ * - Component-scoped styles live next to the components that own them.
+ */
+
+@import "@fontsource-variable/inter";
+@import "./tokens.css";
+@import "./billing-admin.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--mn-bg);
+  color: var(--mn-text);
+  font-family: var(--mn-font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  /* Faint top-light so the empty canvas isn't pitch-flat. Stays
+     invisible once cards are drawn. */
+  background-image: var(--mn-toplight);
+  background-repeat: no-repeat;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+img,
+svg {
+  max-width: 100%;
+  display: block;
+}
+
+/* Marketing chrome ---------------------------------------------------------- */
+
+[data-theme="marketing"] body,
+body[data-theme="marketing"] {
+  background: var(--bg);
+  color: var(--ink);
+  background-image: none;
+}
+
+[data-theme="marketing"] .mn-canvas,
+[data-theme="marketing"] .mn-rail,
+[data-theme="marketing"] .mn-search,
+[data-theme="marketing"] .mn-card {
+  /* marketing theme: revert to the light tokens used elsewhere */
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+/* Marketing headings (unchanged from M1) */
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  color: var(--ink);
+}
+
+.h1 {
+  font-size: clamp(40px, 6vw, 76px);
+}
+.h2 {
+  font-size: clamp(32px, 4.4vw, 56px);
+}
+.h3 {
+  font-size: clamp(24px, 2.4vw, 32px);
+}
+
+.lead {
+  font-size: clamp(17px, 1.4vw, 19px);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.container-narrow {
+  width: 100%;
+  max-width: var(--max-w-narrow);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section {
+  padding: clamp(72px, 10vw, 140px) 0;
+}
+.section--tight {
+  padding: clamp(56px, 7vw, 96px) 0;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform var(--mn-dur) var(--mn-ease),
+    background var(--mn-dur) var(--mn-ease),
+    color var(--mn-dur) var(--mn-ease),
+    box-shadow var(--mn-dur) var(--mn-ease),
+    border-color var(--mn-dur) var(--mn-ease);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--mn-brand);
+  outline-offset: 2px;
+}
+.btn--primary {
+  background: var(--brand);
+  color: #ffffff;
+}
+.btn--primary:hover {
+  background: var(--brand-hover);
+  transform: translateY(-1px);
+}
+.btn--brand {
+  background: var(--brand);
+  color: #ffffff;
+  border-color: var(--brand);
+}
+.btn--brand:hover {
+  background: var(--brand-hover);
+  transform: translateY(-1px);
+}
+.btn--outline {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.btn--outline:hover {
+  background: var(--surface-hover);
+  border-color: var(--ink);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.btn--ghost:hover {
+  background: var(--brand-tint);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.btn--lg {
+  padding: 16px 28px;
+  font-size: 16px;
+}
+.btn--sm {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+/* Cards */
+.card {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.card-soft {
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* Reveal-on-scroll utility */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion: kill the top-light animation too */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

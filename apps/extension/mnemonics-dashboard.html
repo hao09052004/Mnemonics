@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mnemonics — Dashboard</title>
+<link rel="stylesheet" href="styles/tokens.css">
+<style>
+  /* ============================================================
+     Extension dashboard — Figma-aligned styles.
+     Scoped under .mnx-* so they never bleed into the global
+     --mn-* utilities (popup / cropper / original-image).
+     ============================================================ */
+
+  html, body { background: var(--bg); color: var(--text); }
+  body { margin: 0; min-width: 320px; font-family: var(--font-sans); }
+
+  /* ===== Top nav (sticky, dark, hairline border) ===== */
+  .mnx-topnav {
+    position: sticky; top: 0; z-index: 10;
+    min-height: 80px; padding: 0 36px;
+    display: flex; align-items: center; gap: 42px;
+    background: var(--elevated);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+  .mnx-brand {
+    display: flex; align-items: center; gap: 11px;
+    background: transparent; border: 0; padding: 0;
+    color: var(--text); text-align: left;
+    font: 650 20px/1 var(--font-sans);
+    letter-spacing: -0.6px;
+    cursor: pointer;
+  }
+  .mnx-brand__mark {
+    display: grid; place-items: center;
+    width: 34px; height: 34px;
+    background: var(--purple-soft); color: var(--purple-text);
+    border-radius: 10px; font-size: 27px; font-weight: 600;
+  }
+  .mnx-brand__tagline {
+    display: block; font-size: 10px; color: var(--secondary);
+    font-weight: 400; letter-spacing: 0.1px; margin-top: 2px;
+  }
+  .mnx-topnav__tabs {
+    display: flex; align-self: stretch; gap: 24px; align-items: center;
+    margin: 0; padding: 0; list-style: none;
+  }
+  .mnx-tab {
+    position: relative;
+    height: 100%; border: 0; background: transparent; padding: 0;
+    color: var(--muted); font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+  }
+  .mnx-tab:hover { color: var(--secondary); }
+  .mnx-tab[aria-current="page"] { color: var(--text); }
+  .mnx-tab[aria-current="page"]::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0;
+    height: 2px; background: var(--purple);
+  }
+  .mnx-topnav__actions {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .mnx-avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--hover); color: var(--text);
+    font: 600 11px/1 var(--font-sans);
+    display: grid; place-items: center;
+    cursor: pointer;
+  }
+
+  /* ===== Buttons ===== */
+  .mnx-btn-primary {
+    background: var(--purple-button);
+    color: var(--on-primary);
+    border: 0; border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font: 500 13px/1 var(--font-sans);
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    transition: background 0.15s var(--ease);
+  }
+  .mnx-btn-primary:hover { background: var(--purple-button-hover); }
+  .mnx-btn-primary:active { background: var(--purple-pressed); }
+  .mnx-btn-primary:focus-visible {
+    outline: 2px solid var(--purple); outline-offset: 2px;
+  }
+  .mnx-btn-ghost {
+    background: transparent;
+    color: var(--secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font: 500 13px/1 var(--font-sans);
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .mnx-btn-ghost:hover { background: var(--surface); color: var(--text); }
+
+  /* ===== Main content area ===== */
+  .mnx-main {
+    padding: 30px 36px 60px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  .mnx-heading {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .mnx-heading h1 {
+    margin: 0 0 8px;
+    font: 600 28px/1.2 var(--font-sans);
+    letter-spacing: -0.8px;
+    color: var(--text);
+  }
+  .mnx-heading p { margin: 0; color: var(--secondary); font-size: 13px; }
+  .mnx-count { color: var(--muted); font-size: 12px; }
+
+  /* ===== Search zone ===== */
+  .mnx-searchzone { margin: 24px 0 20px; max-width: 760px; position: relative; }
+  .mnx-searchline {
+    display: flex; align-items: center; gap: 13px;
+    height: 54px; padding: 0 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--secondary);
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+  .mnx-searchline:focus-within {
+    border-color: var(--purple);
+    box-shadow: 0 0 0 2px var(--focus-ring);
+  }
+  .mnx-searchline input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    font: 400 18px/1 var(--font-sans);
+    color: var(--text); letter-spacing: -0.3px;
+  }
+  .mnx-searchline input::placeholder { color: var(--muted); }
+  .mnx-searchline kbd {
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 7px;
+    font: 11px/1 var(--font-sans);
+    color: var(--secondary); white-space: nowrap;
+  }
+  .mnx-searchmeta {
+    margin: 11px 0 0 0; color: var(--muted); font-size: 12px;
+  }
+  .mnx-searchmeta b { color: var(--purple-text); }
+
+  /* ===== Filter chips ===== */
+  .mnx-filter-row {
+    display: flex; align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 18px; margin: 0 0 24px;
+    overflow-x: auto;
+  }
+  .mnx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mnx-chip {
+    background: var(--surface);
+    border: 1px solid transparent;
+    color: var(--secondary);
+    font: 500 12px/1 var(--font-sans);
+    padding: 7px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s var(--ease), color 0.15s var(--ease);
+  }
+  .mnx-chip:hover { background: var(--hover); color: var(--text); }
+  .mnx-chip[aria-pressed="true"] {
+    background: var(--purple-soft);
+    color: var(--text);
+    border-color: var(--purple);
+  }
+  .mnx-chip[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* ===== Masonry grid (memory cards) ===== */
+  .mnx-masonry {
+    columns: 4;
+    column-gap: 20px;
+  }
+  .mnx-skeletons {
+    columns: 4;
+    column-gap: 20px;
+  }
+  @media (max-width: 1190px) { .mnx-masonry, .mnx-skeletons { columns: 3; } }
+  @media (max-width: 1000px) { .mnx-masonry, .mnx-skeletons { columns: 2; } }
+  @media (max-width: 760px)  { .mnx-masonry, .mnx-skeletons { columns: 1; } }
+
+  .mnx-skel-card {
+    break-inside: avoid;
+    width: 100%;
+    margin: 0 0 20px;
+    height: 220px;
+    border-radius: var(--radius);
+  }
+  .mnx-skel-card.sk-tall { height: 312px; }
+  .mnx-skel-card.sk-short { height: 168px; }
+  .mnx-skel-card.sk-medium { height: 255px; }
+
+  /* ===== Memory card ===== */
+  .mnx-card {
+    display: inline-block;
+    vertical-align: top;
+    break-inside: avoid;
+    width: 100%;
+    margin: 0 0 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(21, 23, 28, 0.06);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+  }
+  .mnx-card:hover {
+    background: var(--hover);
+    border-color: var(--border-strong);
+  }
+  .mnx-card:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 4px;
+    box-shadow: 0 0 0 2px var(--focus-ring);
+  }
+  .mnx-card__image {
+    height: 220px;
+    background: var(--elevated);
+    overflow: hidden;
+  }
+  .mnx-card__image img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .mnx-card.article .mnx-card__image  { height: 164px; }
+  .mnx-card.screenshot .mnx-card__image { height: 190px; }
+  .mnx-card__body { padding: 18px; }
+  .mnx-card__top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .mnx-eyebrow {
+    font: 600 10px/1.3 var(--font-sans);
+    letter-spacing: 1.1px; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .mnx-eyebrow i {
+    display: inline-block;
+    width: 5px; height: 5px;
+    background: var(--purple);
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(117, 103, 232, 0.15);
+    margin-right: 6px; vertical-align: 1px;
+  }
+  .mnx-card__actions {
+    display: flex; gap: 7px;
+    opacity: 0; transition: opacity 0.15s var(--ease);
+  }
+  .mnx-card:hover .mnx-card__actions,
+  .mnx-card:focus-within .mnx-card__actions { opacity: 1; }
+  .mnx-iconbtn {
+    background: transparent; border: 0; padding: 3px;
+    color: var(--muted); cursor: pointer;
+    border-radius: 5px;
+  }
+  .mnx-iconbtn:hover { color: var(--purple-text); }
+  .mnx-iconbtn[aria-pressed="true"] { color: var(--purple-text); }
+  .mnx-iconbtn.is-favorite { color: var(--purple-text); }
+
+  /* Overflow ("...") menu. The anchor is the positioning context so the
+     popover sticks to the trigger without a portal. */
+  .mnx-cardmenu-anchor { position: relative; display: flex; }
+  .mnx-cardmenu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    z-index: 40; min-width: 168px; padding: 5px;
+    display: flex; flex-direction: column; gap: 1px;
+    background: var(--panel, #161A22);
+    border: 1px solid var(--border-strong, rgba(255,255,255,0.12));
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  }
+  .mnx-cardmenu__item {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; padding: 8px 10px;
+    font: 400 13px var(--font-sans); text-align: left;
+    color: var(--text); background: transparent;
+    border: 0; border-radius: 6px; cursor: pointer;
+  }
+  .mnx-cardmenu__item:hover { background: var(--hover, #272B35); }
+  .mnx-cardmenu__item--danger { color: #f2555a; }
+  .mnx-cardmenu__item--danger:hover { background: rgba(242,85,90,0.12); color: #ff6b70; }
+
+  .mnx-card h3 {
+    font: 600 16px/1.45 var(--font-sans);
+    letter-spacing: -0.25px;
+    margin: 0 0 9px; color: var(--text);
+  }
+  .mnx-card p {
+    font: 400 13px/1.65 var(--font-sans);
+    color: var(--secondary);
+    margin: 0 0 18px;
+  }
+  .mnx-card.note.tall .mnx-card__body {
+    min-height: 280px;
+    display: flex; flex-direction: column;
+  }
+  .mnx-card.note.tall .mnx-card__footer { margin-top: auto; }
+  .mnx-card.highlight .mnx-card__body { padding: 19px; }
+  .mnx-card.highlight h3 {
+    font: 500 20px/1.38 var(--font-sans);
+    letter-spacing: -0.025em;
+    margin: 15px 0 22px;
+  }
+  .mnx-card.document .mnx-card__body { padding-top: 19px; }
+  .mnx-card.document h3::before {
+    content: '⌁';
+    display: block;
+    color: var(--purple-text);
+    font: 400 21px/1 var(--font-sans);
+    margin-bottom: 18px;
+  }
+
+  .mnx-card__meta {
+    display: flex; flex-direction: column; gap: 10px;
+    font-size: 11px; color: var(--muted);
+    padding-top: 4px;
+  }
+  .mnx-card__meta-tags { color: var(--secondary); }
+  .mnx-card__related {
+    border-top: 1px solid var(--border);
+    padding-top: 12px; margin-top: 15px;
+    color: var(--secondary);
+    font: 400 11px/1 var(--font-sans);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .mnx-card__related i {
+    width: 4px; height: 4px;
+    background: var(--purple); border-radius: 50%;
+  }
+
+  /* ===== Empty state ===== */
+  .mnx-empty {
+    min-height: 360px;
+    display: grid; place-items: center;
+    text-align: center;
+  }
+  .mnx-empty__inner { max-width: 390px; }
+  .mnx-empty__mark {
+    position: relative;
+    width: 45px; height: 42px;
+    margin: 0 auto 28px;
+  }
+  .mnx-empty__mark span {
+    position: absolute;
+    width: 9px; height: 9px;
+    border: 2px solid var(--purple);
+    border-radius: 50%;
+  }
+  .mnx-empty__mark span:nth-child(1) { left: 1px; top: 21px; }
+  .mnx-empty__mark span:nth-child(2) { left: 17px; top: 3px; }
+  .mnx-empty__mark span:nth-child(3) { left: 30px; top: 25px; }
+  .mnx-empty__inner h1 {
+    font: 600 28px/1 var(--font-sans);
+    letter-spacing: -0.04em;
+    margin: 0 0 10px;
+  }
+  .mnx-empty__inner p {
+    color: var(--secondary);
+    font: 400 14px/1.6 var(--font-sans);
+    margin: 0 0 22px;
+  }
+  /* Debug aid for the empty Favorites tab. Deliberately monospace and
+     low-key so it reads as telemetry, not as chrome.
+     NOTE: no `display` here — setting it would defeat the `hidden`
+     attribute that dashboard.js toggles. */
+  .mnx-empty__diag[hidden] { display: none; }
+  .mnx-empty__diag {
+    margin: -8px 0 0;
+    padding: 8px 10px;
+    font: 400 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted);
+    background: rgba(255,255,255,0.04);
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    text-align: left;
+    word-break: break-all;
+  }
+
+  /* ===== Toast ===== */
+  .mnx-toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 18px;
+    border-radius: 10px;
+    box-shadow: var(--shadow-3);
+    font: 500 13px/1.4 var(--font-sans);
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    pointer-events: none;
+    max-width: 90vw;
+  }
+  .mnx-toast.is-show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .mnx-toast.is-error  { border-color: rgba(201, 108, 108, 0.4); }
+  .mnx-toast.is-success { border-color: rgba(115, 165, 140, 0.4); }
+
+  /* ===== Detail modal ===== */
+  .mnx-detail {
+    position: fixed; z-index: 30;
+    inset: 0; background: var(--bg);
+    display: grid;
+    grid-template-columns: minmax(0, 1.85fr) minmax(340px, 1fr);
+  }
+  .mnx-detail__media {
+    position: relative; min-height: 0;
+    background: var(--elevated);
+    display: grid; place-items: center;
+    border-right: 1px solid var(--border);
+  }
+  .mnx-detail__media-inner {
+    width: min(78%, 820px); max-height: 78vh;
+    border-radius: var(--radius-sm); overflow: hidden;
+    box-shadow: 0 24px 80px rgba(21, 23, 28, 0.35);
+    background: var(--hover);
+  }
+  .mnx-detail__media-inner img {
+    max-height: 78vh; width: 100%; object-fit: contain;
+    background: var(--hover); display: block;
+  }
+  .mnx-detail__text-preview {
+    max-width: 540px; padding: 32px;
+  }
+  .mnx-detail__text-preview h2 {
+    font: 600 28px/1.35 var(--font-sans);
+    letter-spacing: -0.6px;
+    margin: 18px 0;
+  }
+  .mnx-detail__text-preview p {
+    font: 400 16px/1.8 var(--font-sans);
+    color: var(--secondary);
+    margin: 0;
+  }
+  .mnx-detail__close {
+    position: absolute; top: 20px; left: 20px;
+    width: 37px; height: 37px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--secondary);
+    display: grid; place-items: center;
+    cursor: pointer;
+  }
+  .mnx-detail__close:hover { background: var(--hover); color: var(--text); }
+  .mnx-detail__zoom {
+    position: absolute; bottom: 22px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .mnx-detail__zoom button, .mnx-detail__zoom span {
+    border: 0; background: transparent;
+    color: var(--secondary);
+    font: 500 13px/1 var(--font-sans);
+    width: 33px; height: 31px;
+  }
+  .mnx-detail__zoom span {
+    font-size: 11px; width: 46px;
+    display: grid; place-items: center;
+    border-inline: 1px solid var(--border);
+  }
+
+  .mnx-detail__side {
+    overflow: auto;
+    padding: 27px 28px 22px;
+    background: var(--bg);
+  }
+  .mnx-detail__side-head {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .mnx-detail__side h1 {
+    font: 600 26px/1.3 var(--font-sans);
+    letter-spacing: -0.6px;
+    margin: 13px 0 11px;
+  }
+  .mnx-detail__source {
+    display: flex; flex-wrap: wrap; gap: 7px; align-items: center;
+    color: var(--muted); font-size: 12px;
+    margin: 0 0 25px;
+  }
+  .mnx-detail__source span { padding-left: 7px; border-left: 1px solid var(--border); }
+  .mnx-detail__section {
+    padding: 18px 0;
+    border-top: 1px solid var(--border);
+  }
+  .mnx-detail__section.tldr {
+    border-top: 0; padding-top: 0;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .mnx-section-label {
+    font: 600 10px/1 var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .mnx-section-label small {
+    font: 400 11px/1 var(--font-sans);
+    text-transform: none; letter-spacing: 0;
+    color: var(--purple-text); margin-left: 6px;
+  }
+  .mnx-tldr-text {
+    font: 400 14px/1.6 var(--font-sans);
+    color: var(--text); margin: 10px 0 14px;
+  }
+  .mnx-tldr-actions { display: flex; gap: 5px; }
+  .mnx-tldr-actions button {
+    border: 0; background: transparent;
+    color: var(--secondary);
+    font: 500 11px/1 var(--font-sans);
+    display: flex; align-items: center; gap: 5px;
+    padding: 0; cursor: pointer;
+  }
+  .mnx-tag-list {
+    display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .mnx-tag-list span {
+    font: 500 11px/1 var(--font-sans);
+    background: var(--hover); color: var(--secondary);
+    padding: 5px 8px; border-radius: 6px;
+  }
+  .mnx-disclosure {
+    width: 100%; border: 0; border-top: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    padding: 16px 0; text-align: left;
+    font: 500 13px/1 var(--font-sans);
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .mnx-disclosure span {
+    color: var(--muted); font-size: 11px; margin-left: auto;
+  }
+  .mnx-related-row {
+    display: flex; gap: 9px; margin-top: 12px;
+  }
+  .mnx-related-thumb {
+    height: 48px; border-radius: 5px; overflow: hidden;
+    background: var(--hover);
+    display: grid; place-items: center; color: var(--purple-text);
+    margin-bottom: 6px;
+  }
+  .mnx-related-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .mnx-related-row > div {
+    width: calc(33.3% - 6px);
+    font: 400 10px/1.3 var(--font-sans);
+    color: var(--secondary);
+  }
+  .mnx-detail__actions {
+    display: flex; gap: 7px; padding-top: 18px;
+  }
+  .mnx-detail__actions button {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--secondary);
+    height: 34px; border-radius: 7px;
+    font: 500 11px/1 var(--font-sans);
+    padding: 0 9px;
+    display: inline-flex; align-items: center; gap: 5px;
+    cursor: pointer;
+  }
+  .mnx-detail__actions button:hover { background: var(--hover); color: var(--text); }
+  .mnx-detail__actions .open-source {
+    margin-left: auto;
+    color: var(--secondary);
+    border-color: rgba(117, 103, 232, 0.35);
+  }
+
+  /* ===== Capture sheet ===== */
+  .mnx-sheet-backdrop {
+    position: fixed; z-index: 40;
+    inset: 0;
+    background: var(--overlay);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(5px);
+  }
+  .mnx-sheet {
+    width: 420px;
+    max-width: calc(100% - 32px);
+    border: 1px solid var(--border);
+    background: var(--elevated);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .mnx-sheet h2 {
+    margin: 0 0 18px;
+    font: 600 20px/1 var(--font-sans);
+  }
+  .mnx-sheet button {
+    width: 100%;
+    border: 0; border-top: 1px solid var(--border);
+    background: transparent;
+    padding: 17px 4px;
+    display: flex; align-items: center; gap: 12px;
+    text-align: left;
+    color: var(--text);
+    font: 500 14px/1 var(--font-sans);
+    cursor: pointer;
+  }
+  .mnx-sheet button:hover { color: var(--secondary); }
+  .mnx-sheet button:last-child { color: var(--muted); }
+  .mnx-sheet button[disabled] {
+    color: var(--muted);
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+  .mnx-sheet button svg:last-child {
+    margin-left: auto;
+    color: var(--muted);
+  }
+
+  /* ===== Mobile bottom nav (≤760px) ===== */
+  .mnx-mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 68px;
+    background: rgba(27, 30, 36, 0.96);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border);
+    z-index: 9;
+    padding: 6px 5px;
+  }
+  .mnx-mobile-nav button {
+    flex: 1; border: 0; background: transparent;
+    color: var(--muted);
+    font: 500 10px/1 var(--font-sans);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer;
+  }
+  .mnx-mobile-nav button[aria-current="page"] { color: var(--text); }
+  .mnx-mobile-nav button > span {
+    height: 27px; display: grid; place-items: center;
+  }
+  .mnx-mobile-nav button > span.capture {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: var(--purple-button);
+    color: var(--on-primary);
+    box-shadow: 0 4px 18px rgba(117, 103, 232, 0.35);
+    transform: translateY(-18px);
+  }
+  .mnx-mobile-nav button > span.capture + small { margin-top: -16px; }
+
+  /* ===== Route sections (hidden unless active) ===== */
+  /* NOTE: selector targets [data-route-section] (child <section> elements)
+     — NOT [data-route]. Body itself carries data-route, and the broad
+     selector would otherwise set body { display: none } and collapse the
+     whole document to 0×0. That bug caused the entire dashboard to render
+     blank even when login JS succeeded. */
+  [data-route-section] { display: none; }
+  /* Safety net: if `dashboard.js` hasn't run yet (or failed before
+     renderRoute), show the login section so the page isn't blank. */
+  body:not([data-route]) .mnx-route-login,
+  body:not([data-route]) .mnx-route-everything { display: block; }
+  body[data-route="everything"]   .mnx-route-everything,
+  body[data-route="favorites"]    .mnx-route-favorites,
+  body[data-route="spaces"]       .mnx-route-spaces,
+  body[data-route="clusters"]     .mnx-route-clusters,
+  body[data-route="cluster-detail"] .mnx-route-cluster-detail,
+  body[data-route="rediscover"]   .mnx-route-rediscover,
+  body[data-route="reminders"]    .mnx-route-reminders,
+  body[data-route="settings"]     .mnx-route-settings,
+  body[data-route="login"]        .mnx-route-login,
+  body[data-route="space-detail"] .mnx-route-spaces { display: block; }
+
+  /* detail modal / sheet hidden by default */
+  .mnx-detail, .mnx-sheet-backdrop { display: none; }
+  body[data-route="detail"] .mnx-detail { display: grid; }
+  body[data-route="detail"] .mnx-topnav,
+  body[data-route="detail"] .mnx-main,
+  body[data-route="detail"] .mnx-mobile-nav { display: none; }
+  body[data-route="capture"] .mnx-sheet-backdrop { display: flex; }
+
+  /* ===== Responsive top nav ===== */
+  @media (max-width: 1190px) {
+    .mnx-topnav { gap: 25px; padding-inline: 28px; }
+    .mnx-topnav__tabs { gap: 17px; }
+    .mnx-brand__tagline { display: none; }
+  }
+  @media (max-width: 1000px) {
+    .mnx-main { padding-inline: 28px; }
+    .mnx-topnav {
+      flex-wrap: wrap; gap: 0; padding-top: 15px;
+    }
+    .mnx-topnav__tabs {
+      order: 3; width: 100%; height: 48px;
+      margin-top: 10px; gap: 25px;
+    }
+    .mnx-topnav__actions { gap: 12px; }
+  }
+  @media (max-width: 760px) {
+    .mnx-topnav {
+      min-height: 68px; padding: 14px 16px; flex-wrap: nowrap;
+    }
+    .mnx-topnav__tabs { display: none; }
+    .mnx-brand { font-size: 18px; }
+    .mnx-brand__mark { width: 30px; height: 30px; font-size: 24px; }
+    .mnx-main { padding: 25px 16px 90px; }
+    .mnx-heading h1 { font-size: 26px; }
+    .mnx-heading p { font-size: 12px; }
+    .mnx-count { display: none; }
+    .mnx-searchzone { margin: 20px 0 16px; }
+    .mnx-searchline { padding: 0 13px; gap: 10px; height: 52px; }
+    .mnx-searchline input { font-size: 17px; }
+    .mnx-searchline kbd { display: none; }
+    .mnx-filter-row { margin: 0 0 20px; padding: 0 0 15px; }
+    .mnx-chips { gap: 3px; padding: 3px; }
+    .mnx-chip { flex-shrink: 0; padding: 7px 10px; }
+    .mnx-mobile-nav { display: flex; }
+    .mnx-sheet { max-width: none; width: 100%; border-radius: 16px 16px 0 0; padding: 24px; }
+    .mnx-sheet-backdrop { align-items: flex-end; }
+    .mnx-detail { display: block; overflow: auto; }
+    .mnx-detail__media { height: 47vh; min-height: 310px; border: 0; }
+    .mnx-detail__media-inner { width: 83%; max-height: 35vh; }
+    .mnx-detail__media-inner img { max-height: 35vh; }
+    .mnx-detail__side { padding: 21px 18px 90px; overflow: visible; }
+    .mnx-detail__side h1 { font-size: 26px; }
+    .mnx-detail__close { top: 14px; left: 14px; }
+  }
+
+  /* ===== Login / signup / reset forms ===== */
+  .mnx-route-login {
+    max-width: 420px; margin: 80px auto;
+    padding: 36px 32px;
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+  .mnx-route-login h1 {
+    font: 600 24px/1.2 var(--font-sans);
+    letter-spacing: -0.6px;
+    margin: 0 0 8px;
+  }
+  .mnx-route-login p { color: var(--secondary); font-size: 13px; margin: 0 0 24px; }
+  .mnx-route-login label {
+    display: block;
+    font: 600 10px/1 var(--font-sans);
+    letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .mnx-route-login input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font: 400 13px/1.5 var(--font-sans);
+    outline: none;
+    margin-bottom: 14px;
+  }
+  .mnx-route-login input:focus {
+    border-color: var(--purple);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+  .mnx-route-login button.primary {
+    width: 100%;
+    background: var(--purple-button);
+    color: var(--on-primary);
+    border: 0;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    font: 600 13px/1 var(--font-sans);
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .mnx-route-login button.primary:hover { background: var(--purple-button-hover); }
+  .mnx-route-login .err {
+    color: var(--error);
+    font-size: 12px; margin-bottom: 8px;
+    min-height: 16px;
+  }
+  .mnx-route-login a {
+    color: var(--purple-text);
+    font-size: 12px; text-decoration: none;
+    display: inline-block; margin-top: 14px;
+  }
+  .mnx-route-login a:hover { text-decoration: underline; }
+
+  /* ===== Spaces page ===== */
+  .mnx-spaces-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    max-width: 1200px; margin: 0 auto;
+  }
+  @media (max-width: 1190px) { .mnx-spaces-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 760px)  { .mnx-spaces-grid { grid-template-columns: 1fr; gap: 12px; } }
+
+  /* ===== Clusters (Groups) page =====
+   * Reuses the same surface tokens as the Spaces page so the two
+   * surfaces look related without being identical. */
+  .mnx-clusters {
+    list-style: none; margin: 18px auto; padding: 0;
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+    max-width: 720px;
+  }
+  .mnx-clusters__head { max-width: 720px; margin: 18px auto 0; }
+  .mnx-clusters__head h1 { font: 600 22px/1.3 var(--font-sans); margin: 0; color: var(--text); }
+  .mnx-clusters__head p { color: var(--muted); font: 400 13px/1.5 var(--font-sans); margin: 6px 0 12px; }
+  .mnx-clusters__card {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 13px;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mnx-clusters__card:hover { background: var(--hover); border-color: var(--border-strong); }
+  .mnx-clusters__card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .mnx-clusters__card-title { font: 600 15px/1.4 var(--font-sans); color: var(--text); margin: 0; }
+  .mnx-clusters__count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .mnx-clusters__card-summary { color: var(--muted); font: 400 12px/1.5 var(--font-sans); margin: 0; }
+  .mnx-clusters__previews { display: flex; flex-direction: column; gap: 4px; }
+  .mnx-clusters__preview {
+    display: flex; gap: 8px; align-items: center;
+    font: 400 12px/1.4 var(--font-sans); color: var(--text);
+    background: var(--bg); padding: 6px 8px; border-radius: 6px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mnx-clusters__preview--empty { color: var(--muted); font-style: italic; }
+  .mnx-clusters__preview-kind {
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em;
+    color: var(--accent); background: rgba(167,139,250,0.16);
+    padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
+  }
+  .mnx-clusters__actions { display: flex; gap: 8px; }
+  .mnx-space-card {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    text-align: left;
+    border-radius: 13px;
+    padding: 18px;
+    cursor: pointer;
+    transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+  .mnx-space-card:hover { background: var(--hover); border-color: var(--border-strong); }
+  .mnx-space-card h3 {
+    font: 600 16px/1.45 var(--font-sans);
+    margin: 0 0 8px; color: var(--text);
+  }
+  .mnx-space-card p {
+    color: var(--muted);
+    font: 400 12px/1.5 var(--font-sans);
+    margin: 0;
+  }
+</style>
+</head>
+<body data-route="login">
+
+<!-- Top nav (hidden until logged in) -->
+<header class="mnx-topnav" data-when="authed" hidden>
+  <button class="mnx-brand" data-action="go-home" aria-label="Mnemonics home">
+    <span class="mnx-brand__mark">m</span>
+    <span>
+      mnemonics
+      <span class="mnx-brand__tagline">Save once — Find anytime.</span>
+    </span>
+  </button>
+  <nav class="mnx-topnav__tabs" aria-label="Main">
+    <button class="mnx-tab" data-route-tab="everything" aria-current="page">Everything</button>
+    <button class="mnx-tab" data-route-tab="favorites">Favorites</button>
+    <button class="mnx-tab" data-route-tab="spaces">Spaces</button>
+    <button class="mnx-tab" data-route-tab="clusters">Groups</button>
+    <button class="mnx-tab" data-route-tab="rediscover">Rediscover</button>
+    <button class="mnx-tab" data-route-tab="reminders">Reminders</button>
+    <button class="mnx-tab" data-route-tab="settings">Settings</button>
+</nav>
+  <div class="mnx-topnav__actions">
+    <button class="mnx-btn-primary" data-action="open-capture">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Capture
+    </button>
+    <button class="mnx-avatar" data-action="go-settings" aria-label="Account">AC</button>
+  </div>
+</header>
+
+<!-- Mobile bottom nav (authed only) -->
+<nav class="mnx-mobile-nav" data-when="authed" hidden aria-label="Mobile">
+  <button data-route-tab="everything">
+    <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+    <small>Everything</small>
+  </button>
+  <button data-route-tab="spaces">
+    <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></svg></span>
+    <small>Spaces</small>
+  </button>
+  <button data-action="open-capture">
+    <span class="capture"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+    <small>Capture</small>
+  </button>
+  <button data-route-tab="rediscover">
+    <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2-1.6 6.4L4 10l6.4 1.6L12 18l1.6-6.4L20 10l-6.4-1.6L12 2Z"/></svg></span>
+    <small>Rediscover</small>
+  </button>
+  <button data-route-tab="settings">
+    <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.1 2.1-.06-.06A1.7 1.7 0 0 0 15.76 18a1.7 1.7 0 0 0-1.02 1.56V20h-3v-.44A1.7 1.7 0 0 0 10.72 18a1.7 1.7 0 0 0-1.88.34l-.06.06-2.1-2.1.06-.06A1.7 1.7 0 0 0 7.08 14a1.7 1.7 0 0 0-1.56-1.02H5v-3h.52A1.7 1.7 0 0 0 7.08 8.96a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.1-2.1.06.06A1.7 1.7 0 0 0 10.72 5a1.7 1.7 0 0 0 1.02-1.56V3h3v.44A1.7 1.7 0 0 0 15.76 5a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.1 2.1-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21v3h-.04A1.7 1.7 0 0 0 19.4 15Z"/></svg></span>
+    <small>Settings</small>
+  </button>
+</nav>
+
+<main class="mnx-main">
+
+  <!-- Login route -->
+  <section class="mnx-route-login" data-route-section="login">
+    <h1>Welcome back</h1>
+    <p>Sign in to access your memories.</p>
+    <form id="login-form" novalidate>
+      <label for="login-email">Email</label>
+      <input id="login-email" type="email" autocomplete="username" required>
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" autocomplete="current-password" required>
+      <div class="err" id="login-error"></div>
+      <button class="primary" type="submit">Sign in</button>
+    </form>
+    <form id="signup-form" hidden novalidate>
+      <label for="signup-name">Name</label>
+      <input id="signup-name" type="text" autocomplete="name" required>
+      <label for="signup-email-2">Email</label>
+      <input id="signup-email-2" type="email" autocomplete="username" required>
+      <label for="signup-password">Password (≥10 chars, mixed case, digits, symbol)</label>
+      <input id="signup-password" type="password" autocomplete="new-password" required>
+      <div class="err" id="signup-error"></div>
+      <button class="primary" type="submit">Create account</button>
+    </form>
+    <a href="#" id="toggle-auth-mode">Create a new account</a>
+  </section>
+
+  <!-- Everything / Favorites / Rediscover share the same layout -->
+  <section class="mnx-route-everything" data-route-section="everything">
+    <div class="mnx-heading">
+          <div>
+        <h1 id="route-title">Everything</h1>
+        <p id="route-sub">Your saved memories in one place.</p>
+          </div>
+      <span class="mnx-count" id="memory-count">0 memories</span>
+      </div>
+
+    <section class="mnx-searchzone" aria-label="Memory search">
+      <div class="mnx-searchline">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+        <input id="search-input" type="search" placeholder="Search your memories…" aria-label="Search your memories" autocomplete="off">
+        <kbd>⌘ K</kbd>
+        </div>
+      <div class="mnx-searchmeta" id="search-meta"></div>
+    </section>
+
+    <div class="mnx-filter-row">
+      <div class="mnx-chips" id="filter-chips" role="tablist" aria-label="Content type">
+        <button class="mnx-chip" data-variant="all" aria-pressed="true">All</button>
+        <button class="mnx-chip" data-variant="note">Notes</button>
+        <button class="mnx-chip" data-variant="article">Articles</button>
+        <button class="mnx-chip" data-variant="image">Images</button>
+        <button class="mnx-chip" data-variant="screenshot">Screenshots</button>
+        <button class="mnx-chip" data-variant="highlight">Highlights</button>
+        <button class="mnx-chip" data-variant="document">Documents</button>
+        </div>
+      </div>
+
+    <div id="cards-host">
+      <div class="mnx-empty" id="cards-empty" hidden>
+        <div class="mnx-empty__inner">
+          <div class="mnx-empty__mark"><span></span><span></span><span></span></div>
+          <h1 id="empty-title">Your memory starts here.</h1>
+          <p id="empty-text">Save something worth remembering.</p>
+          <p id="cards-diagnostic" class="mnx-empty__diag" hidden></p>
+        </div>
+        </div>
+      <div class="mnx-skeletons" id="cards-skeleton" hidden>
+        <div class="mnx-skel-card"></div>
+        <div class="mnx-skel-card sk-tall"></div>
+        <div class="mnx-skel-card sk-short"></div>
+        <div class="mnx-skel-card sk-medium"></div>
+        <div class="mnx-skel-card"></div>
+        <div class="mnx-skel-card sk-short"></div>
+        <div class="mnx-skel-card"></div>
+        <div class="mnx-skel-card sk-medium"></div>
+        <div class="mnx-skel-card sk-tall"></div>
+        </div>
+      <div class="mnx-masonry" id="cards-container"></div>
+      </div>
+  </section>
+
+  <!-- Spaces -->
+  <section class="mnx-route-spaces" data-route-section="spaces">
+    <div class="mnx-heading">
+      <div>
+        <h1>Spaces</h1>
+        <p>Bring related memories together.</p>
+      </div>
+      </div>
+    <div class="mnx-spaces-grid" id="spaces-grid"></div>
+  </section>
+
+  <!-- Clusters (Groups). Backed by the same /api/v1/clusters
+       endpoints as the web dashboard. Parity is enforced by the
+       contract test; this section is a thin DOM shell. -->
+  <section class="mnx-route-clusters" data-route-section="clusters">
+    <div id="clusters-host"></div>
+  </section>
+
+  <section class="mnx-route-cluster-detail" data-route-section="cluster-detail">
+    <div id="cluster-detail-host"></div>
+  </section>
+
+  <!-- Rediscover -->
+  <section class="mnx-route-rediscover" data-route-section="rediscover">
+    <div class="mnx-heading">
+          <div>
+        <h1>Rediscover</h1>
+        <p>Things worth remembering again.</p>
+          </div>
+        </div>
+    <div id="rediscover-host"></div>
+  </section>
+
+  <!-- Reminders -->
+  <section class="mnx-route-reminders" data-route-section="reminders">
+    <div class="mnx-heading">
+        <div>
+        <h1>Reminders</h1>
+        <p>A few things you asked to revisit.</p>
+        </div>
+          </div>
+    <div id="reminders-host"></div>
+  </section>
+
+  <!-- Settings -->
+  <section class="mnx-route-settings" data-route-section="settings">
+    <div class="mnx-heading">
+        <div>
+        <h1>Settings</h1>
+        <p>Private by default, clear by design.</p>
+        </div>
+        </div>
+    <div id="settings-host" style="max-width:760px"></div>
+  </section>
+
+</main>
+
+<!-- Detail modal -->
+<div class="mnx-detail" id="detail-modal" role="dialog" aria-modal="true" aria-label="Memory detail">
+  <div class="mnx-detail__media">
+    <button class="mnx-detail__close" data-action="close-detail" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="mnx-detail__media-inner" id="detail-media"></div>
+    <div class="mnx-detail__zoom" hidden>
+      <button>−</button><span>100%</span><button>+</button>
+        </div>
+        </div>
+  <aside class="mnx-detail__side" id="detail-side"></aside>
+</div>
+
+<!-- Capture sheet -->
+<div class="mnx-sheet-backdrop" id="capture-sheet" role="dialog" aria-modal="true" aria-label="Capture a memory">
+  <div class="mnx-sheet" data-stop>
+    <h2>Capture a memory</h2>
+    <button data-capture="link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg>
+      Save Link
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </button>
+    <button data-capture="text">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Quick Note
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </button>
+    <button data-capture="image">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg>
+      Upload Image
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </button>
+    <button data-capture="document">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M5 14v5h14v-5"/></svg>
+      Upload Document
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+<!-- Toast -->
+<div class="mnx-toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Inline SVG icons sprite (used by dashboard.js) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4h4M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="11" height="11" rx="1"/><path d="M16 8V5H5v11h3"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="18" cy="19" r="2"/><path d="m8 11 8-5M8 13l8 5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+</svg>
+
+<script src="api-client.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

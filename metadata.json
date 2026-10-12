@@ -1,0 +1,8 @@
+{
+  "name": "Mnemonics",
+  "description": "Personal knowledge management SaaS (Second Brain) for saving pages, notes, and images with semantic search.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mnemonics
+      POSTGRES_PASSWORD: mnemonics
+      POSTGRES_DB: mnemonics
+    ports:
+      - "5432:5432"
+    volumes:
+      - mnemonics_demo_db:/var/lib/postgresql/data
+volumes:
+  mnemonics_demo_db:

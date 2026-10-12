@@ -1,0 +1,20 @@
+{
+  "name": "mnemonics",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@mnemonics/web",
+    "build": "npm run build --workspace=@mnemonics/web",
+    "lint": "npm run build --workspace=@mnemonics/web",
+    "package:extension": "node scripts/package-extension.mjs chrome",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,10 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import { createPool } from '@mnemonics/database';
+config({ path: resolve(process.cwd(), '.env') });
+config({ path: resolve(process.cwd(), '../../.env') });
+const pool = createPool(process.env.DATABASE_URL || '');
+const r = await pool.query("SELECT id, title, status, searchable_text IS NOT NULL AS has_searchable, length(coalesce(searchable_text,'')) AS txt_len FROM items ORDER BY created_at DESC LIMIT 8");
+console.log('---items.searchable_text---');
+r.rows.forEach(row => console.log(`  ${row.id.slice(0,8)} ${row.status.padEnd(11)} has=${row.has_searchable} len=${row.txt_len} ${row.title.slice(0,40)}`));
+await pool.end();

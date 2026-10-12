@@ -1,0 +1,3 @@
+{"query": "machine learning", "tenant": "tenant-a", "expected": ["doc-1", "doc-7"], "tenant_other": "tenant-b"}
+{"query": "second brain pkm", "tenant": "tenant-a", "expected": ["doc-2"], "tenant_other": "tenant-b"}
+{"query": "vector embeddings", "tenant": "tenant-a", "expected": ["doc-3", "doc-9"], "tenant_other": "tenant-b"}

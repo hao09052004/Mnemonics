@@ -1,0 +1,125 @@
+/**
+ * Mnemonics design tokens.
+ *
+ * Two themes live in the same file:
+ *   - The default `:root` block is the dark "second brain" canvas
+ *     used by every authenticated surface (/app/*).
+ *   - `[data-theme='marketing']` re-binds the same names to the warm,
+ *     editorial palette that the public marketing site has used
+ *     since M1. Existing marketing components keep working
+ *     unchanged.
+ *
+ * Tokens are intentionally narrow. Components should reach for
+ * `var(--mn-bg)` rather than inlining hex.
+ */
+
+:root {
+  /* ----------  Authenticated dark canvas  ---------- */
+  --mn-bg: #111318;
+  --mn-bg-elev: #161922;
+  --mn-surface: #191c25;
+  --mn-surface-2: #1f2331;
+  --mn-surface-hover: #232733;
+  --mn-overlay: rgba(7, 9, 14, 0.55);
+  --mn-toplight: radial-gradient(1200px 480px at 50% -10%, rgba(116, 87, 232, 0.10), transparent 70%);
+
+  --mn-border: rgba(255, 255, 255, 0.06);
+  --mn-border-strong: rgba(255, 255, 255, 0.12);
+
+  --mn-text: #f2f3f5;
+  --mn-text-2: #a2a9b8;
+  --mn-text-3: #707888;
+  --mn-text-inverse: #111318;
+
+  /* Brand violet — single accent. Used sparingly. */
+  --mn-brand: #7457e8;
+  --mn-brand-hover: #8167ea;
+  --mn-brand-soft: rgba(116, 87, 232, 0.16);
+  --mn-brand-tint: rgba(116, 87, 232, 0.10);
+  --mn-brand-glow: rgba(116, 87, 232, 0.35);
+
+  --mn-success: #34d399;
+  --mn-success-soft: rgba(52, 211, 153, 0.12);
+  --mn-danger: #f87171;
+  --mn-danger-soft: rgba(248, 113, 113, 0.12);
+  --mn-warn: #fbbf24;
+  --mn-warn-soft: rgba(251, 191, 36, 0.12);
+
+  /* Radii */
+  --mn-r-xs: 6px;
+  --mn-r-sm: 10px;
+  --mn-r-md: 14px;
+  --mn-r-lg: 18px;
+
+  /* Shadows */
+  --mn-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --mn-shadow-md: 0 6px 24px -8px rgba(0, 0, 0, 0.5);
+  --mn-shadow-lg: 0 24px 60px -28px rgba(0, 0, 0, 0.7);
+
+  /* Typography — Inter Variable (locally bundled). */
+  --mn-font-sans: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mn-font-display: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mn-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Type scale */
+  --mn-fs-hero: clamp(34px, 4.2vw, 56px);
+  --mn-fs-h1: 30px;
+  --mn-fs-h2: 22px;
+  --mn-fs-h3: 17px;
+  --mn-fs-card-title: 16px;
+  --mn-fs-body: 14px;
+  --mn-fs-small: 13px;
+  --mn-fs-meta: 12px;
+  --mn-fs-micro: 11px;
+
+  /* Layout */
+  --mn-rail: 64px;
+  --mn-canvas-pad: 28px;
+  --mn-canvas-max: 1800px;
+  --mn-card-pad: 14px;
+
+  /* Motion */
+  --mn-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --mn-dur-fast: 120ms;
+  --mn-dur: 180ms;
+  --mn-dur-slow: 280ms;
+
+  /* ----------  Marketing tokens (unified dark theme)  ---------- */
+  --bg: #111318;
+  --bg-elevated: #161922;
+  --surface: #1a1d26;
+  --surface-hover: #222632;
+  --ink: #f2f3f5;
+  --ink-soft: #a2a9b8;
+  --muted: #8d95a3;
+  --muted-soft: #707888;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --brand: #8b6ff8;
+  --brand-hover: #9c83fa;
+  --brand-soft: rgba(139, 111, 248, 0.16);
+  --brand-tint: rgba(139, 111, 248, 0.12);
+  --warm: #f59e0b;
+  --warm-soft: rgba(245, 158, 11, 0.18);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.12);
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px -4px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 48px -12px rgba(0, 0, 0, 0.65);
+  --font-sans: var(--mn-font-sans);
+  --font-display: var(--mn-font-display);
+  --header-h: 64px;
+  --max-w: 1200px;
+  --max-w-narrow: 760px;
+}
