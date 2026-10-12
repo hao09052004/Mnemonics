@@ -1,22 +1,24 @@
 /**
- * M3 — VietQR + SePay webhook integration test.
+ * M3 — PayOS checkout + webhook integration test.
  *
  * Requires a real Postgres. Skipped when DATABASE_URL is missing.
  *
  * Coverage:
- *   - Creating a `mastery-monthly` order yields the documented
- *     29,000 VND amount, a unique MNX-style reference, and a
- *     non-empty QR payload.
+ *   - Creating a `mastery-monthly` order yields 29,000 VND,
+ *     a unique MNX-style reference, an integer `orderCode`,
+ *     and a `checkoutUrl` returned from the PayOS adapter.
  *   - Creating a `mastery-yearly` order yields 249,000 VND.
  *   - The webhook rejects unsigned deliveries.
  *   - The webhook accepts a correctly-signed delivery,
  *     marks the order as paid, and upgrades the user to
  *     Mastery (with the documented 30-day period).
- *   - A second delivery with the same provider txn id is
+ *   - A second delivery with the same `orderCode` is
  *     idempotent — it does not re-apply the entitlement.
  *   - A wrong amount is rejected and the order is not paid.
- *   - A webhook for an unknown reference is recorded as
+ *   - A webhook for an unknown orderCode is recorded as
  *     `unmatched` and returns 200.
+ *   - A non-success event (code !== '00') is acknowledged
+ *     200 but never advances the order.
  *   - Cancelling a pending order flips it to `cancelled`.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -31,6 +33,7 @@ import { createPaymentOrdersRouter } from '../../routes/payment-orders.js';
 import { createPaymentWebhookRouter } from '../../routes/payment-webhook.js';
 import { getEntitlement } from '../../entitlements.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createPayosAdapter, type PayosAdapter } from '../../payments/providers/payos.js';
 
 function loadDotEnv(): void {
   try {
@@ -51,10 +54,9 @@ loadDotEnv();
 const DB_URL = process.env.DATABASE_URL ?? '';
 const skipIfNoDb = !DB_URL;
 
-const SECRET = 'integration-test-secret';
-const BANK_BIN = '970436';
-const BANK_ACCOUNT = '9912780019';
-const BANK_HOLDER = 'DAO QUYNH LE';
+const CHECKSUM = 'integration-test-checksum';
+const RETURN_URL = 'https://app.example.com/billing/return';
+const CANCEL_URL = 'https://app.example.com/billing/cancel';
 
 function stubSupabase(userId: string): SupabaseClient {
   return {
@@ -77,12 +79,8 @@ function stubSupabase(userId: string): SupabaseClient {
   } as unknown as SupabaseClient;
 }
 
-function buildApp(pool: Pool, userId: string) {
+function buildApp(pool: Pool, userId: string, payos: PayosAdapter) {
   const app = express();
-  app.use((req, _res, next) => {
-    (req as any).rawBody = req.body ? Buffer.from(JSON.stringify(req.body)) : Buffer.alloc(0);
-    next();
-  });
   app.use(express.json({
     limit: '1mb',
     verify: (req, _res, buf) => {
@@ -93,22 +91,27 @@ function buildApp(pool: Pool, userId: string) {
   app.use('/api/v1/billing', createPaymentOrdersRouter({
     pool,
     supabase: stubSupabase(userId),
-    bankBin: BANK_BIN,
-    bankAccount: BANK_ACCOUNT,
-    bankHolder: BANK_HOLDER,
+    payos,
     enabled: billingEnabled
   }));
   app.use('/api/v1/billing', createPaymentWebhookRouter({
     pool,
-    bankAccount: BANK_ACCOUNT,
-    webhookSecret: SECRET,
+    payos,
     enabled: billingEnabled
   }));
   return app;
 }
 
-function sign(body: string) {
-  return createHmac('sha256', SECRET).update(body, 'utf8').digest('hex');
+function signWebhookBody(data: Record<string, unknown>): { signature: string } {
+  const normalized: Record<string, string> = {};
+  for (const k of Object.keys(data).sort()) {
+    const v = data[k];
+    normalized[k] = v === null || v === undefined ? '' : String(v);
+  }
+  const signature = createHmac('sha256', CHECKSUM)
+    .update(Object.keys(normalized).map((k) => `${k}=${normalized[k]}`).join('&'), 'utf8')
+    .digest('hex');
+  return { signature };
 }
 
 async function createUser(pool: Pool, email: string) {
@@ -133,18 +136,45 @@ async function deleteUserArtifacts(pool: Pool, userId: string) {
   await pool.query(`DELETE FROM auth.users WHERE id = $1`, [userId]);
 }
 
-describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
+describe.skipIf(skipIfNoDb)('M3 PayOS checkout + webhook', () => {
   let pool: Pool;
   let userId: string;
   let app: ReturnType<typeof buildApp>;
+  let payos: PayosAdapter;
+  // Stubbed PayOS that records every "create link" call and
+  // returns a deterministic checkout URL.
+  const createLinkCalls: Array<{ orderCode: number; amount: number; description: string }> = [];
+  const basePayos = createPayosAdapter({
+    clientId: 'integration-client',
+    apiKey: 'integration-api-key',
+    checksumKey: CHECKSUM,
+    returnUrl: RETURN_URL,
+    cancelUrl: CANCEL_URL
+  });
 
   beforeAll(async () => {
     pool = createPool(DB_URL);
     userId = await createUser(pool, `m3-${Date.now()}@example.com`);
-    app = buildApp(pool, userId);
+    payos = {
+      ...basePayos,
+      createPaymentLink: async (args) => {
+        createLinkCalls.push(args);
+        return {
+          paymentLinkId: `link-${args.orderCode}`,
+          checkoutUrl: `https://pay.payos.vn/web/${args.orderCode}`,
+          qrCode: `data:image/png;base64,FAKEQR${args.orderCode}`,
+          orderCode: args.orderCode,
+          amount: args.amount,
+          status: 'PENDING',
+          raw: {}
+        };
+      }
+    } as PayosAdapter;
+    app = buildApp(pool, userId, payos);
   });
 
   beforeEach(async () => {
+    createLinkCalls.length = 0;
     // Reset the per-user state between tests so the entitlement
     // starts on `memory`.
     await pool.query(`DELETE FROM subscription_events WHERE user_id = $1`, [userId]);
@@ -160,7 +190,7 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
     await pool.end();
   });
 
-  it('creates a mastery-monthly order with 29,000 VND and a MNX reference', async () => {
+  it('creates a mastery-monthly order with 29,000 VND and a PayOS checkoutUrl', async () => {
     const res = await request(app)
       .post('/api/v1/billing/orders')
       .set('authorization', 'Bearer fake')
@@ -170,9 +200,11 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
     expect(order.amountVnd).toBe(29_000);
     expect(order.planId).toBe('mastery-monthly');
     expect(order.reference).toMatch(/^MNX[2-9A-HJ-NP-Z]{5}$/);
-    expect(res.body.data.qr.payload.length).toBeGreaterThan(40);
-    expect(res.body.data.qr.dataUrl.startsWith('data:image/png;base64,')).toBe(true);
-    expect(res.body.data.recipient.account).toBe(BANK_ACCOUNT);
+    expect(order.orderCode).toBeGreaterThan(10_000_000);
+    expect(order.checkoutUrl).toMatch(/^https:\/\/pay\.payos\.vn\/web\//);
+    expect(createLinkCalls).toHaveLength(1);
+    expect(createLinkCalls[0].amount).toBe(29_000);
+    expect(createLinkCalls[0].description).toContain(order.reference);
   });
 
   it('creates a mastery-yearly order with 249,000 VND', async () => {
@@ -182,6 +214,7 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
       .send({ planId: 'mastery-yearly' });
     expect(res.status).toBe(201);
     expect(res.body.data.order.amountVnd).toBe(249_000);
+    expect(createLinkCalls[0].amount).toBe(249_000);
   });
 
   it('webhook rejects an unsigned delivery with 401', async () => {
@@ -190,17 +223,18 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
       .set('authorization', 'Bearer fake')
       .send({ planId: 'mastery-monthly' });
     const reference = orderRes.body.data.order.reference;
-    const payload = JSON.stringify({
-      id: 'tx-unsigned',
-      accountNumber: BANK_ACCOUNT,
-      content: `Mnemonics ${reference}`,
+    const orderCode = orderRes.body.data.order.orderCode;
+    const data = {
+      orderCode,
       amount: 29000,
-      transferType: 'in'
-    });
+      description: `Mnemonics mastery-monthly ${reference}`,
+      code: '00',
+      desc: 'success'
+    };
     const res = await request(app)
-      .post('/api/v1/billing/webhooks/sepay')
+      .post('/api/v1/billing/webhooks/payos')
       .set('content-type', 'application/json')
-      .send(JSON.parse(payload));
+      .send({ data, signature: 'a'.repeat(64) });
     expect(res.status).toBe(401);
   });
 
@@ -210,19 +244,23 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
       .set('authorization', 'Bearer fake')
       .send({ planId: 'mastery-monthly' });
     const reference = orderRes.body.data.order.reference;
-    const payload = JSON.stringify({
-      id: 'tx-1',
-      accountNumber: BANK_ACCOUNT,
-      content: `Mnemonics ${reference}`,
+    const orderCode = orderRes.body.data.order.orderCode;
+    const data = {
+      orderCode,
       amount: 29000,
-      transferType: 'in',
-      transactionDate: '2026-10-12 13:45:00'
-    });
+      description: `Mnemonics mastery-monthly ${reference}`,
+      accountNumber: '9912780019',
+      counterAccountNumber: '111122223333',
+      counterAccountName: 'NGUYEN VAN A',
+      transactionDateTime: '2026-10-12 13:45:00',
+      code: '00',
+      desc: 'success'
+    };
+    const { signature } = signWebhookBody(data);
     const res = await request(app)
-      .post('/api/v1/billing/webhooks/sepay')
+      .post('/api/v1/billing/webhooks/payos')
       .set('content-type', 'application/json')
-      .set('x-sepay-signature', sign(payload))
-      .send(JSON.parse(payload));
+      .send({ data, signature });
     expect(res.status).toBe(200);
     expect(res.body.data.activated).toBe(true);
 
@@ -239,24 +277,24 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
       .set('authorization', 'Bearer fake')
       .send({ planId: 'mastery-yearly' });
     const reference = orderRes.body.data.order.reference;
-    const payload = JSON.stringify({
-      id: 'tx-2',
-      accountNumber: BANK_ACCOUNT,
-      content: `Mnemonics ${reference}`,
+    const orderCode = orderRes.body.data.order.orderCode;
+    const data = {
+      orderCode,
       amount: 249000,
-      transferType: 'in'
-    });
+      description: `Mnemonics mastery-yearly ${reference}`,
+      code: '00',
+      desc: 'success'
+    };
+    const { signature } = signWebhookBody(data);
     const first = await request(app)
-      .post('/api/v1/billing/webhooks/sepay')
-      .set('x-sepay-signature', sign(payload))
-      .send(JSON.parse(payload));
+      .post('/api/v1/billing/webhooks/payos')
+      .send({ data, signature });
     expect(first.status).toBe(200);
     expect(first.body.data.activated).toBe(true);
 
     const second = await request(app)
-      .post('/api/v1/billing/webhooks/sepay')
-      .set('x-sepay-signature', sign(payload))
-      .send(JSON.parse(payload));
+      .post('/api/v1/billing/webhooks/payos')
+      .send({ data, signature });
     expect(second.status).toBe(200);
     expect(second.body.data.idempotent).toBe(true);
     expect(second.body.data.activated).toBe(false);
@@ -268,17 +306,18 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
       .set('authorization', 'Bearer fake')
       .send({ planId: 'mastery-monthly' });
     const reference = orderRes.body.data.order.reference;
-    const payload = JSON.stringify({
-      id: 'tx-wrong',
-      accountNumber: BANK_ACCOUNT,
-      content: `Mnemonics ${reference}`,
+    const orderCode = orderRes.body.data.order.orderCode;
+    const data = {
+      orderCode,
       amount: 1,           // < 29_000
-      transferType: 'in'
-    });
+      description: `Mnemonics mastery-monthly ${reference}`,
+      code: '00',
+      desc: 'success'
+    };
+    const { signature } = signWebhookBody(data);
     const res = await request(app)
-      .post('/api/v1/billing/webhooks/sepay')
-      .set('x-sepay-signature', sign(payload))
-      .send(JSON.parse(payload));
+      .post('/api/v1/billing/webhooks/payos')
+      .send({ data, signature });
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('AMOUNT_MISMATCH');
 
@@ -288,20 +327,46 @@ describe.skipIf(skipIfNoDb)('M3 VietQR + SePay webhook', () => {
     expect(getRes.body.data.order.status).toBe('rejected');
   });
 
-  it('a webhook for an unknown reference is recorded but does not 5xx', async () => {
-    const payload = JSON.stringify({
-      id: 'tx-unknown',
-      accountNumber: BANK_ACCOUNT,
-      content: 'Mnemonics MNXZZZZZ',
+  it('a webhook for an unknown orderCode is recorded but does not 5xx', async () => {
+    const data = {
+      orderCode: 99999999,
       amount: 29000,
-      transferType: 'in'
-    });
+      description: 'Mnemonics mastery-monthly MNXZZZZZ',
+      code: '00',
+      desc: 'success'
+    };
+    const { signature } = signWebhookBody(data);
     const res = await request(app)
-      .post('/api/v1/billing/webhooks/sepay')
-      .set('x-sepay-signature', sign(payload))
-      .send(JSON.parse(payload));
+      .post('/api/v1/billing/webhooks/payos')
+      .send({ data, signature });
     expect(res.status).toBe(200);
     expect(res.body.data.note).toContain('unmatched');
+  });
+
+  it('a non-success event (code !== "00") is acknowledged 200 but does not pay', async () => {
+    const orderRes = await request(app)
+      .post('/api/v1/billing/orders')
+      .set('authorization', 'Bearer fake')
+      .send({ planId: 'mastery-monthly' });
+    const orderCode = orderRes.body.data.order.orderCode;
+    const data = {
+      orderCode,
+      amount: 29000,
+      description: 'Mnemonics mastery-monthly MNX',
+      code: '01',  // cancelled
+      desc: 'cancelled'
+    };
+    const { signature } = signWebhookBody(data);
+    const res = await request(app)
+      .post('/api/v1/billing/webhooks/payos')
+      .send({ data, signature });
+    expect(res.status).toBe(200);
+    expect(res.body.data.note).toContain('non-success');
+
+    const getRes = await request(app)
+      .get(`/api/v1/billing/orders/${orderRes.body.data.order.id}`)
+      .set('authorization', 'Bearer fake');
+    expect(getRes.body.data.order.status).toBe('pending');
   });
 
   it('cancelling a pending order flips it to cancelled', async () => {

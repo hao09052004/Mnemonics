@@ -22,6 +22,7 @@ import { createAuditLogsRouter } from './routes/audit-logs.js';
 import { createBillingRouter } from './routes/billing.js';
 import { createPaymentOrdersRouter } from './routes/payment-orders.js';
 import { createPaymentWebhookRouter } from './routes/payment-webhook.js';
+import { createPayosAdapter } from './payments/providers/payos.js';
 import { createPersonalAnalyticsRouter } from './routes/analytics-me.js';
 import { createAdminAnalyticsRouter } from './routes/analytics-admin.js';
 
@@ -159,17 +160,19 @@ export function createApp(
     app.use('/api/v1/analytics', createPersonalAnalyticsRouter({ pool: options.pool, supabase }));
     app.use('/api/v1/billing', createBillingRouter({ pool: options.pool, supabase }));
     const billingEnabled = () => process.env.BILLING_ENABLED === 'true';
-    const bankBin = process.env.PAYMENT_BANK_BIN ?? '970436';
-    const bankAccount = process.env.PAYMENT_BANK_ACCOUNT ?? '9912780019';
-    const bankHolder = process.env.PAYMENT_BANK_HOLDER ?? 'DAO QUYNH LE';
+    const payos = createPayosAdapter({
+      clientId: process.env.PAYOS_CLIENT_ID ?? '',
+      apiKey: process.env.PAYOS_API_KEY ?? '',
+      checksumKey: process.env.PAYOS_CHECKSUM_KEY ?? '',
+      returnUrl: process.env.PAYMENT_RETURN_URL ?? 'http://localhost:3000/billing/return',
+      cancelUrl: process.env.PAYMENT_CANCEL_URL ?? 'http://localhost:3000/billing/cancel'
+    });
     app.use(
       '/api/v1/billing',
       createPaymentOrdersRouter({
         pool: options.pool,
         supabase,
-        bankBin,
-        bankAccount,
-        bankHolder,
+        payos,
         enabled: billingEnabled
       })
     );
@@ -177,8 +180,7 @@ export function createApp(
       '/api/v1/billing',
       createPaymentWebhookRouter({
         pool: options.pool,
-        bankAccount,
-        webhookSecret: process.env.SEPAY_WEBHOOK_SECRET ?? '',
+        payos,
         enabled: billingEnabled
       })
     );

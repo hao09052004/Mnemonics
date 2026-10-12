@@ -11,12 +11,21 @@
  * The orders API is the only public way to ask the system to
  * start a payment. The router is in `apps/api/src/routes/
  * payment-orders.ts`.
+ *
+ * Provider integration (PayOS):
+ *   The order is created locally first (reference + plan +
+ *   amount) and a unique integer `order_code` is reserved.
+ *   Then `createPaymentLink` is called against the PayOS
+ *   sandbox/production API. PayOS returns a `checkout_url`
+ *   the frontend redirects the user to; the user pays
+ *   inside PayOS's hosted page and the webhook fires back
+ *   to us.
  */
 import type { Pool, PoolClient } from 'pg';
 import { createHash, randomBytes } from 'node:crypto';
-import { buildVietQrPayload, type VietQrInput } from './vietqr.js';
 import { applyEntitlement } from '../entitlements.js';
 import type { PlanId } from '../entitlements.js';
+import { createPayosAdapter, type PayosAdapter } from './providers/payos.js';
 
 export type OrderStatus = 'pending' | 'paid' | 'expired' | 'cancelled' | 'rejected' | 'refunded';
 
@@ -25,8 +34,9 @@ export interface PaymentOrder {
   userId: string;
   planId: PlanId;
   amountVnd: number;
-  reference: string;
-  qrPayload: string;
+  orderCode: number;            // PayOS integer orderCode
+  reference: string;            // MNX... (used as PayOS `description`)
+  checkoutUrl: string | null;   // PayOS hosted checkout URL
   status: OrderStatus;
   provider: string | null;
   providerTxnId: string | null;
@@ -40,9 +50,7 @@ export interface PaymentOrder {
 export interface CreateOrderArgs {
   userId: string;
   planId: PlanId;
-  bankBin: string;
-  bankAccount: string;
-  bankHolder: string;
+  payos: PayosAdapter;
   /** Order TTL in minutes. Default 30. */
   ttlMinutes?: number;
 }
@@ -52,8 +60,9 @@ interface OrderRow {
   user_id: string;
   plan_id: PlanId;
   amount_vnd: string;
+  order_code: number | null;
   reference: string;
-  qr_payload: string;
+  checkout_url: string | null;
   status: OrderStatus;
   provider: string | null;
   provider_txn_id: string | null;
@@ -70,8 +79,9 @@ function mapOrder(row: OrderRow): PaymentOrder {
     userId: row.user_id,
     planId: row.plan_id,
     amountVnd: Number.parseInt(row.amount_vnd, 10),
+    orderCode: row.order_code == null ? 0 : Number(row.order_code),
     reference: row.reference,
-    qrPayload: row.qr_payload,
+    checkoutUrl: row.checkout_url,
     status: row.status,
     provider: row.provider,
     providerTxnId: row.provider_txn_id,
@@ -88,10 +98,15 @@ function mapOrder(row: OrderRow): PaymentOrder {
  * 26+10 = 36 chars; 36^8 ≈ 2.8e12, with 8 bytes of entropy
  * we have ~52 bits of uniqueness, which is more than enough
  * to make collisions astronomically unlikely.
+ *
+ * Also reserves a unique integer `orderCode` for PayOS.
+ * PayOS rejects duplicate orderCodes, so we run a small
+ * loop against the database to make sure we have not
+ * reused one.
  */
-async function generateReference(pool: Pool): Promise<string> {
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const bytes = randomBytes(8);
+async function generateReference(pool: Pool): Promise<{ reference: string; orderCode: number }> {
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const bytes = randomBytes(16);
     // Map to a 36-char alphabet; we use 32 base32-style chars
     // to keep references pronounceable.
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';  // no 0/O/1/I
@@ -99,19 +114,29 @@ async function generateReference(pool: Pool): Promise<string> {
     for (let i = 0; i < 5; i++) {
       out += alphabet[bytes[i] % alphabet.length];
     }
+    // PayOS orderCode is a positive integer <= 9_007_199_254_740_991
+    // (Number.MAX_SAFE_INTEGER). We derive a random int in
+    // [10^7, 10^8) so it always fits in 8 digits and is
+    // indistinguishable from a sequentially-issued one.
+    const orderCode =
+      10_000_000 + (bytes.readUInt32BE(8) % 90_000_000);
     // Check for collision; if so, retry.
     // eslint-disable-next-line no-await-in-loop
     const r = await pool.query<{ c: string }>(
-      'SELECT count(*)::text AS c FROM payment_orders WHERE reference = $1',
-      [out]
+      'SELECT count(*)::text AS c FROM payment_orders WHERE reference = $1 OR order_code = $2',
+      [out, orderCode]
     );
     if (Number.parseInt(r.rows[0].c, 10) === 0) {
-      return out;
+      return { reference: out, orderCode };
     }
   }
   // Astronomically unlikely. Fall back to a SHA-derived value.
-  const fb = createHash('sha256').update(`payment-orders-${Date.now()}-${randomBytes(8).toString('hex')}`).digest('hex').toUpperCase().slice(0, 8);
-  return `MNX${fb.slice(0, 5)}`;
+  const fallbackBytes = createHash('sha256')
+    .update(`payment-orders-${Date.now()}-${randomBytes(8).toString('hex')}`)
+    .digest();
+  const fb = fallbackBytes.toString('hex').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+  const orderCode = 10_000_000 + (fallbackBytes.readUInt32BE(0) % 90_000_000);
+  return { reference: `MNX${fb}`, orderCode };
 }
 
 const ALPHANUMERIC = '^[A-Z0-9]{1,32}$';
@@ -153,25 +178,52 @@ export async function createOrder(pool: Pool, args: CreateOrderArgs): Promise<Pa
     // calls this endpoint for `memory`.
     throw new OrderError('PLAN_NOT_PAID', 'Gói miễn phí không cần thanh toán', 400);
   }
-  const reference = await generateReference(pool);
-  const qrInput: VietQrInput = {
-    bankBin: args.bankBin,
-    bankAccount: args.bankAccount,
-    bankHolder: args.bankHolder,
-    amountVnd,
-    reference,
-    description: `Mnemonics ${planId} ${reference}`
-  };
-  const qrPayload = buildVietQrPayload(qrInput);
+  const { reference, orderCode } = await generateReference(pool);
+  // PayOS `description` is capped at 25 characters. We keep
+  // the MNX reference because the webhook parser also pulls
+  // it from `description` (the only field PayOS passes
+  // through verbatim) to match the order back.
+  const description = `Mnemonics ${planId} ${reference}`.slice(0, 25);
   const expiresAt = new Date(Date.now() + (args.ttlMinutes ?? 30) * 60 * 1000);
-  const r = await pool.query<OrderRow>(
+  // Insert the order as `pending` first. We need a row in
+  // the database BEFORE we can hand the user a URL; if the
+  // PayOS API call fails we mark the row `rejected` so the
+  // audit log stays accurate.
+  const inserted = await pool.query<OrderRow>(
     `INSERT INTO payment_orders
-       (user_id, plan_id, amount_vnd, reference, qr_payload, status, expires_at)
+       (user_id, plan_id, amount_vnd, order_code, reference, status, expires_at)
      VALUES ($1, $2, $3, $4, $5, 'pending', $6)
      RETURNING *`,
-    [args.userId, planId, amountVnd, reference, qrPayload, expiresAt]
+    [args.userId, planId, amountVnd, orderCode, reference, expiresAt]
   );
-  return mapOrder(r.rows[0]);
+  const orderRow = inserted.rows[0];
+  if (!args.payos.isConfigured()) {
+    await pool.query(
+      `UPDATE payment_orders SET status = 'rejected', note = $2, updated_at = NOW() WHERE id = $1`,
+      [orderRow.id, 'payos adapter not configured']
+    );
+    throw new OrderError('INTERNAL_ERROR', 'PayOS chưa được cấu hình', 503);
+  }
+  let checkoutUrl: string;
+  try {
+    const link = await args.payos.createPaymentLink({
+      orderCode,
+      amount: amountVnd,
+      description
+    });
+    checkoutUrl = link.checkoutUrl;
+  } catch (e) {
+    await pool.query(
+      `UPDATE payment_orders SET status = 'rejected', note = $2, updated_at = NOW() WHERE id = $1`,
+      [orderRow.id, e instanceof Error ? e.message : 'createPaymentLink failed']
+    );
+    throw e;
+  }
+  const updated = await pool.query<OrderRow>(
+    `UPDATE payment_orders SET checkout_url = $2, updated_at = NOW() WHERE id = $1 RETURNING *`,
+    [orderRow.id, checkoutUrl]
+  );
+  return mapOrder(updated.rows[0]);
 }
 
 export async function getOrder(pool: Pool, id: string, userId: string): Promise<PaymentOrder | null> {
@@ -359,6 +411,17 @@ export async function findOrderByReference(pool: Pool, reference: string): Promi
   const r = await pool.query<OrderRow>(
     'SELECT * FROM payment_orders WHERE reference = $1',
     [reference]
+  );
+  if (!r.rowCount) return null;
+  return mapOrder(r.rows[0]);
+}
+
+// PayOS webhook lookup. The provider sends an integer
+// `orderCode`; we map it back to our internal order row.
+export async function findOrderByOrderCode(pool: Pool, orderCode: number): Promise<PaymentOrder | null> {
+  const r = await pool.query<OrderRow>(
+    'SELECT * FROM payment_orders WHERE order_code = $1',
+    [orderCode]
   );
   if (!r.rowCount) return null;
   return mapOrder(r.rows[0]);
