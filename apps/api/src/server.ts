@@ -10,6 +10,7 @@ import { createThrottle } from './auth/throttle.js';
 import { createSupabaseUsers } from './auth/supabase-users.js';
 import { createJobRouter } from './jobs/router.js';
 import { type JobType } from './jobs/queue.js';
+import { createClassificationRouter } from './routes/classification.js';
 import { createCaptureRouter } from './routes/capture.js';
 import { createSearchRouter } from './routes/search.js';
 import { createItemRouter } from './routes/items.js';
@@ -165,6 +166,14 @@ const enrichmentRouter = createEnrichmentRouter({
   queue
 });
 
+// Mount classification router (spec 0005 §5.7)
+const classificationRouter = createClassificationRouter({
+  pool,
+  supabase,
+  expectedToken: process.env.DEV_AUTH_TOKEN || 'mnemonics-dev-token',
+  developmentUserId: process.env.DEV_USER_ID || '00000000-0000-4000-8000-000000000001'
+});
+
 // Mount routes
 app.use(metricsMiddleware());
 app.use('/api/v1', jobRouter);
@@ -176,6 +185,7 @@ app.use('/api/v1', graphRouter);
 app.use('/api/v1', spaceRouter);
 app.use('/api/v1', clusterRouter);
 app.use('/api/v1', enrichmentRouter);
+app.use('/api/v1', classificationRouter);
 app.use('/', monitoringRouter);
 
 // Start queue processor

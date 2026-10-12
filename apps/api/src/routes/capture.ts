@@ -186,7 +186,8 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
 
         const item = await repository.createPendingItem({
           userId,
-          capture
+          capture,
+          sourceMetadata: capture.sourceMetadata ?? null
         });
 
         // Enqueue jobs based on capture type
@@ -200,6 +201,19 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
             await createJob('enrich', item.id, userId);
           } catch {
             // queue might not have 'enrich' registered; that's fine.
+          }
+          // Async content classification (spec 0005 §4). Best-effort:
+          // the queue will not reject an unknown type (the type is
+          // wired in router.ts), but if anything goes wrong we log and
+          // move on — classification is a discovery feature, not a
+          // save boundary.
+          try {
+            await createJob('classify', item.id, userId);
+          } catch (err) {
+            console.warn(
+              `[capture/link] classify enqueue failed (item=${item.id}):`,
+              (err as Error).message
+            );
           }
         }
 
@@ -340,13 +354,25 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         const item = await repository.createPendingImageItem({
           userId,
           itemId,
-          capture
+          capture,
+          sourceMetadata: capture.sourceMetadata ?? null
         });
 
         // Images are ordered: OCR -> tag -> embed.
         // Each successful handler enqueues the next stage.
         if (createJob) {
           await createJob('ocr', item.id, userId);
+          // Async classification (spec 0005 §4) — runs after OCR
+          // would have populated `items.ocr_text`, but a missing
+          // OCR run still yields a useful "image" classification.
+          try {
+            await createJob('classify', item.id, userId);
+          } catch (err) {
+            console.warn(
+              `[capture/image] classify enqueue failed (item=${item.id}):`,
+              (err as Error).message
+            );
+          }
         }
 
         // Generate signed URL for image
@@ -527,7 +553,8 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
           item = await repository.createPendingDocumentItem({
             userId,
             itemId,
-            capture
+            capture,
+            sourceMetadata: capture.sourceMetadata ?? null
           });
         } catch (dbErr) {
           // Storage is uploaded but the DB insert failed. Remove the
@@ -554,6 +581,15 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
             console.warn(
               `[capture/document] extract enqueue failed (item=${item.id}):`,
               err instanceof Error ? err.message : err
+            );
+          }
+          // Async classification (spec 0005 §4). Best-effort.
+          try {
+            await createJob('classify', item.id, userId);
+          } catch (err) {
+            console.warn(
+              `[capture/document] classify enqueue failed (item=${item.id}):`,
+              (err as Error).message
             );
           }
         }

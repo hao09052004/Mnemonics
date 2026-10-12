@@ -7,6 +7,12 @@ import { createJobRouter } from '../router.js';
 import type { ImageStorage } from '../../storage.js';
 
 function createInMemoryPool() {
+  // Side-channel map the classify handler reads from its raw
+  // SQL repository. Initialised here so it is always present
+  // even when no item has been created yet.
+  if (!(globalThis as any).__classifyFakeItems) {
+    (globalThis as any).__classifyFakeItems = new Map<string, any>();
+  }
   const jobs = new Map<string, any>();
 
   const pool = {
@@ -96,6 +102,53 @@ function createInMemoryPool() {
         return { rows, rowCount: rows.length };
       }
 
+      // The classify job handler uses the raw SQL repository,
+      // so the in-memory fake needs a stub that returns the
+      // item back to the handler.
+      if (normalized.startsWith('SELECT id, user_id AS "userId"') &&
+          normalized.includes('FROM items WHERE id =')) {
+        const id = params[0];
+        // The repository maintains its own items map. We
+        // expose a side-channel via the global "itemsById"
+        // map populated by createInMemoryRepository.
+        const found = (globalThis as any).__classifyFakeItems?.get?.(id) ?? null;
+        return { rows: found ? [found] : [], rowCount: found ? 1 : 0 };
+      }
+
+      // ownership probe + classification upsert (also used by
+      // the classify handler through ClassificationRepository).
+      if (normalized.startsWith('SELECT user_id FROM items WHERE id =')) {
+        const id = params[0];
+        const found = (globalThis as any).__classifyFakeItems?.get?.(id) ?? null;
+        if (found) {
+          return {
+            rows: [{ user_id: found.userId }],
+            rowCount: 1
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (normalized.startsWith('INSERT INTO item_classifications')) {
+        // Accept the upsert and report success.
+        return { rows: [], rowCount: 1 };
+      }
+
+      if (normalized.startsWith('SELECT * FROM item_classifications')) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      // Reaper UPDATE (the queue's stale-job sweeper). The
+      // e2e test runs the queue in a tight loop; the reaper
+      // query would otherwise fail loudly. We treat it as a
+      // no-op (no stale jobs to reap) — the test's jobs are
+      // already moving through their lifecycle.
+      if (normalized.startsWith('UPDATE jobs') &&
+          normalized.includes("status = 'processing'") &&
+          normalized.includes('attempts >= max_attempts')) {
+        return { rows: [], rowCount: 0 };
+      }
+
       throw new Error('Unhandled fake pool query: ' + normalized);
     }
   };
@@ -137,6 +190,10 @@ function createInMemoryRepository() {
       };
       items.set(id, item);
       byClientRequestId.set(userId + ':' + capture.clientRequestId, id);
+      // Side-channel for the classify handler's raw SQL
+      // repository (ClassificationRepository, ItemRepository
+      // both talk to the pool directly).
+      (globalThis as any).__classifyFakeItems?.set?.(id, item);
       return item;
     },
 

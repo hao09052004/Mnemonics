@@ -1108,6 +1108,7 @@ export class ApiClient {
     selectedText?: string;
     capturedAt?: string;
     clientRequestId: string;
+    sourceMetadata?: Record<string, unknown>;
   }, accessToken: string): Promise<{ id: string; status: string }> {
     const response = await this.request<{ data: { id: string; status: string } }>('/api/v1/captures', {
       method: 'POST',
@@ -1188,7 +1189,13 @@ export class ApiClient {
    * the tag → embed pipeline.
    */
   async createLinkCapture(
-    payload: { url: string; title?: string; note?: string; clientRequestId: string },
+    payload: {
+      url: string;
+      title?: string;
+      note?: string;
+      clientRequestId: string;
+      sourceMetadata?: Record<string, unknown>;
+    },
     accessToken: string
   ): Promise<{ id: string; status: string }> {
     const r = await this.request<{ data: { id: string; status: string } }>(
@@ -1201,7 +1208,8 @@ export class ApiClient {
           sourceUrl: payload.url,
           title: payload.title?.trim() || undefined,
           selectedText: payload.note?.trim() || undefined,
-          clientRequestId: payload.clientRequestId
+          clientRequestId: payload.clientRequestId,
+          ...(payload.sourceMetadata ? { sourceMetadata: payload.sourceMetadata } : {})
         }
       }
     );

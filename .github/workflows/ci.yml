@@ -259,6 +259,13 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Run extension unit tests
+        # M1 of spec 0005 — page metadata extraction lives in the
+        # extension package. The full dashboard E2E is covered by
+        # the dashboard-e2e tests above; this step is the fast
+        # loop that runs on every PR.
+        run: pnpm --filter @mnemonics/extension exec vitest run
+
   gates:
     name: Quality Gates
     runs-on: ubuntu-latest

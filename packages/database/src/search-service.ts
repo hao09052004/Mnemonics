@@ -44,6 +44,29 @@ export interface EmbeddingLike {
 export const SEARCH_KINDS = ['link', 'text', 'image', 'screenshot', 'document'] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 
+/** Semantic kinds the classifier writes (spec 0005 §5.2). */
+export const DETECTED_TYPES = [
+  'article','product','recipe','video','quote','highlight',
+  'webpage','image','note','document','other'
+] as const;
+export type DetectedType = (typeof DETECTED_TYPES)[number];
+
+/**
+ * New filter group (spec 0005 §7.1). Filters match against
+ * `item_classifications.{detected_type, category, attributes}`.
+ * Multiple values in any one field are OR-ed; distinct fields
+ * are AND-ed.
+ */
+export interface SearchFiltersStructured {
+  detectedType?: DetectedType[];
+  category?: string[];
+  brand?: string[];
+  material?: string[];
+  color?: string[];
+  merchant?: string[];
+  author?: string[];
+}
+
 /**
  * The persisted form of a Smart Space's criteria, and the same shape
  * the search route already accepts. `query` is the free-text term;
@@ -56,25 +79,8 @@ export interface SearchFilters {
   captured_before?: string;
   /** Only favourites. Mirrors the dashboard's heart filter. */
   favorite?: boolean;
-  /**
-   * M3 — structured filters lifted from the natural-language
-   * `q` by `parseQuery`. The search route and the Smart Space
-   * resolution path both accept these; the legs above do not
-   * read them directly yet (the per-leg SQL does not join
-   * `item_classifications`), so a request that *only* sets
-   * `structured` falls through to lexical + semantic. The
-   * shape is the same as the dashboard's filter chips: an
-   * array per dimension.
-   */
-  structured?: {
-    detectedType?: string[];
-    category?: string[];
-    brand?: string[];
-    material?: string[];
-    color?: string[];
-    merchant?: string[];
-    author?: string[];
-  };
+  /** M3 — structured classification filters. */
+  structured?: SearchFiltersStructured;
 }
 
 export interface SearchRequest {
@@ -117,7 +123,9 @@ export interface SearchResponse {
     lexResults: number;
     semResults: number;
     chunkResults: number;
-    weights: { lex: number; sem: number };
+    /** M3 — number of candidates the structured leg produced. */
+    structResults?: number;
+    weights: { lex: number; sem: number; struct?: number };
   };
 }
 
@@ -125,8 +133,10 @@ export interface SearchResponse {
 const CANDIDATE_LIMIT = 100;
 const RRF_K = 60;
 /** Matches the weights the existing search route already shipped with. */
-const LEX_WEIGHT = 0.4;
-const SEM_WEIGHT = 0.6;
+export const LEX_WEIGHT = 0.4;
+export const SEM_WEIGHT = 0.6;
+/** M3 — the structured leg's RRF weight. Sweepable by the M4 benchmark. */
+export const STRUCT_WEIGHT = 0.5;
 
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 100;
@@ -309,25 +319,23 @@ export async function runSearch(
     }
   }
 
-  const [lexResults, semResults, chunkResults] = await Promise.all([
+  const [lexResults, semResults, chunkResults, structResults] = await Promise.all([
     runLexicalSearch(deps.pool, userId, q, filters),
     runSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
-    runChunkSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector)
+    runChunkSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
+    runStructuredSearch(deps.pool, userId, filters)
   ]);
 
-  // The chunk leg produces the same shape as the item-level legs
-  // (item id + score) but is born from a different similarity join
-  // (chunks instead of items). It feeds into the same RRF so a
-  // long-PDF phrase that ONLY matches a chunk can still rank
-  // alongside item-level hits. The leg weight is small but non-
-  // zero: a chunk match is a stronger signal than a generic
-  // item-level cosine, but it is also less stable across
-  // re-chunking, so it should not dominate.
+  // M3 — four-leg RRF. The structured leg carries its own
+  // weight (`STRUCT_WEIGHT = 0.5`); an empty leg contributes no
+  // candidates but does not change the existing two-leg
+  // ranking for items that did not match a classification.
   const fused = reciprocalRankFusion(
-    lexResults,
-    [...semResults, ...chunkResults],
-    LEX_WEIGHT,
-    SEM_WEIGHT
+    [
+      { rows: lexResults, weight: LEX_WEIGHT },
+      { rows: [...semResults, ...chunkResults], weight: SEM_WEIGHT },
+      { rows: structResults, weight: STRUCT_WEIGHT }
+    ]
   );
 
   // M5 re-rank gate. Default OFF. When ON, the RRF-fused hit list
@@ -370,8 +378,7 @@ export async function runSearch(
   }
   for (const row of lexResults) track(row.id, 'lexical', row.score);
   for (const row of semResults) track(row.id, 'vector', row.score);
-  for (const row of chunkResults) track(row.id, 'chunk', row.score);
-  for (const row of finalHits) {
+  for (const row of chunkResults) track(row.id, 'chunk', row.score);  for (const row of finalHits) {
     let entry = perId.get(row.id);
     if (!entry) {
       entry = { lexical: 0, vector: 0, chunk: 0, rrf: 0, rerank: null };
@@ -414,7 +421,8 @@ export async function runSearch(
       lexResults: lexResults.length,
       semResults: semResults.length,
       chunkResults: chunkResults.length,
-      weights: { lex: LEX_WEIGHT, sem: SEM_WEIGHT }
+      structResults: structResults.length,
+      weights: { lex: LEX_WEIGHT, sem: SEM_WEIGHT, struct: STRUCT_WEIGHT }
     }
   };
 }
@@ -439,6 +447,103 @@ export async function resolveSmartSpaceIds(
     limit: Math.min(Math.max(limit, 1), MAX_LIMIT)
   });
   return { ids: response.hits.map((h) => h.id), total: response.total };
+}
+
+/**
+ * M3 — structured leg.
+ *
+ * Pulls up to CANDIDATE_LIMIT items whose classification row
+ * matches the requested `structured` filters. The score is the
+ * count of matched keys divided by the total number of
+ * requested keys (1.0 = perfect match). Each row's score is
+ * clamped to (0, 1].
+ *
+ * The leg is empty when `filters.structured` is undefined or
+ * when all of its keys are empty / no items match. Empty leg
+ * is not an error.
+ *
+ * Match semantics:
+ *   - `detectedType` and `category` are matched against
+ *     `item_classifications.detected_type` /
+ *     `item_classifications.category`.
+ *   - `brand` / `material` / `color` / `merchant` / `author`
+ *     are matched against the same key inside
+ *     `item_classifications.attributes` (JSONB). ANY-of
+ *     semantics within one key; AND across distinct keys.
+ */
+async function runStructuredSearch(
+  pool: Pool,
+  userId: string,
+  filters?: SearchFilters
+): Promise<RankedRow[]> {
+  const structured = filters?.structured;
+  if (!structured) return [];
+  const requested: string[] = [];
+  if (structured.detectedType && structured.detectedType.length > 0) requested.push('detectedType');
+  if (structured.category && structured.category.length > 0) requested.push('category');
+  if (structured.brand && structured.brand.length > 0) requested.push('brand');
+  if (structured.material && structured.material.length > 0) requested.push('material');
+  if (structured.color && structured.color.length > 0) requested.push('color');
+  if (structured.merchant && structured.merchant.length > 0) requested.push('merchant');
+  if (structured.author && structured.author.length > 0) requested.push('author');
+  if (requested.length === 0) return [];
+
+  const clauses: string[] = [];
+  const params: unknown[] = [userId];
+  let next = 2;
+  if (structured.detectedType && structured.detectedType.length > 0) {
+    clauses.push(`(c.detected_type = ANY($${next}::text[]))`);
+    params.push(structured.detectedType);
+    next += 1;
+  }
+  if (structured.category && structured.category.length > 0) {
+    clauses.push(`(c.category = ANY($${next}::text[]))`);
+    params.push(structured.category);
+    next += 1;
+  }
+  for (const key of ['brand','material','color','merchant','author'] as const) {
+    const values = structured[key];
+    if (!values || values.length === 0) continue;
+    clauses.push(`(c.attributes->>$${next} = ANY($${next + 1}::text[]))`);
+    params.push(key, values);
+    next += 2;
+  }
+
+  const scoreExpr = `(${clauses.map(c => `CASE WHEN ${c} THEN 1 ELSE 0 END`).join(' + ')})::float8 / ${requested.length}::float8`;
+
+  const sql = `
+    SELECT i.id, i.type, i.title, i.raw_text, i.ocr_text, i.source_url, i.captured_at,
+           ${scoreExpr} AS score
+      FROM items i
+      JOIN item_classifications c ON c.item_id = i.id
+     WHERE i.user_id = $1
+       AND i.status = 'ready'
+       AND c.status = 'ready'
+       AND (${clauses.join(' AND ')})
+     ORDER BY score DESC, i.captured_at DESC
+     LIMIT ${CANDIDATE_LIMIT}`;
+
+  const result = await pool.query<{
+    id: string;
+    type: string;
+    title: string;
+    raw_text: string | null;
+    ocr_text: string | null;
+    source_url: string | null;
+    captured_at: string;
+    score: number;
+  }>(sql, params);
+  return result.rows.map((row) => ({
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    rawText: row.raw_text,
+    ocrText: row.ocr_text,
+    sourceUrl: row.source_url,
+    capturedAt: new Date(row.captured_at),
+    score: row.score,
+    tags: []
+  }));
 }
 
 /**
@@ -754,30 +859,31 @@ async function loadTagsForItems(pool: Pool, ids: string[]): Promise<Map<string, 
  * Ranking is by rank position, not by raw score, so a lexical score
  * of 0.9 and a cosine of 0.83 are comparable without normalisation.
  */
-function reciprocalRankFusion(
-  lexResults: RankedRow[],
-  semResults: RankedRow[],
-  lexWeight: number,
-  semWeight: number
-): RankedRow[] {
-  const scores = new Map<string, { lex: number; sem: number; item: RankedRow }>();
+interface RrfLeg {
+  rows: RankedRow[];
+  weight: number;
+}
 
-  lexResults.forEach((item, index) => {
-    scores.set(item.id, { lex: (1 / (RRF_K + index + 1)) * lexWeight, sem: 0, item });
-  });
-
-  semResults.forEach((item, index) => {
-    const contribution = (1 / (RRF_K + index + 1)) * semWeight;
-    const existing = scores.get(item.id);
-    if (existing) {
-      existing.sem = contribution;
-    } else {
-      scores.set(item.id, { lex: 0, sem: contribution, item });
+function reciprocalRankFusion(legs: RrfLeg[]): RankedRow[] {
+  // For each leg we walk its rank-1..rank-N rows in order. A
+  // row's RRF contribution is (1 / (RRF_K + rank)) * weight.
+  // The final score is the sum across legs. Items missing
+  // from a leg contribute 0 from that leg.
+  const scores = new Map<string, { row: RankedRow; rrf: number }>();
+  for (const leg of legs) {
+    for (let index = 0; index < leg.rows.length; index += 1) {
+      const item = leg.rows[index];
+      const contribution = (1 / (RRF_K + index + 1)) * leg.weight;
+      const existing = scores.get(item.id);
+      if (existing) {
+        existing.rrf += contribution;
+      } else {
+        scores.set(item.id, { row: item, rrf: contribution });
+      }
     }
-  });
-
+  }
   return Array.from(scores.values())
-    .map(({ lex, sem, item }) => ({ ...item, score: lex + sem }))
+    .map(({ row, rrf }) => ({ ...row, score: rrf }))
     .sort((a, b) => b.score - a.score);
 }
 

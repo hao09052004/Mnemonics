@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ApiClient } from '../../lib/api-client';
+import { extractPageMetadata, type ExtractedPage } from '../../lib/page-metadata';
 
 export interface LinkCaptureDialogProps {
   api: ApiClient;
@@ -23,6 +24,38 @@ function isValidUrl(s: string): boolean {
 function uuid(): string {
   const g = globalThis as { crypto?: { randomUUID?: () => string } };
   return g.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+}
+
+/**
+ * Fetch the URL, parse the HTML, and return an `ExtractedPage`
+ * suitable for the API's `sourceMetadata` field. Returns
+ * `undefined` on any failure (CORS, offline, parser error) so
+ * the dialog save never blocks on metadata.
+ */
+async function safeExtractMetadata(url: string): Promise<ExtractedPage | undefined> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    let html = '';
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        credentials: 'omit',
+        signal: controller.signal
+      });
+      if (!res.ok) return undefined;
+      const raw = await res.text();
+      html = raw.length > 400_000 ? raw.slice(0, 400_000) : raw;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!html) return undefined;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return await extractPageMetadata(doc, url);
+  } catch (_) {
+    return undefined;
+  }
 }
 
 export function LinkCaptureDialog({
@@ -66,12 +99,17 @@ export function LinkCaptureDialog({
         setError('Session expired. Please sign in again.');
         return;
       }
+      // M1: best-effort extract of OG / JSON-LD metadata from
+      // the page the user typed the URL into. We never block the
+      // save on this — failure leaves sourceMetadata undefined.
+      const sourceMetadata = await safeExtractMetadata(trimmed);
       const r = await api.createLinkCapture(
         {
           url: trimmed,
           ...(title.trim() ? { title: title.trim() } : {}),
           ...(note.trim() ? { note: note.trim() } : {}),
-          clientRequestId: requestIdRef
+          clientRequestId: requestIdRef,
+          ...(sourceMetadata ? { sourceMetadata } : {})
         },
         token
       );

@@ -81,9 +81,16 @@ describe('POST /api/v1/captures/document', () => {
     expect(response.body.data.originalFilename).toBe('paper.pdf');
     expect(response.body.data.signedUrl).toMatch(/^memory:\/\//);
     expect(repo.createPendingDocumentItem).toHaveBeenCalledOnce();
-    expect(createJob).toHaveBeenCalledOnce();
-    expect(createJob).toHaveBeenCalledWith(
+    expect(createJob).toHaveBeenCalledTimes(2);
+    expect(createJob).toHaveBeenNthCalledWith(
+      1,
       'extract_document',
+      expect.any(String),
+      USER_ID
+    );
+    expect(createJob).toHaveBeenNthCalledWith(
+      2,
+      'classify',
       expect.any(String),
       USER_ID
     );

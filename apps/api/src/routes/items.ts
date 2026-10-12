@@ -363,6 +363,16 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           notes?: string;
           isFavorite?: boolean;
           tags?: string[];
+          /**
+           * User-set attributes. When present, the
+           * `item_classifications.attributes` JSONB is
+           * patched (per-key set, not full replace) and the
+           * `evidence` map is updated to `'user'` for each
+           * user-set key. Spec 0005 §20 review focus 1:
+           * user edits must not be silently overwritten
+           * on reclassify.
+           */
+          attributes?: Record<string, string>;
         };
 
         // Temporary diagnostic: confirm the route actually received
@@ -446,6 +456,38 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           await pool.query(
             `UPDATE items SET updated_at = NOW() WHERE id = $1`,
             [itemId]
+          );
+        }
+
+        if (updates.attributes && Object.keys(updates.attributes).length > 0) {
+          // Patch `item_classifications.attributes` per-key
+          // and set `evidence[userKey] = 'user'`. This is
+          // the spec 0005 §20 review-focus 1 invariant: a
+          // user-set attribute must not be overwritten by a
+          // later reclassify. The classify handler
+          // (apps/api/src/jobs/handlers/classify.ts) honours
+          // `evidence[*] = 'user'` by skipping those keys.
+          const setClauses: string[] = [];
+          const setValues: unknown[] = [];
+          let i = 1;
+          for (const [key, value] of Object.entries(updates.attributes)) {
+            setClauses.push(`attributes = jsonb_set(attributes, ARRAY[$${i}::text], to_jsonb($${i + 1}::text))`);
+            setValues.push(key, value);
+            i += 2;
+          }
+          const evidenceClauses: string[] = [];
+          const evidenceValues: unknown[] = [];
+          for (const key of Object.keys(updates.attributes)) {
+            evidenceClauses.push(`evidence = jsonb_set(evidence, ARRAY[$${i}::text], to_jsonb('user'::text))`);
+            evidenceValues.push(key);
+            i += 1;
+          }
+          await pool.query(
+            `UPDATE item_classifications
+                SET ${setClauses.concat(evidenceClauses).join(', ')},
+                    updated_at = NOW()
+              WHERE item_id = $${i} AND user_id = $${i + 1}`,
+            [...setValues, ...evidenceValues, itemId, userId]
           );
         }
 
