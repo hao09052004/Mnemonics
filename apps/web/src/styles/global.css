@@ -12,6 +12,7 @@
 
 @import "@fontsource-variable/inter";
 @import "./tokens.css";
+@import "./billing-admin.css";
 
 *,
 *::before,

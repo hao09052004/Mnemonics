@@ -1,4 +1,6 @@
 import { Icon } from './Icons';
+import { useNavigate } from 'react-router-dom';
+import type { AuthUser } from '../../lib/api-client';
 
 export type DashboardPage =
   | 'Everything'
@@ -21,6 +23,8 @@ interface DashboardTopNavProps {
   onNavigate: (page: DashboardPage) => void;
   onCapture: () => void;
   initials: string;
+  user?: AuthUser;
+  isAdmin?: boolean;
 }
 
 export function DashboardTopNav({
@@ -28,7 +32,9 @@ export function DashboardTopNav({
   onNavigate,
   onCapture,
   initials,
+  isAdmin,
 }: DashboardTopNavProps) {
+  const navigate = useNavigate();
   return (
     <header className="app-header">
       <button
@@ -58,6 +64,33 @@ export function DashboardTopNav({
             {item.label}
           </button>
         ))}
+        <button
+          type="button"
+          className="header-link"
+          onClick={() => navigate('/app/analytics')}
+          data-testid="nav-analytics"
+        >
+          Phân tích
+        </button>
+        <button
+          type="button"
+          className="header-link"
+          onClick={() => navigate('/app/billing')}
+          data-testid="nav-billing"
+        >
+          Tài khoản
+        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className="header-link"
+            onClick={() => navigate('/admin')}
+            data-testid="nav-admin"
+            title="Khu vực quản trị"
+          >
+            Admin
+          </button>
+        )}
       </nav>
 
       <div className="header-actions">

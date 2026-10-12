@@ -35,7 +35,167 @@ interface Session {
   user: AuthUser;
 }
 
-export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem, ItemDetail, UpdateItemRequest, TagListItem, TagItemsResponse, TagSuggestion, TagSuggestionResponse, ItemEnrichment, Space, SpaceWithCount, SpaceRule, SpaceType, SpacePreviewItem };
+export type { AuthUser, AuthSession, AuthEnvelope, Session, Item, ListItemsResponse, SearchRequest, SearchResponse, LoginRequest, RegisterRequest, ListItemsParams, RelatedItem, ItemDetail, UpdateItemRequest, TagListItem, TagItemsResponse, TagSuggestion, TagSuggestionResponse, ItemEnrichment, Space, SpaceWithCount, SpaceRule, SpaceType, SpacePreviewItem, Plan, Entitlement, OrderRecord, OrderListResponse, OrderDetailResponse, OrderCreateResponse, AnalyticsOverviewResponse, AnalyticsCapturesResponse, AdminOverviewResponse, AdminRevenueResponse, AdminUsersResponse, AdminPaymentsResponse, AdminAuditLogResponse, AdminUserRow, AdminOrderRow, AuditLogEntry };
+
+interface Plan {
+  id: string;
+  displayName: string;
+  family: 'memory' | 'mastery';
+  interval: 'forever' | 'month' | 'year';
+  amountVnd: number;
+  monthlyCaptureLimit: number | null;
+  semanticSearchEnabled: boolean;
+  isActive: boolean;
+}
+
+interface Entitlement {
+  planId: string;
+  family: 'memory' | 'mastery';
+  validUntil: string | null;
+  semanticSearchEnabled: boolean;
+  monthlyCaptureLimit: number | null;
+}
+
+interface OrderRecord {
+  id: string;
+  userId: string;
+  planId: string;
+  interval: string;
+  amountVnd: number;
+  reference: string;
+  status: string;
+  provider: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  expiresAt: string | null;
+}
+
+interface OrderListResponse {
+  data: { items: OrderRecord[]; limit: number; offset: number };
+}
+
+interface OrderDetailResponse {
+  data: { order: OrderRecord };
+}
+
+interface OrderCreateResponse {
+  data: {
+    order: OrderRecord;
+    qr: { payload: string; dataUrl: string };
+    recipient: { bank: string; bin: string; account: string };
+  };
+}
+
+interface AnalyticsOverviewResponse {
+  data: {
+    totalCaptures: number;
+    thisMonth: number;
+    capturesThisPeriod: number;
+    daysWindow: number;
+    plan: Entitlement & { remainingCaptures: number | null };
+    spaces: number;
+    distinctTags: number;
+    aiCallsThisPeriod: number;
+    byType: Array<{ type: string; count: number }>;
+  };
+}
+
+interface AnalyticsCapturesResponse {
+  data: { days: number; series: Array<{ day: string; count: number }> };
+}
+
+interface AdminOverviewResponse {
+  data: {
+    users: {
+      total: number;
+      newToday: number;
+      new30d: number;
+      memoryPlan: number;
+      masteryPlan: number;
+    };
+    revenue: {
+      verifiedVnd: number;
+      refundedVnd: number;
+      pendingVnd: number;
+      verifiedOrders: number;
+      paid30dVnd: number;
+    };
+    product: {
+      totalCaptures: number;
+      captures30d: number;
+      successRate: number | null;
+      semanticSearch30d: number;
+    };
+  };
+}
+
+interface AdminRevenueResponse {
+  data: {
+    range: { from: string; to: string };
+    pending: { count: number; vnd: number };
+    paid: { count: number; vnd: number };
+    refunded: { count: number; vnd: number };
+    cancelled: { count: number; vnd: number };
+    rejected: { count: number; vnd: number };
+    byInterval: Array<{ interval: string; count: number; vnd: number }>;
+    daily: Array<{ day: string; count: number; vnd: number }>;
+    estimatedMonthlyRunRate: {
+      vnd: number;
+      activeSubscribers: number;
+      caveat: string;
+    };
+  };
+}
+
+interface AdminUserRow {
+  id: string;
+  email: string | null;
+  role: 'user' | 'admin';
+  is_suspended: boolean;
+  created_at: string;
+  plan_id: string;
+  family: 'memory' | 'mastery';
+  valid_until: string | null;
+  memory_count: string;
+  subscription_status: string;
+}
+
+interface AdminUsersResponse {
+  data: { items: AdminUserRow[]; limit: number; offset: number };
+}
+
+interface AdminOrderRow {
+  id: string;
+  user_id: string;
+  user_email: string | null;
+  plan_id: string;
+  interval: string;
+  amount_vnd: string;
+  reference: string;
+  status: string;
+  provider: string | null;
+  created_at: string;
+  paid_at: string | null;
+  expires_at: string | null;
+}
+
+interface AdminPaymentsResponse {
+  data: { items: AdminOrderRow[]; limit: number; offset: number };
+}
+
+interface AuditLogEntry {
+  id: string;
+  actor_user_id: string | null;
+  target_user_id: string;
+  old_role: string | null;
+  new_role: string;
+  reason: string | null;
+  created_at: string;
+}
+
+interface AdminAuditLogResponse {
+  data: { items: AuditLogEntry[]; limit: number; offset: number };
+}
 
 interface LoginRequest {
   email: string;
@@ -488,6 +648,13 @@ export class ApiClient {
     };
   }
 
+  async me(accessToken: string): Promise<{ data: { user: AuthUser & { permissions: string[] } } }> {
+    return this.request<{ data: { user: AuthUser & { permissions: string[] } } }>(
+      '/api/v1/auth/me',
+      { accessToken }
+    );
+  }
+
   async logout(accessToken: string): Promise<void> {
     await this.request<void>('/api/v1/auth/logout', {
       method: 'POST',
@@ -635,6 +802,147 @@ export class ApiClient {
         accessToken,
         body: { tldr: ' ', regenerate: true }
       }
+    );
+  }
+
+  // ----- Billing (M2 / M3) -----
+  async listPlans(): Promise<{ data: { plans: Plan[] } }> {
+    return this.request<{ data: { plans: Plan[] } }>('/api/v1/billing/plans');
+  }
+  async getMyEntitlement(accessToken: string): Promise<{ data: { entitlement: Entitlement } }> {
+    return this.request<{ data: { entitlement: Entitlement } }>(
+      '/api/v1/billing/me',
+      { accessToken }
+    );
+  }
+  async createOrder(
+    planId: 'mastery-monthly' | 'mastery-yearly',
+    accessToken: string
+  ): Promise<OrderCreateResponse> {
+    return this.request<OrderCreateResponse>('/api/v1/billing/orders', {
+      method: 'POST',
+      accessToken,
+      body: { planId }
+    });
+  }
+  async listMyOrders(accessToken: string, limit = 20, offset = 0): Promise<OrderListResponse> {
+    return this.request<OrderListResponse>(
+      `/api/v1/billing/orders?limit=${limit}&offset=${offset}`,
+      { accessToken }
+    );
+  }
+  async getMyOrder(id: string, accessToken: string): Promise<OrderDetailResponse> {
+    return this.request<OrderDetailResponse>(
+      `/api/v1/billing/orders/${encodeURIComponent(id)}`,
+      { accessToken }
+    );
+  }
+  async cancelMyOrder(id: string, accessToken: string): Promise<OrderDetailResponse> {
+    return this.request<OrderDetailResponse>(
+      `/api/v1/billing/orders/${encodeURIComponent(id)}/cancel`,
+      { method: 'POST', accessToken }
+    );
+  }
+
+  // ----- Personal analytics (M5) -----
+  async getAnalyticsOverview(
+    accessToken: string,
+    days = 30
+  ): Promise<AnalyticsOverviewResponse> {
+    return this.request<AnalyticsOverviewResponse>(
+      `/api/v1/analytics/me/overview?days=${days}`,
+      { accessToken }
+    );
+  }
+  async getAnalyticsCaptures(
+    accessToken: string,
+    days = 30
+  ): Promise<AnalyticsCapturesResponse> {
+    return this.request<AnalyticsCapturesResponse>(
+      `/api/v1/analytics/me/captures?days=${days}`,
+      { accessToken }
+    );
+  }
+
+  // ----- Admin (M4 / M5) -----
+  async adminListUsers(
+    accessToken: string,
+    opts: { q?: string; limit?: number; offset?: number } = {}
+  ): Promise<AdminUsersResponse> {
+    const params = new URLSearchParams();
+    if (opts.q) params.set('q', opts.q);
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.offset) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return this.request<AdminUsersResponse>(
+      `/api/v1/admin/users${qs ? `?${qs}` : ''}`,
+      { accessToken }
+    );
+  }
+  async adminSuspendUser(
+    userId: string,
+    suspend: boolean,
+    reason: string,
+    accessToken: string
+  ): Promise<{ data: { ok: true } }> {
+    return this.request<{ data: { ok: true } }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/suspend`,
+      { method: 'POST', accessToken, body: { suspend, reason } }
+    );
+  }
+  async adminListPayments(
+    accessToken: string,
+    opts: { status?: string; limit?: number; offset?: number } = {}
+  ): Promise<AdminPaymentsResponse> {
+    const params = new URLSearchParams();
+    if (opts.status) params.set('status', opts.status);
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.offset) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return this.request<AdminPaymentsResponse>(
+      `/api/v1/admin/payments${qs ? `?${qs}` : ''}`,
+      { accessToken }
+    );
+  }
+  async adminReconcilePayment(
+    orderId: string,
+    amountVnd: number,
+    note: string,
+    accessToken: string
+  ): Promise<{ data: { ok: true; order_id: string; user_id: string } }> {
+    return this.request<{ data: { ok: true; order_id: string; user_id: string } }>(
+      `/api/v1/admin/payments/${encodeURIComponent(orderId)}/reconcile`,
+      { method: 'POST', accessToken, body: { amount_vnd: amountVnd, note } }
+    );
+  }
+  async adminListAuditLogs(
+    accessToken: string,
+    limit = 50,
+    offset = 0
+  ): Promise<AdminAuditLogResponse> {
+    return this.request<AdminAuditLogResponse>(
+      `/api/v1/admin/audit-logs?limit=${limit}&offset=${offset}`,
+      { accessToken }
+    );
+  }
+  async adminAnalyticsOverview(accessToken: string): Promise<AdminOverviewResponse> {
+    return this.request<AdminOverviewResponse>(
+      '/api/v1/admin/analytics/overview',
+      { accessToken }
+    );
+  }
+  async adminAnalyticsRevenue(
+    accessToken: string,
+    from?: string,
+    to?: string
+  ): Promise<AdminRevenueResponse> {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return this.request<AdminRevenueResponse>(
+      `/api/v1/admin/analytics/revenue${qs ? `?${qs}` : ''}`,
+      { accessToken }
     );
   }
 

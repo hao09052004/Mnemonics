@@ -1,13 +1,18 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { DashboardTopNav } from '../DashboardTopNav';
 
 afterEach(() => cleanup());
 
+function renderInRouter(node: React.ReactNode) {
+  return render(<MemoryRouter>{node}</MemoryRouter>);
+}
+
 describe('DashboardTopNav', () => {
   it('highlights the active page', () => {
-    render(
+    renderInRouter(
       <DashboardTopNav
         active="Spaces"
         onNavigate={() => {}}
@@ -20,7 +25,7 @@ describe('DashboardTopNav', () => {
 
   it('fires onNavigate when a tab is clicked', async () => {
     const onNavigate = vi.fn();
-    render(
+    renderInRouter(
       <DashboardTopNav
         active="Everything"
         onNavigate={onNavigate}
@@ -34,7 +39,7 @@ describe('DashboardTopNav', () => {
 
   it('fires onCapture when the Capture button is clicked', async () => {
     const onCapture = vi.fn();
-    render(
+    renderInRouter(
       <DashboardTopNav
         active="Everything"
         onNavigate={() => {}}

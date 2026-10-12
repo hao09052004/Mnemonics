@@ -2,19 +2,40 @@ import cors from 'cors';
 import express, { type Application, type ErrorRequestHandler, type Request, type Response } from 'express';
 import { authCredentialsSchema } from '@mnemonics/shared';
 import type { ItemRepository } from '@mnemonics/database';
+import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { requireDevelopmentAuth, requireSupabaseAuth, type AuthenticatedRequest } from './auth.js';
+import {
+  requireDevelopmentAuth,
+  requireSupabaseAuth,
+  requireSupabaseAuthWithPool,
+  type AuthenticatedRequest
+} from './auth.js';
+import { getPermissionsForRole, getUserRole } from './rbac.js';
 import type { ImageStorage } from './storage.js';
 import type { Audit } from './auth/audit.js';
 import type { Throttle } from './auth/throttle.js';
 import type { SupabaseUsersFacade } from './auth/supabase-users.js';
 import { createAuthRouter } from './auth/routes.js';
 import { imageProxyHandler } from './routes/image-proxy.js';
+import { createAdminRouter } from './routes/admin.js';
+import { createAuditLogsRouter } from './routes/audit-logs.js';
+import { createBillingRouter } from './routes/billing.js';
+import { createPaymentOrdersRouter } from './routes/payment-orders.js';
+import { createPaymentWebhookRouter } from './routes/payment-webhook.js';
+import { createPersonalAnalyticsRouter } from './routes/analytics-me.js';
+import { createAdminAnalyticsRouter } from './routes/analytics-admin.js';
 
 export interface AuthDeps {
   users: SupabaseUsersFacade;
   throttle: Throttle;
   audit: Audit;
+}
+
+export interface AppOptions {
+  autoConfirmRegistration?: boolean;
+  demoMode?: boolean;
+  /** PG pool used by the strict (DB-backed) auth middleware. */
+  pool?: Pool;
 }
 
 declare global {
@@ -34,9 +55,10 @@ export function createApp(
   imageStorage?: ImageStorage,
   supabase?: SupabaseClient,
   authDeps?: AuthDeps,
-  options?: { autoConfirmRegistration?: boolean; demoMode?: boolean }
+  options?: AppOptions
 ): Application {
   const demoMode = options?.demoMode === true;
+  const appOptions: AppOptions = { ...(options ?? {}), ...(options?.pool ? { pool: options.pool } : {}) };
   const demoUser = {
     id: developmentUserId,
     email: 'demo@mnemonics.local',
@@ -58,7 +80,15 @@ export function createApp(
   // edge-extension:// schemes); missing Origin header is allowed
   // (curl, server-to-server, the extension's background worker).
   app.use(buildCorsMiddleware());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({
+    limit: '1mb',
+    // Capture the raw body for webhook signature verification.
+    // The raw bytes are only used by `/api/v1/billing/webhooks/:provider`
+    // and the overhead is negligible for the rest of the API.
+    verify: (request, _response, buffer) => {
+      (request as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+    }
+  }));
   app.use((request: Request, _response: Response, next) => {
     request.id = request.header('x-request-id') || createRequestId();
     next();
@@ -89,9 +119,70 @@ export function createApp(
   // Image proxy for the browser extension
   app.get('/api/v1/proxy/image', imageProxyHandler);
 
+  // Build the auth middleware. When a Postgres pool is available,
+  // use the strict (DB-backed) variant that reads `profiles.role`
+  // and the permission set on every request. Otherwise fall back
+  // to the legacy JWT-claim-based path (used by unit tests with
+  // a stub supabase client).
   const authMiddleware = supabase
-    ? requireSupabaseAuth(supabase)
+    ? (options?.pool
+        ? requireSupabaseAuthWithPool({ pool: options.pool, supabase })
+        : requireSupabaseAuth(supabase))
     : requireDevelopmentAuth(expectedToken, developmentUserId);
+
+  // Mount the admin section if a pool is available. The router is
+  // a no-op (404) when the pool is missing so unit tests don't
+  // need to wire a database.
+  if (options?.pool && supabase) {
+    app.use('/api/v1/admin', createAdminRouter({ pool: options.pool, supabase }));
+    app.use('/api/v1/admin/audit-logs', createAuditLogsRouter({ pool: options.pool, supabase }));
+    app.use(
+      '/api/v1/admin/analytics',
+      createAdminAnalyticsRouter({
+        pool: options.pool,
+        supabase,
+        getRequestTimings: () => {
+          // Lazy import to avoid a cycle; the monitoring module
+          // owns the ring buffer.
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const mod = require('./monitoring/metrics.js') as { metrics?: { getRequestTimings?: () => unknown } };
+            const fn = mod.metrics?.getRequestTimings;
+            if (typeof fn === 'function') {
+              return fn.call(mod.metrics) as Array<{ route: string; p50_ms: number; p95_ms: number; n: number }>;
+            }
+          } catch {/* fall through */}
+          return [];
+        }
+      })
+    );
+    app.use('/api/v1/analytics', createPersonalAnalyticsRouter({ pool: options.pool, supabase }));
+    app.use('/api/v1/billing', createBillingRouter({ pool: options.pool, supabase }));
+    const billingEnabled = () => process.env.BILLING_ENABLED === 'true';
+    const bankBin = process.env.PAYMENT_BANK_BIN ?? '970436';
+    const bankAccount = process.env.PAYMENT_BANK_ACCOUNT ?? '9912780019';
+    const bankHolder = process.env.PAYMENT_BANK_HOLDER ?? 'DAO QUYNH LE';
+    app.use(
+      '/api/v1/billing',
+      createPaymentOrdersRouter({
+        pool: options.pool,
+        supabase,
+        bankBin,
+        bankAccount,
+        bankHolder,
+        enabled: billingEnabled
+      })
+    );
+    app.use(
+      '/api/v1/billing',
+      createPaymentWebhookRouter({
+        pool: options.pool,
+        bankAccount,
+        webhookSecret: process.env.SEPAY_WEBHOOK_SECRET ?? '',
+        enabled: billingEnabled
+      })
+    );
+  }
 
   app.post('/api/v1/auth/register', async (request, response, next) => {
     try {
@@ -118,7 +209,18 @@ export function createApp(
         response.status(400).json({ error: { code: 'AUTH_SIGNUP_FAILED', message: error?.message || 'Không thể đăng ký', requestId: request.id } });
         return;
       }
-      response.status(201).json({ data: { user: { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name, role: 'user' }, session: data.session ? { accessToken: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } : null } });
+      // The role returned here is canonical: read from the
+      // database when a pool is available, otherwise default
+      // to `user`. New signups never receive `admin`.
+      let role: 'user' | 'admin' = 'user';
+      if (options?.pool) {
+        try {
+          role = await getUserRole(options.pool, data.user.id);
+        } catch (e) {
+          console.error('[auth] role lookup failed on register', e);
+        }
+      }
+      response.status(201).json({ data: { user: { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name, role }, session: data.session ? { accessToken: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } : null } });
     } catch (error) {
       next(error);
     }
@@ -150,18 +252,53 @@ export function createApp(
         response.status(401).json({ error: { code: 'AUTH_LOGIN_FAILED', message: error?.message || 'Email hoặc mật khẩu chưa đúng', requestId: request.id } });
         return;
       }
-      response.json({ data: { user: { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name, role: 'user' }, session: { accessToken: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } } });
+      // Canonical role lookup; the JWT's `app_metadata.role` is
+      // a mirror and must not be the source of truth.
+      let role: 'user' | 'admin' = 'user';
+      if (options?.pool) {
+        try {
+          role = await getUserRole(options.pool, data.user.id);
+        } catch (e) {
+          console.error('[auth] role lookup failed on login', e);
+        }
+      }
+      response.json({ data: { user: { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name, role }, session: { accessToken: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } } });
     } catch (error) {
       next(error);
     }
   });
 
-  app.get('/api/v1/auth/me', authMiddleware, (request: AuthenticatedRequest, response) => {
+  app.get('/api/v1/auth/me', authMiddleware, async (request: AuthenticatedRequest, response) => {
     if (demoMode && !supabase) {
       response.json({ data: { user: demoUser } });
       return;
     }
-    response.json({ data: { user: { id: request.userId, email: request.user?.email, name: request.user?.user_metadata?.name, role: request.userRole || 'user' } } });
+    // Re-resolve the role and permission set from the database.
+    // The auth middleware already did this once; the second
+    // lookup here keeps `/me` correct even if the caller used
+    // a development auth path (which leaves userRole undefined).
+    let role: 'user' | 'admin' = request.userRole ?? 'user';
+    let permissions: string[] = [];
+    if (options?.pool && request.userId) {
+      try {
+        role = await getUserRole(options.pool, request.userId);
+        const set = await getPermissionsForRole(options.pool, role);
+        permissions = Array.from(set).sort();
+      } catch (e) {
+        console.error('[auth] /me role lookup failed', e);
+      }
+    }
+    response.json({
+      data: {
+        user: {
+          id: request.userId,
+          email: request.user?.email,
+          name: request.user?.user_metadata?.name,
+          role,
+          permissions
+        }
+      }
+    });
   });
 
   if (demoMode && !supabase) {

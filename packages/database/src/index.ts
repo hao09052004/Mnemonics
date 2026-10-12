@@ -444,6 +444,21 @@ export {
 } from './search-service.js';
 
 export {
+  parseQuery,
+  DETECTED_TYPES,
+  type ParsedQuery,
+  type DetectedType
+} from './query-parser.js';
+
+export {
+  createClassificationRepository,
+  type ClassificationRepository,
+  type ClassificationStatus,
+  type ItemClassification,
+  type ClassificationUpsertInput
+} from './classifications.js';
+
+export {
   createEnrichmentRepository,
   type EnrichmentRepository,
   type EnrichmentStatus,

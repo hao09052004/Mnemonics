@@ -7,18 +7,23 @@
 import express, { type Application, type Response } from 'express';
 import multer from 'multer';
 import { captureInputSchema } from '@mnemonics/shared';
+import type { Pool } from 'pg';
 import type { ItemRepository } from '@mnemonics/database';
 import type { ImageStorage } from '../storage.js';
 import type { AuthenticatedRequest } from '../auth.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enforceCaptureLimit, CaptureLimitReached } from '../entitlements.js';
+import { emitAnalyticsEvent } from '../analytics.js';
 
 export interface CaptureRouterDeps {
   repository: ItemRepository;
   imageStorage?: ImageStorage;
-  createJob?: (type: 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document', itemId: string, userId: string) => Promise<unknown>;
+  createJob?: (type: 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document' | 'classify', itemId: string, userId: string) => Promise<unknown>;
   supabase?: SupabaseClient;
   expectedToken?: string;
   developmentUserId?: string;
+  /** Optional pool used to enforce the 50/month Memory capture cap. */
+  pool?: Pool;
 }
 
 const imageUpload = multer({
@@ -69,8 +74,31 @@ const documentUpload = multer({
 });
 
 export function createCaptureRouter(deps: CaptureRouterDeps): Application {
-  const { repository, imageStorage, createJob, supabase, expectedToken, developmentUserId } = deps;
+  const { repository, imageStorage, createJob, supabase, expectedToken, developmentUserId, pool } = deps;
   const router = express.Router() as Application;
+
+  /**
+   * Helper: if the API was constructed with a pool, enforce the
+   * Memory 50/month cap. Mastery has no cap. The role admin
+   * does NOT bypass this — an admin on the Memory plan still
+   * has the cap.
+   *
+   * `enforceCaptureLimit` runs inside a dedicated client so the
+   * count and the subsequent INSERT are not part of the same
+   * transaction. There is a small race window (two concurrent
+   * captures can both see 49, both insert, and end at 50+1).
+   * That is acceptable for the beta; the production
+   * hardening (transactional capture) lands in M6.
+   */
+  async function checkCaptureLimitOrThrow(userId: string): Promise<void> {
+    if (!pool) return;
+    const client = await pool.connect();
+    try {
+      await enforceCaptureLimit(client, userId);
+    } finally {
+      client.release();
+    }
+  }
 
   // Simple auth middleware
   const requireAuth = async (req: AuthenticatedRequest, res: Response, next: (err?: unknown) => void) => {
@@ -136,7 +164,30 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
           return;
         }
 
-        const item = await repository.createPendingItem({ userId, capture });
+        // Enforce the 50/month Memory capture cap. The check
+        // is a no-op for Mastery users (and for tests that do
+        // not construct the router with a pool).
+        try {
+          await checkCaptureLimitOrThrow(userId);
+        } catch (e) {
+          if (e instanceof CaptureLimitReached) {
+            response.status(402).json({
+              error: {
+                code: 'CAPTURE_LIMIT_REACHED',
+                message: `Bạn đã dùng hết ${e.limit} lượt lưu trong tháng. Nâng cấp Mastery để lưu không giới hạn.`,
+                requestId: request.id
+              },
+              data: { used: e.used, limit: e.limit, plan: 'memory' }
+            });
+            return;
+          }
+          throw e;
+        }
+
+        const item = await repository.createPendingItem({
+          userId,
+          capture
+        });
 
         // Enqueue jobs based on capture type
         if (createJob) {
@@ -153,6 +204,14 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         }
 
         response.status(201).json({ data: { id: item.id, status: item.status } });
+        if (pool) {
+          emitAnalyticsEvent(pool, {
+            userId,
+            eventName: 'memory_created',
+            entityType: capture.type,
+            metadata: { hasSourceUrl: Boolean(capture.sourceUrl) }
+          });
+        }
       } catch (error) {
         next(error);
       }
@@ -193,7 +252,16 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
             storageKey: 'pending-upload',
             mimeType: request.file.mimetype,
             sizeBytes: request.file.size
-          }
+          },
+          // Multipart bodies carry JSON-encoded strings; the JSON
+          // parser populates nested objects when the field is a
+          // regular JSON field. Defensive: never let a malformed
+          // value crash the route.
+          ...(request.body.sourceMetadata
+            ? { sourceMetadata: typeof request.body.sourceMetadata === 'string'
+                ? safeParseJson(request.body.sourceMetadata)
+                : request.body.sourceMetadata }
+            : {})
         });
 
         if (!parsed.success) {
@@ -208,6 +276,25 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         if (existing) {
           response.status(200).json({ data: { id: existing.id, status: existing.status } });
           return;
+        }
+
+        // Enforce the 50/month Memory capture cap. Same handling
+        // as the text/link route: 402 + CAPTURE_LIMIT_REACHED.
+        try {
+          await checkCaptureLimitOrThrow(userId);
+        } catch (e) {
+          if (e instanceof CaptureLimitReached) {
+            response.status(402).json({
+              error: {
+                code: 'CAPTURE_LIMIT_REACHED',
+                message: `Bạn đã dùng hết ${e.limit} lượt lưu trong tháng. Nâng cấp Mastery để lưu không giới hạn.`,
+                requestId: request.id
+              },
+              data: { used: e.used, limit: e.limit, plan: 'memory' }
+            });
+            return;
+          }
+          throw e;
         }
 
         const itemId = crypto.randomUUID();
@@ -250,7 +337,11 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         });
 
         // Create item
-        const item = await repository.createPendingImageItem({ userId, itemId, capture });
+        const item = await repository.createPendingImageItem({
+          userId,
+          itemId,
+          capture
+        });
 
         // Images are ordered: OCR -> tag -> embed.
         // Each successful handler enqueues the next stage.
@@ -351,7 +442,12 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
             originalFilename: request.file.originalname
           },
           capturedAt: request.body.capturedAt || undefined,
-          clientRequestId: request.body.clientRequestId
+          clientRequestId: request.body.clientRequestId,
+          ...(request.body.sourceMetadata
+            ? { sourceMetadata: typeof request.body.sourceMetadata === 'string'
+                ? safeParseJson(request.body.sourceMetadata)
+                : request.body.sourceMetadata }
+            : {})
         });
 
         if (!parsed.success) {
@@ -366,6 +462,25 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
         if (existing) {
           response.status(200).json({ data: { id: existing.id, status: existing.status } });
           return;
+        }
+
+        // Enforce the 50/month Memory capture cap. Same handling
+        // as the text/link route: 402 + CAPTURE_LIMIT_REACHED.
+        try {
+          await checkCaptureLimitOrThrow(userId);
+        } catch (e) {
+          if (e instanceof CaptureLimitReached) {
+            response.status(402).json({
+              error: {
+                code: 'CAPTURE_LIMIT_REACHED',
+                message: `Bạn đã dùng hết ${e.limit} lượt lưu trong tháng. Nâng cấp Mastery để lưu không giới hạn.`,
+                requestId: request.id
+              },
+              data: { used: e.used, limit: e.limit, plan: 'memory' }
+            });
+            return;
+          }
+          throw e;
         }
 
         const itemId = crypto.randomUUID();
@@ -409,7 +524,11 @@ export function createCaptureRouter(deps: CaptureRouterDeps): Application {
 
         let item;
         try {
-          item = await repository.createPendingDocumentItem({ userId, itemId, capture });
+          item = await repository.createPendingDocumentItem({
+            userId,
+            itemId,
+            capture
+          });
         } catch (dbErr) {
           // Storage is uploaded but the DB insert failed. Remove the
           // orphan object so a retry doesn't accumulate duplicates.
@@ -500,4 +619,19 @@ function sanitizeFilename(name: string): string {
   // Strip trailing dots and underscores.
   const cleaned = collapsed.replace(/[._]+$/, '');
   return cleaned.slice(0, 100);
+}
+
+/**
+ * Parse a JSON string safely. Returns `undefined` on any failure
+ * so the caller can treat a malformed `sourceMetadata` field as
+ * "no metadata" instead of crashing the route. Used by the
+ * multipart image and document capture paths where the field
+ * arrives as a JSON-encoded string.
+ */
+function safeParseJson(input: string): unknown {
+  try {
+    return JSON.parse(input);
+  } catch (_) {
+    return undefined;
+  }
 }

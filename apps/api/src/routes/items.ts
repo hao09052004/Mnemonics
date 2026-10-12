@@ -418,7 +418,19 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
         // do the upsert + delete-many in a transaction below.
         const shouldUpdateTags = Array.isArray(updates.tags);
 
-        if (updateFields.length === 0 && !shouldUpdateTags) {
+        // User attribute override (spec 0005 §20). When the user
+        // PATCHes `attributes: { brand: 'MyBrand' }` on a classified
+        // item, we merge the override into `item_classifications.attributes`
+        // and stamp `evidence[key] = 'user'`. The classifier's
+        // evidence is preserved for keys the user did not touch.
+        const userAttributes =
+          updates && typeof updates === 'object' && updates !== null
+            ? (updates as Record<string, unknown>).attributes
+            : undefined;
+        const hasUserAttributes =
+          userAttributes !== undefined && userAttributes !== null && typeof userAttributes === 'object';
+
+        if (updateFields.length === 0 && !shouldUpdateTags && !hasUserAttributes) {
           res.status(400).json({ error: { code: 'NO_UPDATES', message: 'No fields to update' } });
           return;
         }
@@ -482,6 +494,28 @@ export function createItemRouter(deps: ItemRouterDeps): Application {
           } finally {
             client.release();
           }
+        }
+
+        if (hasUserAttributes) {
+          // User attribute override (spec 0005 §20). Merge the
+          // user-supplied attributes into the `item_classifications`
+          // row, stamping `evidence[key] = 'user'`. The classifier's
+          // attributes for non-overridden keys and the original
+          // `evidence` for them are preserved. The schema does
+          // not have an `evidence_version` or `source` column, so
+          // we touch `updated_at` only.
+          const userAttrs = userAttributes as Record<string, unknown>;
+          const evidencePatch = Object.fromEntries(
+            Object.keys(userAttrs).map((k) => [k, 'user'])
+          );
+          await pool.query(
+            `UPDATE item_classifications c
+                SET attributes = c.attributes || $3::jsonb,
+                    evidence   = c.evidence   || $4::jsonb,
+                    updated_at = NOW()
+              WHERE c.item_id = $1 AND c.user_id = $2`,
+            [itemId, userId, JSON.stringify(userAttrs), JSON.stringify(evidencePatch)]
+          );
         }
 
         res.json({

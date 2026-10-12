@@ -63,6 +63,8 @@ export function DashboardShell({
   void onLogout;
   void demoMode;
   const initials = computeInitials(user.email);
+  const perms: string[] = (user as any).permissions ?? [];
+  const isAdmin = perms.some((p: string) => p.startsWith('admin.'));
 
   return (
     <div className="app">
@@ -72,6 +74,8 @@ export function DashboardShell({
           onNavigate={onNavigate}
           onCapture={onCapture}
           initials={initials}
+          user={user}
+          isAdmin={isAdmin}
         />
         {children}
       </div>
