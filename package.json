@@ -6,7 +6,7 @@
   "scripts": {
     "audit:structure": "node scripts/audit-structure.mjs",
     "build": "pnpm --recursive --filter @mnemonics/shared --filter @mnemonics/database --filter @mnemonics/ai --filter @mnemonics/api --filter @mnemonics/web build",
-    "typecheck": "pnpm --recursive typecheck",
+    "typecheck": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/database build && pnpm --filter @mnemonics/ai build && pnpm --recursive typecheck",
     "test": "node scripts/test-all.mjs",
     "gates:agents": "node quality-gates/runners/check-agents.mjs",
     "gates:skills": "node quality-gates/runners/check-skills.mjs",
