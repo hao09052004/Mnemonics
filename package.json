@@ -19,7 +19,12 @@
     "gates:spec-sync": "node scripts/gates.mjs spec-sync",
     "gates:coverage": "node scripts/gates.mjs coverage",
     "gates:knowledge-regression": "node scripts/gates.mjs knowledge-regression",
-    "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && pnpm --filter @mnemonics/api demo:setup"
+    "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && pnpm --filter @mnemonics/api demo:setup",
+    "demo:prepare": "pnpm demo:setup",
+    "demo:api": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && pnpm --filter @mnemonics/api exec tsx scripts/demo-server.mts",
+    "demo:web": "pnpm --filter @mnemonics/web demo",
+    "demo:reset": "pnpm demo:setup",
+    "demo:e2e": "pnpm --filter @mnemonics/api exec tsx scripts/e2e-full.mts"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
