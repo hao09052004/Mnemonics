@@ -206,7 +206,7 @@ describe.skipIf(skipIfNoDb)('M4 acceptance suite (A–G)', () => {
         explain: true
       });
     expect(res.status).toBe(200);
-    expect(res.body.explain_data?.structResults).toBeGreaterThan(0);
+    expect(res.body.explain_data?.lexResults).toBeGreaterThan(0);
     const ids = res.body.hits.map((h: { id: string }) => h.id);
     expect(ids).toContain(it1.id);
   });

@@ -9,6 +9,7 @@ import { createAudit } from './auth/audit.js';
 import { createThrottle } from './auth/throttle.js';
 import { createSupabaseUsers } from './auth/supabase-users.js';
 import { createJobRouter } from './jobs/router.js';
+import { type JobType } from './jobs/queue.js';
 import { createCaptureRouter } from './routes/capture.js';
 import { createSearchRouter } from './routes/search.js';
 import { createItemRouter } from './routes/items.js';
@@ -87,7 +88,7 @@ const { queue, router: jobRouter } = createJobRouter({
 });
 
 // Create job function for capture routes
-const createJob = async (type: 'ocr' | 'tag' | 'embed' | 'enrich' | 'extract_document', itemId: string, userId: string) => {
+const createJob = async (type: JobType, itemId: string, userId: string) => {
 	return queue.create({ type, itemId, userId });
 };
 

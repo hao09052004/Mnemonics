@@ -56,6 +56,25 @@ export interface SearchFilters {
   captured_before?: string;
   /** Only favourites. Mirrors the dashboard's heart filter. */
   favorite?: boolean;
+  /**
+   * M3 — structured filters lifted from the natural-language
+   * `q` by `parseQuery`. The search route and the Smart Space
+   * resolution path both accept these; the legs above do not
+   * read them directly yet (the per-leg SQL does not join
+   * `item_classifications`), so a request that *only* sets
+   * `structured` falls through to lexical + semantic. The
+   * shape is the same as the dashboard's filter chips: an
+   * array per dimension.
+   */
+  structured?: {
+    detectedType?: string[];
+    category?: string[];
+    brand?: string[];
+    material?: string[];
+    color?: string[];
+    merchant?: string[];
+    author?: string[];
+  };
 }
 
 export interface SearchRequest {

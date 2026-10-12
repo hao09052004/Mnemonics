@@ -91,3 +91,11 @@ export {
   setDefaultUserAiQuota,
   type UserAiQuotaOptions
 } from "./user-quota.js";
+
+export {
+  NoopContentClassifier,
+  DETECTED_TYPES,
+  type ClassificationInput,
+  type ClassificationResult,
+  type DetectedType
+} from "./content-classifier.js";
