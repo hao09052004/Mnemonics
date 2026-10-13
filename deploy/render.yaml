@@ -1,34 +1,73 @@
+# Render Blueprint — Mnemonics API
+#
+# Connects GitHub repo `hao09052004/Mnemonics` to Render, builds the
+# workspace, and starts the API service. Database lives in Supabase
+# (free tier, 500 MB, pgvector) — set DATABASE_URL manually under
+# Environment. See deploy/.env.production.example for the full env
+# checklist.
+#
+# One-time setup:
+#   1. https://dashboard.render.com/blueprints → New Blueprint Instance
+#   2. Connect repo: hao09052004/Mnemonics
+#   3. Branch: main
+#   4. Render auto-detects this file and proposes one service below
+#   5. Click Apply, then fill in the env vars from .env.production.example
+#
+# Web dashboard lives on Vercel (see docs/deployment.md#vercel).
+
 services:
   - type: web
     name: mnemonics-api
     runtime: node
     plan: starter
+    branch: main
     buildCommand: pnpm install --frozen-lockfile && pnpm --recursive build
     startCommand: pnpm --filter @mnemonics/api start
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 4000
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mnemonics-db
-          property: connectionString
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
+      # Set the following in the Render dashboard, NOT in this file:
+      # - DATABASE_URL (Supabase session pooler, port 5432)
+      # - SUPABASE_URL
+      # - SUPABASE_ANON_KEY
+      # - SUPABASE_SERVICE_ROLE_KEY
+      # - GEMINI_API_KEY (AI Studio key, AIza...; NOT ADC token)
+      # - GEMINI_MODEL, GEMINI_EMBEDDING_MODEL, GEMINI_EMBEDDING_DIMENSIONS
+      # - OCR_PROVIDER, OCR_LOCAL_FALLBACK
+      # - AI_IMAGE_DESCRIPTION_PROVIDER, AI_TLDR_PROVIDER
+      # - VISUAL_EMBEDDING_PROVIDER, GEMINI_VISUAL_EMBEDDING_MODEL,
+      #   GEMINI_VISUAL_EMBEDDING_DIMENSIONS
+      # - AI_TEXT_FALLBACK, AI_EMBEDDING_FALLBACK
+      # - GEMINI_REQUEST_TIMEOUT_MS, GEMINI_MAX_RETRIES,
+      #   GEMINI_MAX_CONCURRENT_REQUESTS, GEMINI_RATE_LIMIT_RPM,
+      #   GEMINI_QUEUE_WAIT_TIMEOUT_MS, GEMINI_TOTAL_BUDGET_MS,
+      #   GEMINI_TLDR_TOTAL_BUDGET_MS
+      # - AI_USER_DAILY_LIMIT
+      # - AUTH_AUTO_CONFIRM (false for production)
+      # - DEV_AUTH_TOKEN (MUST be empty in production)
+      # - DEV_USER_ID (MUST be empty in production)
+      # - CORS_ALLOWED_ORIGINS (Vercel web URL, no trailing slash)
+      # - BILLING_ENABLED, PAYMENT_PROVIDER, PAYMENT_CURRENCY,
+      #   PAYMENT_ORDER_EXPIRY_MINUTES, PAYMENT_RETURN_URL,
+      #   PAYMENT_CANCEL_URL, PAYOS_CLIENT_ID, PAYOS_API_KEY,
+      #   PAYOS_CHECKSUM_KEY
+      # - DEMO_MODE (MUST be false in production)
 
-  - type: pserv
-    name: mnemonics-db
-    runtime: postgresql
-    plan: starter
-    postgresMajorVersion: 16
-    postgresqlExtensions:
-      - vector
-      - pgcrypto
+# NOTE: We deliberately do NOT provision a Render Postgres here.
+# The free Postgres plan expires after 90 days; the existing
+# Supabase project is free forever and already has pgvector
+# enabled. If you ever want Render Postgres, uncomment the
+# block below and remove the DATABASE_URL env var above.
+#
+#   - type: pserv
+#     name: mnemonics-db
+#     runtime: postgresql
+#     plan: starter
+#     postgresMajorVersion: 16
+#     postgresqlExtensions:
+#       - vector
+#       - pgcrypto
