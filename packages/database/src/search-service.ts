@@ -240,11 +240,15 @@ export interface SearchDeps {
  * The cache key is `${text}|${model}` so a different model or
  * preprocessing version does not reuse a stale vector. A null
  * provider or a blank query short-circuits to null.
+ *
+ * Graceful degradation: any provider failure (Noop, thrown
+ * ProviderError, network timeout, invalid response) returns null
+ * and the caller falls through to lexical-only search. The user
+ * still gets useful results; the operator gets a single warning
+ * line per failure. A search that 500s because Gemini is down
+ * is a worse user experience than a slower lexical search, so
+ * the contract here is "always return something queryable".
  */
-export interface CachedQueryEmbedding {
-  embedding: number[];
-  model: string;
-}
 async function resolveQueryEmbedding(
   embeddings: EmbeddingLike | undefined,
   query: string,
@@ -268,12 +272,30 @@ async function resolveQueryEmbedding(
     return null;
   }
 
-  const v = await embeddings.embedOne(query);
-  if (v && v.length > 0) {
-    embeddingCache.set(`${query}|${model}`, v);
-    return v;
+  try {
+    const v = await embeddings.embedOne(query);
+    if (v && v.length > 0) {
+      embeddingCache.set(`${query}|${model}`, v);
+      return v;
+    }
+    return null;
+  } catch (err) {
+    // Gemini (or any other provider) failed for this query. Fall
+    // through to lexical-only search — the user still gets useful
+    // results, the operator gets a single warning, and the next
+    // search attempt can retry the provider.
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : "UNKNOWN";
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[search-service] query embedding failed (provider=${providerName || "unknown"} code=${code}); ` +
+        `degrading to lexical-only for this query. ${message.slice(0, 200)}`
+    );
+    return null;
   }
-  return null;
 }
 
 /**
