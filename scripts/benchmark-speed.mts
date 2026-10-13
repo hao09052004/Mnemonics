@@ -364,7 +364,7 @@ async function main() {
       connectedComponents,
       pruneBridges,
     } = await import("../packages/database/src/cluster-algorithm.ts");
-    const { buildClusterTitle } = await import("../packages/database/src/clusters.ts");
+    const { buildClusterTitle, collectSignals } = await import("../packages/database/src/clusters.ts");
 
     function generateGraph(nodeCount: number) {
       const nodes = Array.from({ length: nodeCount }, (_, i) => `item-${i}`);
@@ -430,19 +430,31 @@ async function main() {
       console.log(`   ✅ ${item.label}: mutualEdges=${rMutual.avgMs}ms | connectedComponents=${rComponents.avgMs}ms | pruneBridges=${rBridges.avgMs}ms`);
     }
 
+    const clusterMembers = [
+      { title: "React 19 Server Actions Deep Dive", tldr: "Server actions enable data mutations", tags: ["react", "frontend", "actions"] },
+      { title: "Optimizing React Server Components", tldr: "Performance guide for server components", tags: ["react", "performance", "server-components"] },
+      { title: "Fullstack Architecture with React 19", tldr: "Building modern fullstack applications", tags: ["react", "architecture", "fullstack"] },
+    ];
+
+    const rSignals = await bench(
+      "Cluster Title",
+      "collectSignals (tag & token extraction)",
+      () => {
+        collectSignals(clusterMembers);
+      },
+      5000
+    );
+    results.push(rSignals);
+    console.log(`   ✅ ${rSignals.name}: avg=${rSignals.avgMs}ms | ops/s=${rSignals.opsPerSec}`);
+
+    const signals = collectSignals(clusterMembers);
     const rTitle = await bench(
       "Cluster Title",
-      "buildClusterTitle (50 tag bigrams & phrases)",
+      "buildClusterTitle (topic phrase selection)",
       () => {
-        buildClusterTitle({
-          members: [
-            { id: "1", title: "React 19 Server Actions Deep Dive", tags: ["react", "frontend", "actions"], detectedType: "article" },
-            { id: "2", title: "Optimizing React Server Components", tags: ["react", "performance", "server-components"], detectedType: "article" },
-            { id: "3", title: "Fullstack Architecture with React 19", tags: ["react", "architecture", "fullstack"], detectedType: "article" },
-          ],
-        });
+        buildClusterTitle(signals, clusterMembers.length);
       },
-      2000
+      5000
     );
     results.push(rTitle);
     console.log(`   ✅ ${rTitle.name}: avg=${rTitle.avgMs}ms | ops/s=${rTitle.opsPerSec}`);

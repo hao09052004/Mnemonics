@@ -93,6 +93,8 @@ export function estimateTokens(text: string): number {
   return text.trim().split(/\s+/).length;
 }
 
+import { createHash } from 'node:crypto';
+
 /** Lightweight SHA-256 in pure JS, used for the content hash.
  *  Avoids pulling in a crypto polyfill on the worker; Node has
  *  a stable native implementation. */
@@ -100,8 +102,6 @@ function sha256(text: string): string {
   // Node's crypto is universally available in the API runtime.
   // Synchronous hashing keeps the chunker pure-functional: same
   // input -> same output, no async ordering hazards.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { createHash } = require('node:crypto') as typeof import('node:crypto');
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
