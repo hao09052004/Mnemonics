@@ -5,7 +5,7 @@
  *
  *   1. Image description (LocalImageDescriptionProvider)
  *      → persisted in `item_enrichments.caption`.
- *   2. TLDR (DeterministicTldrProvider / OllamaTldrProvider)
+ *   2. TLDR (DeterministicTldrProvider / GeminiTldrProvider)
  *      → persisted in `item_enrichments.tldr`.
  *
  * For non-image items the caption step is skipped. The TLDR step
@@ -239,8 +239,8 @@ export class UnderstandingHandler {
       // Fall back to the DETERMINISTIC provider specifically. The old
       // code re-called `this.deps.ai.understanding.tldr`, which is the
       // very provider that just failed — so when the configured model
-      // was missing (e.g. Ollama 404 for an unpulled `llama3.2:1b`) the
-      // retry failed identically and the item was left with
+      // threw (e.g. Gemini quota / network error) the retry failed
+      // identically and the item was left with
       // `tldr_status = 'failed'` and no summary at all. The
       // deterministic composer needs no model, network, or config, so
       // it is a genuine floor rather than a repeat of the failure.

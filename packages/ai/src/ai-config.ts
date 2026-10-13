@@ -6,13 +6,13 @@
  * rest of the codebase never reads process.env directly.
  *
  * Hard rule: when AI_FREE_ONLY=true, only free / local providers may
- * be called. Gemini's free tier and a local Ollama daemon both qualify;
- * the flag exists so a future paid provider cannot be enabled silently.
+ * be called. Gemini's free tier qualifies; the flag exists so a
+ * future paid provider cannot be enabled silently.
  *
- * Provider order for every AI capability: **Gemini first, local
- * (Ollama) second, OpenAI never.** OpenAI was removed from the codebase
- * entirely — there is no OPENAI_API_KEY and no openai provider, so a
- * ChatGPT key can no longer be selected by accident.
+ * Provider order for every AI capability: **Gemini first, deterministic
+ * / noop floor second, OpenAI never.** OpenAI was removed from the
+ * codebase entirely — there is no OPENAI_API_KEY and no openai
+ * provider, so a ChatGPT key can no longer be selected by accident.
  */
 
 export interface AiConfig {
@@ -27,38 +27,25 @@ export interface AiConfig {
   demoMode: boolean;
 
   text: {
-    provider: "gemini" | "heuristic" | "ollama";
+    provider: "gemini" | "heuristic";
     geminiApiKey?: string;
     geminiModel: string;
     /**
-     * Ollama local HTTP fallback (POST {ollamaBaseUrl}/api/chat).
-     * Used only when `textFallback` is enabled and the primary
-     * provider throws on a capture-time call.
+     * When true, fall back from the primary text provider to the
+     * deterministic heuristic on ProviderError. Default true (free mode).
      */
-    ollamaBaseUrl?: string;
-    ollamaTextModel: string;
-    /** When true, fall back from the primary text provider to
-     *  ollama on ProviderError. Default true (free mode). */
     textFallback: boolean;
   };
 
   embeddings: {
-    provider: "gemini" | "ollama" | "noop";
+    provider: "gemini" | "noop";
     geminiApiKey?: string;
     geminiModel: string;
     geminiDimensions: number;
     /**
-     * Local embedding fallback. Must be a model that emits exactly
-     * `geminiDimensions` floats (bge-m3 is 1024-d) because both
-     * providers write into the same `item_embeddings.embedding`
-     * column — mixing widths would corrupt every similarity score.
-     */
-    ollamaBaseUrl?: string;
-    ollamaEmbeddingModel: string;
-    /**
      * Embedding-time fallback when the primary provider throws:
-     * gemini -> local (Ollama) -> noop (lexical-only). The flag
-     * exists so a deployment can opt out of the local hop.
+     * gemini -> noop (lexical-only). The flag exists so a
+     * deployment can opt out of the fallback hop.
      */
     embeddingsFallback: boolean;
   };
@@ -77,14 +64,6 @@ export interface AiConfig {
      *  fallback chain. Default true. */
     localFallback: boolean;
   };
-
-  /**
-   * Force Ollama to run on CPU even when a GPU is available.
-   * Needed when CUDA/cuDNN is broken on the host — Ollama attempts GPU
-   * execution first and fails with a stack-buffer-overrun before
-   * falling back to CPU automatically.
-   */
-  ollamaForceCpu: boolean;
 
   /**
    * Three distinct Gemini timeouts so a long RPM-pacer wait cannot
@@ -135,10 +114,9 @@ export interface AiConfig {
     /**
      * TLDR provider.
      *   - "deterministic" — zero-cost, always available
-     *   - "ollama" — local LLM upgrade
      *   - "gemini" — cloud TLDR via Gemini
      */
-    tldrProvider: "deterministic" | "ollama" | "gemini";
+    tldrProvider: "deterministic" | "gemini";
     /** Hard ceiling for the TLDR string we persist. */
     tldrMaxLength: number;
     /** Below this raw content length the deterministic provider is
@@ -178,11 +156,9 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
 
   const textProvider = (readString(env, "AI_TEXT_PROVIDER", "gemini") ?? "gemini") as
     | "gemini"
-    | "heuristic"
-    | "ollama";
+    | "heuristic";
   const embeddingProvider = (readString(env, "AI_EMBEDDING_PROVIDER", "gemini") ?? "gemini") as
     | "gemini"
-    | "ollama"
     | "noop";
   const ocrProvider = (readString(env, "OCR_PROVIDER", "ocrspace") ?? "ocrspace") as
     | "ocrspace"
@@ -192,12 +168,47 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
     | "local"
     | "gemini";
   const tldrProvider = (readString(env, "AI_TLDR_PROVIDER", "deterministic") ??
-    "deterministic") as "deterministic" | "ollama" | "gemini";
+    "deterministic") as "deterministic" | "gemini";
   const imageDescriptionProvider = (readString(
     env,
     "AI_IMAGE_DESCRIPTION_PROVIDER",
     "local"
   ) ?? "local") as "local" | "gemini";
+
+  // Validate string env values against the allow-list. The casts
+  // above do not narrow at runtime; without this, a typo in the
+  // .env (e.g. AI_EMBEDDING_PROVIDER=openai) silently uses the
+  // default. Fail loud at boot.
+  const TEXT_PROVIDERS = new Set(["gemini", "heuristic"]);
+  const EMBEDDING_PROVIDERS = new Set(["gemini", "noop"]);
+  const OCR_PROVIDERS = new Set(["ocrspace", "tesseract", "gemini"]);
+  const TLDR_PROVIDERS = new Set(["deterministic", "gemini"]);
+  const IMAGE_DESCRIPTION_PROVIDERS = new Set(["local", "gemini"]);
+  if (!TEXT_PROVIDERS.has(textProvider)) {
+    throw new Error(
+      `Unknown AI_TEXT_PROVIDER: '${textProvider}'. Allowed: ${[...TEXT_PROVIDERS].join(", ")}.`
+    );
+  }
+  if (!EMBEDDING_PROVIDERS.has(embeddingProvider)) {
+    throw new Error(
+      `Unknown AI_EMBEDDING_PROVIDER: '${embeddingProvider}'. Allowed: ${[...EMBEDDING_PROVIDERS].join(", ")}.`
+    );
+  }
+  if (!OCR_PROVIDERS.has(ocrProvider)) {
+    throw new Error(
+      `Unknown OCR_PROVIDER: '${ocrProvider}'. Allowed: ${[...OCR_PROVIDERS].join(", ")}.`
+    );
+  }
+  if (!TLDR_PROVIDERS.has(tldrProvider)) {
+    throw new Error(
+      `Unknown AI_TLDR_PROVIDER: '${tldrProvider}'. Allowed: ${[...TLDR_PROVIDERS].join(", ")}.`
+    );
+  }
+  if (!IMAGE_DESCRIPTION_PROVIDERS.has(imageDescriptionProvider)) {
+    throw new Error(
+      `Unknown AI_IMAGE_DESCRIPTION_PROVIDER: '${imageDescriptionProvider}'. Allowed: ${[...IMAGE_DESCRIPTION_PROVIDERS].join(", ")}.`
+    );
+  }
 
   if (freeOnly) {
     // Free mode forbids paid providers. Gemini Developer API keys
@@ -234,9 +245,6 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       // must set maxOutputTokens high enough (>=1024) to leave
       // headroom for both thinking + the actual array of tags.
       geminiModel: readString(env, "GEMINI_MODEL", "gemini-3.8-flash") ?? "gemini-3.8-flash",
-      ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://localhost:11434"),
-      ollamaTextModel:
-        readString(env, "OLLAMA_TEXT_MODEL", "llama3.2:3b") ?? "llama3.2:3b",
       textFallback: readBool(env, "AI_TEXT_FALLBACK", true)
     },
     embeddings: {
@@ -246,12 +254,9 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
         readString(env, "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001") ??
         "gemini-embedding-001",
       // Must stay in sync with item_embeddings.embedding — migration
-      // 017 narrowed the column to 1024 so Gemini and the local model
-      // share one embedding space.
+      // 017 narrowed the column to 1024 so the cloud and any future
+      // local models share one embedding space.
       geminiDimensions: readInt(env, "GEMINI_EMBEDDING_DIMENSIONS", 1024),
-      ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://localhost:11434"),
-      ollamaEmbeddingModel:
-        readString(env, "OLLAMA_EMBEDDING_MODEL", "bge-m3") ?? "bge-m3",
       embeddingsFallback: readBool(env, "AI_EMBEDDING_FALLBACK", true)
     },
     ocr: {
@@ -260,7 +265,6 @@ export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
       ocrSpaceDailySoftLimit: readInt(env, "OCR_SPACE_DAILY_SOFT_LIMIT", 450),
       localFallback: readBool(env, "OCR_LOCAL_FALLBACK", true)
     },
-    ollamaForceCpu: readBool(env, "OLLAMA_FORCE_CPU", false),
     /**
      * Three distinct timeouts so a long RPM-pacer wait cannot
      * steal the request-execution budget. The pacer wait is

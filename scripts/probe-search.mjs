@@ -134,7 +134,7 @@ async function run() {
   // item_embeddings. The previous worker used a removed OpenAI
   // provider and failed 17/22 jobs with `OpenAI API error: 401`,
   // so 23 items are still missing vectors. The current worker
-  // uses Gemini -> Ollama, which has its own key, so the jobs
+  // uses Gemini, which has its own key, so the jobs
   // will succeed now. We use a fresh payload so the new embed
   // job is distinguishable in the audit log from the old ones.
   try {

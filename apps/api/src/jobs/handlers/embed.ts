@@ -4,7 +4,7 @@
  * Processes embedding jobs for all item types.
  * Generates vector embeddings via the injected AiService (which is
  * the single source of truth for provider selection — Gemini first,
- * a local Ollama model second, noop only when neither is usable).
+ * noop when the key is missing or the call fails).
  *
  * The handler never calls a provider directly; it delegates to
  * `ai.embeddings`, so loadAiConfig() owns the whole chain. Every
@@ -129,7 +129,7 @@ export class EmbedHandler {
         console.warn(
           `[EmbedHandler] No embedding provider available (${providerInfo.name}); ` +
             `skipping embedding for item ${job.itemId}. Search stays lexical-only. ` +
-            `Set GEMINI_API_KEY, or 'ollama pull bge-m3' for the local fallback.`
+            `Set GEMINI_API_KEY in .env to enable cloud embeddings.`
         );
         await this.queue.markCompleted(job.id);
         await this.markReadyIfComplete(job);

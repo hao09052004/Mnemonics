@@ -3,7 +3,7 @@
  *
  * Composes:
  *   - image description (Transformers.js local OR Gemini cloud)
- *   - TLDR (deterministic / Ollama local / Gemini cloud)
+ *   - TLDR (deterministic / Gemini cloud)
  *
  * The factory inspects the same `AiConfig` used elsewhere so the
  * zero-paid-AI guarantees are not duplicated here.
@@ -21,7 +21,6 @@ import {
   type LocalImageDescriptionProviderOptions
 } from "./local-image-description.js";
 import { DeterministicTldrProvider } from "./deterministic-tldr.js";
-import { OllamaTldrProvider } from "./ollama-tldr.js";
 import { GeminiTldrProvider } from "./gemini-tldr.js";
 import { GeminiImageDescriptionProvider } from "./gemini-image-description.js";
 import type {
@@ -40,7 +39,6 @@ export type {
 
 export { LocalImageDescriptionProvider } from "./local-image-description.js";
 export { DeterministicTldrProvider } from "./deterministic-tldr.js";
-export { OllamaTldrProvider } from "./ollama-tldr.js";
 export { GeminiTldrProvider } from "./gemini-tldr.js";
 export { GeminiImageDescriptionProvider } from "./gemini-image-description.js";
 export type { LocalImageDescriptionProviderOptions } from "./local-image-description.js";
@@ -97,8 +95,8 @@ export function buildUnderstandingProviders(
     );
   }
 
-  // TLDR chain: deterministic always wins the floor. Ollama and
-  // Gemini are explicit upgrades, never silent.
+  // TLDR chain: deterministic always wins the floor. Gemini is the
+  // explicit upgrade, never silent.
   if (cfg.understanding.tldrProvider === "gemini") {
     const apiKey = cfg.text.geminiApiKey ?? cfg.embeddings.geminiApiKey;
     if (!apiKey) {
@@ -112,14 +110,6 @@ export function buildUnderstandingProviders(
       tldr: new GeminiTldrProvider(apiKey, cfg.text.geminiModel, geminiClient, {
         maxLength: cfg.understanding.tldrMaxLength,
         totalBudgetMs: opts.tldrTotalBudgetMs ?? 90_000
-      })
-    };
-  }
-  if (cfg.understanding.tldrProvider === "ollama") {
-    return {
-      imageDescription,
-      tldr: new OllamaTldrProvider({
-        forceCpu: cfg.ollamaForceCpu
       })
     };
   }

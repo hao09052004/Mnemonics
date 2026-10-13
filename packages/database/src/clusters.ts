@@ -22,8 +22,7 @@
  *     similarity to the other members (mean-edge centrality on
  *     the curated graph). Deterministic.
  *   - Title: deterministic keyword extraction from tags + titles +
- *     TLDRs. No paid AI required. The Ollama hook is layered on top
- *     by the route layer if the user has a local model configured,
+ *     TLDRs. No paid AI required.
  *     but the cluster itself is never blocked on naming.
  *
  * The module is pure: it has no I/O of its own, it only runs SQL
@@ -211,8 +210,7 @@ export function collectSignals(
  * The function is pure and deterministic; the same members
  * produce the same title. The cluster is never blocked on
  * LLM-based naming: spec §31 forbids depending on a paid model,
- * and the local Ollama path runs after this function has
- * already produced a stable fallback.
+ * so this function always produces a stable fallback first.
  */
 export function buildClusterTitle(
   signals: ClusterTextSignals,

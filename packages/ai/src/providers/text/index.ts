@@ -5,15 +5,12 @@
  *
  * Selection:
  *   - AI_TEXT_PROVIDER=gemini  → GeminiTextProvider (if key set)
- *   - AI_TEXT_PROVIDER=ollama  → OllamaTextProvider (always; baseUrl
- *     is read from config.text.ollamaBaseUrl)
  *   - AI_TEXT_PROVIDER=heuristic → HeuristicTextProvider
  *
  * Fallback: when config.text.textFallback is true and the primary is
- * gemini/ollama, wrap it in FallingBackTextProvider with a deterministic
+ * gemini, wrap it in FallingBackTextProvider with a deterministic
  * secondary. Secondary chain:
- *   - gemini primary   → fallback Ollama (then Heuristic on Ollama fail)
- *   - ollama primary   → fallback Heuristic (no further local option)
+ *   - gemini primary → fallback Heuristic (the floor)
  *   - heuristic primary → no fallback (it's already the floor)
  *
  * The shared Gemini HTTP client is built once per process and reused
@@ -26,7 +23,6 @@ import type { AiConfig } from "../../ai-config.js";
 import { buildGeminiClient, type GeminiClient } from "../../gemini-client.js";
 import type { TextProvider } from "./types.js";
 import { GeminiTextProvider } from "./gemini.js";
-import { OllamaTextProvider } from "./ollama.js";
 import { HeuristicTextProvider } from "./heuristic.js";
 import { FallingBackTextProvider } from "./fallback.js";
 
@@ -67,13 +63,6 @@ function pickPrimary(config: AiConfig, geminiClient: GeminiClient): TextProvider
         geminiClient
       );
     }
-    case "ollama": {
-      return new OllamaTextProvider(
-        config.text.ollamaBaseUrl ?? "http://localhost:11434",
-        config.text.ollamaTextModel,
-        config.ollamaForceCpu
-      );
-    }
     case "heuristic":
       return new HeuristicTextProvider();
     default: {
@@ -90,13 +79,6 @@ function pickFallback(
 ): TextProvider | null {
   const primaryName = primary.info().name;
   if (primaryName === "gemini") {
-    return new OllamaTextProvider(
-      config.text.ollamaBaseUrl ?? "http://localhost:11434",
-      config.text.ollamaTextModel,
-      config.ollamaForceCpu
-    );
-  }
-  if (primaryName === "ollama") {
     return new HeuristicTextProvider();
   }
   return null;
@@ -105,5 +87,4 @@ function pickFallback(
 export type { TextProvider, TextProviderInfo, TextGenerationOptions } from "./types.js";
 export { HeuristicTextProvider } from "./heuristic.js";
 export { GeminiTextProvider } from "./gemini.js";
-export { OllamaTextProvider } from "./ollama.js";
 export { FallingBackTextProvider } from "./fallback.js";
