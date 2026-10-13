@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=coverage --exclude='**/document-extract.test.ts'",
     "demo:setup": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-setup.mts",
-    "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts"
+    "demo": "pnpm --filter @mnemonics/shared build && pnpm --filter @mnemonics/ai build && pnpm --filter @mnemonics/database build && tsx scripts/demo-server.mts",
+    "check:prereqs": "tsx scripts/check-deploy-prereqs.mts"
   },
   "dependencies": {
     "@mnemonics/ai": "workspace:*",
