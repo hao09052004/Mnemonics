@@ -20,15 +20,11 @@ describe("loadAiConfig", () => {
     expect(c.vision.provider).toBe("local");
     expect(c.vision.clipModel).toBe("Xenova/clip-vit-base-patch32");
     // New fallback knobs default to the conservative free-mode
-    // defaults: local Ollama text fallback is opt-in by env var
-    // but always wired in code; the embedding fallback is the LOCAL
-    // provider (a real 1024-d semantic search), terminating at noop
-    // only when the local model is unusable.
+    // defaults: the text fallback is the deterministic heuristic
+    // (always available, zero cost); the embedding fallback is noop
+    // (lexical-only search) — the chain always terminates honestly.
     expect(c.text.textFallback).toBe(true);
-    expect(c.text.ollamaBaseUrl).toBe("http://localhost:11434");
-    expect(c.text.ollamaTextModel).toBe("llama3.2:3b");
     expect(c.embeddings.embeddingsFallback).toBe(true);
-    expect(c.embeddings.ollamaEmbeddingModel).toBe("bge-m3");
   });
 
   it("disables text fallback when AI_TEXT_FALLBACK=false", () => {
@@ -79,20 +75,15 @@ describe("loadAiConfig", () => {
     expect(JSON.stringify(withKey.embeddings)).not.toContain("sk-test");
   });
 
-  it("defaults embeddings to 1024-d so Gemini and the local model share one column", () => {
+  it("defaults embeddings to 1024-d for the cloud embedding model", () => {
     const c = loadAiConfig({});
     expect(c.embeddings.geminiDimensions).toBe(1024);
-    expect(c.embeddings.ollamaEmbeddingModel).toBe("bge-m3");
   });
 
-  it("accepts the local ollama embedding provider", () => {
-    const c = loadAiConfig({
-      AI_EMBEDDING_PROVIDER: "ollama",
-      OLLAMA_BASE_URL: "http://localhost:11434",
-      OLLAMA_EMBEDDING_MODEL: "bge-m3",
-    });
-    expect(c.embeddings.provider).toBe("ollama");
-    expect(c.embeddings.ollamaEmbeddingModel).toBe("bge-m3");
+  it("refuses unknown embedding provider", () => {
+    expect(() =>
+      loadAiConfig({ AI_EMBEDDING_PROVIDER: "openai" })
+    ).toThrowError(/Unknown AI_EMBEDDING_PROVIDER/i);
   });
 
   it("respects OCR.Space daily soft limit override", () => {
