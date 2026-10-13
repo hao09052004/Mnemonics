@@ -3,14 +3,11 @@
  * ProviderError, retries once with a fallback. Mirrors the text
  * wrapper's contract exactly so the same reasoning applies.
  *
- * For embeddings the fallback is a REAL second provider, not a no-op:
- * the chain is gemini -> ollama (local) -> noop. Because both real
- * providers emit exactly 1024-d vectors (the width of
- * `item_embeddings.embedding`), a Gemini outage degrades to
- * slower local semantic search rather than to lexical-only.
- *
- * The chain always terminates at a noop, which throws — so a caller
- * can never mistake "no embedding" for "semantically unrelated".
+ * For embeddings the fallback chain terminates at noop, so a Gemini
+ * outage degrades to lexical-only search rather than to a
+ * mis-dimensioned silent failure. The chain always terminates
+ * honestly: the noop throws — so a caller can never mistake
+ * "no embedding" for "semantically unrelated".
  */
 
 import { ProviderError } from "../../types.js";

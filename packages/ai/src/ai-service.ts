@@ -235,7 +235,7 @@ export async function createAiService(opts?: {
       const understandingImage = understanding.imageDescription.info();
       const understandingTldr = understanding.tldr.info();
       const imageDescriptionReady = understandingImage.loaded;
-      const tldrReady = true; // deterministic always ready; ollama best-effort
+      const tldrReady = true; // deterministic always ready
       const ocrCounter = (primaryOcr as unknown as {
         // best-effort — only OcrSpaceProvider has this
         dailyCounter?: { count: () => number; limit: () => number };

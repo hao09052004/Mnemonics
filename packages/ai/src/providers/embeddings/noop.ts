@@ -28,8 +28,7 @@ export class NoopEmbeddingProvider implements EmbeddingProvider {
     throw new ProviderError({
       message:
         "Embedding provider is 'noop'. No real embedding was produced. " +
-        "Configure GEMINI_API_KEY, or run 'ollama pull bge-m3' for the " +
-        "local 1024-d fallback, or accept lexical-only search.",
+        "Configure GEMINI_API_KEY, or accept lexical-only search.",
       code: "PROVIDER_UNAVAILABLE",
       provider: "noop",
       retryable: false,
@@ -40,8 +39,7 @@ export class NoopEmbeddingProvider implements EmbeddingProvider {
     throw new ProviderError({
       message:
         "Embedding provider is 'noop'. No real embedding was produced. " +
-        "Configure GEMINI_API_KEY, or run 'ollama pull bge-m3' for the " +
-        "local 1024-d fallback, or accept lexical-only search.",
+        "Configure GEMINI_API_KEY, or accept lexical-only search.",
       code: "PROVIDER_UNAVAILABLE",
       provider: "noop",
       retryable: false,

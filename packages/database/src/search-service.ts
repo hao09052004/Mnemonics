@@ -313,7 +313,7 @@ export async function runSearch(
     if (providerName === "noop" || providerName.endsWith("+noop")) {
       console.warn(
         `[search-service] query embedding provider is '${providerName}'; ` +
-          `search will run lexical-only. Set GEMINI_API_KEY or 'ollama pull bge-m3' ` +
+          `search will run lexical-only. Set GEMINI_API_KEY ` +
           `to restore semantic + chunk recall.`
       );
     }

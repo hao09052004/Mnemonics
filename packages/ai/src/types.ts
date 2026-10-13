@@ -7,10 +7,10 @@
  * Spaces suggester) should depend on these types, NOT on a concrete
  * provider implementation.
  *
- * Why: we want to be able to swap Gemini ↔ local Ollama ↔ local CLIP
- * without touching business logic, and we want AI_FREE_ONLY=true to
- * be enforced at the type-boundary, not at scattered `if (process.env…)`
- * checks.
+ * Why: we want to be able to swap Gemini ↔ noop (and previously ↔
+ * local Ollama / local CLIP) without touching business logic, and
+ * we want AI_FREE_ONLY=true to be enforced at the type-boundary, not
+ * at scattered `if (process.env…)` checks.
  */
 
 /**

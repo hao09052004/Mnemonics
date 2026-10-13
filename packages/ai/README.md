@@ -7,8 +7,8 @@ implementations:
 
 | Concern        | Interface                | Primary (Gemini)                       | Local fallback     |
 |----------------|--------------------------|----------------------------------------|--------------------|
-| Text generation| `TextProvider`           | Gemini free tier                        | Ollama → heuristic |
-| Embeddings     | `EmbeddingProvider`      | Gemini `gemini-embedding-001` (1024-d)  | Ollama `bge-m3`    |
+| Text generation| `TextProvider`           | Gemini free tier                        | Heuristic          |
+| Embeddings     | `EmbeddingProvider`      | Gemini `gemini-embedding-001` (1024-d)  | Noop (lexical)     |
 | OCR            | `OcrProvider`            | OCR.Space free tier                     | Tesseract local    |
 | Visual         | `VisualProvider`         | CLIP local (transformers.js)            | —                  |
 
@@ -21,10 +21,9 @@ no `OPENAI_API_KEY`; a ChatGPT key cannot be selected by accident.
 `AI_FREE_ONLY=true` remains as a guard so a future paid provider
 cannot be enabled without a code change.
 
-Embeddings from both real providers are **exactly 1024-d** because
-they share the `item_embeddings.embedding` column (`vector(1024)`,
-migration 017). A local model of a different width is rejected rather
-than padded — see `providers/embeddings/ollama.ts`.
+Embeddings from the cloud provider are **exactly 1024-d** because
+the `item_embeddings.embedding` column is `vector(1024)` (migration
+017). A noop fallback refuses rather than padding.
 
 See:
 - `docs/free-ai-setup.md` — how to obtain Gemini + OCR.Space keys

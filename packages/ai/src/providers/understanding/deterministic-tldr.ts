@@ -15,8 +15,8 @@
  * The point: this provider works WITHOUT any model, network, or
  * configuration. It is the floor of the TLDR pipeline.
  *
- * A future `OllamaTldrProvider` may improve the wording when an
- * Ollama daemon is available; this one is always wired in.
+ * A future cloud-based TLDR provider may improve the wording when
+ * available; this one is always wired in.
  */
 
 import type { TldrInput, TldrProvider, TldrResult } from '../../understanding/types.js';

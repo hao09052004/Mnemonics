@@ -294,8 +294,6 @@ function createStubAi() {
         geminiApiKey: undefined,
         geminiModel: 'gemini-embedding-001',
         geminiDimensions: 1024,
-        ollamaBaseUrl: undefined,
-        ollamaEmbeddingModel: 'bge-m3',
         embeddingsFallback: true
       },
       ocr: {

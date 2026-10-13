@@ -1,7 +1,8 @@
 /**
  * Text provider that tries a primary provider and, on ProviderError,
- * transparently retries once with a fallback. The fallback must be
- * a strictly weaker / free provider (Ollama local). The contract:
+ * transparently retries once with a fallback. The fallback is a
+ * strictly weaker / free provider (deterministic heuristic). The
+ * contract:
  *
  *   - if primary succeeds → return its result
  *   - if primary throws ProviderError AND fallback is configured
@@ -70,8 +71,8 @@ export class FallingBackTextProvider implements TextProvider {
       this.onFallback?.(err, kind);
       // Fallback gets a fresh timeout: the primary already burned
       // most of the caller's budget. We pass failOpen=true so the
-      // fallback's heuristic last-resort path can run if even
-      // Ollama is down.
+      // fallback's heuristic last-resort path can run if even the
+      // fallback heuristic misbehaves.
       const fbOpts: TextGenerationOptions = opts
         ? { ...opts, failOpen: true }
         : { failOpen: true };

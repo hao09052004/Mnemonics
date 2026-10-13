@@ -9,8 +9,8 @@
  *   Every edge records the embedding identity (model, dimensions,
  *   version) that produced the score. The SQL guard
  *   `embeddings_compatible()` rejects comparisons across different
- *   identities, so a row written by Gemini cannot be compared
- *   against a row written by a local Ollama model even if both
+ *   identities, so a row written by one embedding model cannot be
+ *   compared against a row written by a different model even if both
  *   happen to have the same numeric width.
  *
  *   The source identity is read from `item_embeddings` (the actual

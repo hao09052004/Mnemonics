@@ -34,10 +34,11 @@ describe("createAiService", () => {
       // Defaults already have textFallback=true and embeddingsFallback=true
     });
     const svc = await createAiService({ config });
-    expect(svc.text.info().name).toBe("gemini+ollama");
-    // The embedding fallback is the LOCAL provider, so semantic search
-    // survives a Gemini outage instead of dropping to lexical-only.
-    expect(svc.embeddings.info().name).toBe("gemini+ollama");
+    // Text fallback chain: gemini -> heuristic.
+    expect(svc.text.info().name).toBe("gemini+heuristic");
+    // The embedding fallback is noop (lexical-only search); semantic
+    // search is the primary only.
+    expect(svc.embeddings.info().name).toBe("gemini+noop");
     expect(svc.embeddings.info().dimensions).toBe(1024);
     // Health snapshot still surfaces the primary model in `model`
     expect(svc.text.info().model).toBe("gemini-3.8-flash");
@@ -49,14 +50,12 @@ describe("createAiService", () => {
     expect(svc.primaryOcr.info().name).toBe("tesseract");
   });
 
-  it("falls back to the LOCAL embedding provider when no Gemini key is set", async () => {
+  it("uses noop embeddings when no Gemini key is set", async () => {
     const config = loadAiConfig({ AI_FREE_ONLY: "true" });
     const svc = await createAiService({ config });
-    // A missing Gemini key must not mean "no semantic search": the
-    // local bge-m3 model is the primary in that case.
-    expect(svc.embeddings.info().name).toBe("ollama+noop");
-    expect(svc.embeddings.info().model).toBe("bge-m3");
-    expect(svc.embeddings.info().dimensions).toBe(1024);
+    // A missing Gemini key means lexical-only search; the chain
+    // collapses straight to noop.
+    expect(svc.embeddings.info().name).toBe("noop");
   });
 
   it("uses noop embeddings only when the local width cannot match the column", async () => {

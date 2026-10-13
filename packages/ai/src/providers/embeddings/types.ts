@@ -44,8 +44,7 @@ export interface EmbeddingProvider {
 
   /**
    * Embed a batch. Implementations should batch internally where the
-   * upstream API supports it (Gemini batchEmbedContents, Ollama
-   * /api/embed with array input).
+   * upstream API supports it (Gemini batchEmbedContents).
    */
   embedMany(texts: string[], opts?: EmbeddingOptions): Promise<number[][]>;
 
