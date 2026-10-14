@@ -13,7 +13,7 @@
 #   4. prod-deps — `pnpm deploy --prod` strips devDependencies
 #   5. runner    — slim runtime image with only the api package
 
-ARG NODE_VERSION=20
+ARG NODE_VERSION=22
 
 # ──────────────────────────────────────────────────────────────────
 # Stage 1: base
