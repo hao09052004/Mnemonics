@@ -114,6 +114,24 @@ function signWebhookBody(data: Record<string, unknown>): { signature: string } {
   return { signature };
 }
 
+/**
+ * PayOS expects `transactionDateTime` in `YYYY-MM-DD HH:mm:ss` form
+ * (their example payload is `"2026-10-12 13:45:00"`). Using `now`
+ * instead of a hard-coded date avoids the test going stale:
+ * `computePeriodEnd` (apps/api/src/payments/orders.ts:391) extends
+ * `paidAt` by exactly 30 days for the monthly plan, so a fixed
+ * `transactionDateTime` 30 days in the past would make the
+ * `validUntil > now + 29 days` assertion fail forever.
+ */
+function payosFixtureNow(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
+  );
+}
+
 async function createUser(pool: Pool, email: string) {
   const u = await pool.query<{ id: string }>(
     `INSERT INTO auth.users (id, raw_user_meta_data)
@@ -252,7 +270,13 @@ describe.skipIf(skipIfNoDb)('M3 PayOS checkout + webhook', () => {
       accountNumber: '9912780019',
       counterAccountNumber: '111122223333',
       counterAccountName: 'NGUYEN VAN A',
-      transactionDateTime: '2026-10-12 13:45:00',
+      // Use a current timestamp so the 30-day `validUntil`
+      // produced by `computePeriodEnd` stays in the future
+      // for any wall-clock at which this test runs. A hard-
+      // coded `2026-10-12` here caused the
+      // `validUntil > now + 29 days` assertion below to fail
+      // the day that date rolled into the past.
+      transactionDateTime: payosFixtureNow(),
       code: '00',
       desc: 'success'
     };
