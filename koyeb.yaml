@@ -1,0 +1,109 @@
+# Koyeb Blueprint — Mnemonics API
+#
+# Connects GitHub repo `hao09052004/Mnemonics` to Koyeb, builds a
+# Docker image from the Dockerfile at the repo root, and starts
+# the API service on port 4000. Database lives in Supabase
+# (free forever, 500 MB, pgvector) — set DATABASE_URL manually
+# under Environment. See deploy/.env.production.example for the
+# full env checklist.
+#
+# One-time setup:
+#   1. https://app.koyeb.com → Create Web Service → GitHub
+#   2. Connect repo: hao09052004/Mnemonics
+#   3. Branch: main
+#   4. Builder: Docker (Koyeb picks up the root Dockerfile)
+#   5. Work directory: leave empty (build context is the repo root)
+#   6. Port: 4000  Health check path: /api/v1/health
+#   7. Plan: Free
+#   8. Click Deploy, then fill in env vars from .env.production.example
+#
+# Web dashboard lives on Vercel (see deploy/README.md#vercel).
+#
+# Free-tier notes:
+#   - 512 MB RAM, 0.1 vCPU, 2 GB SSD
+#   - Frankfurt (fra) or Washington D.C. (was) only
+#   - Scales to zero after 1 hour of zero traffic
+#   - Cold start: ~1-5 s (much faster than Render's ~60 s)
+#   - No worker Services, no persistent Volumes on free tier
+#
+# We deliberately do NOT provision a Koyeb Postgres here:
+#   - Koyeb free DB = 5 h/month compute, 1 GB, sleeps after 5 min
+#   - The existing Supabase project is free forever and already
+#     has pgvector + 34 migrations applied
+# If you ever migrate, set DATABASE_URL accordingly.
+
+koyebVersion: "1"
+
+services:
+  - name: mnemonics-api
+    type: WEB
+    # Koyeb reserves the .koyeb.app subdomain; override later if
+    # you bring a custom domain.
+    regions:
+      - fra
+    build:
+      builder: DOCKER
+      dockerfile: Dockerfile
+      # No `context` override → the repo root is the build context,
+      # so the existing Dockerfile (which COPYs apps/, packages/,
+      # pnpm-workspace.yaml etc.) works as-is.
+    ports:
+      - port: 4000
+        protocol: HTTP
+    routes:
+      - path: /
+        port: 4000
+    health_checks:
+      - type: HTTP
+        port: 4000
+        # The API mounts a health endpoint at /api/v1/health (see
+        # apps/api/src/app.ts:118). Koyeb will mark the instance
+        # unhealthy and recycle it if the probe fails repeatedly.
+        path: /api/v1/health
+        # Koyeb's free instance sleeps aggressively. Failing the
+        # probe 3 times in a row triggers a redeploy, which we
+        # want — but we keep the threshold generous so a brief
+        # cold start doesn't recycle the container.
+        failure_threshold: 3
+        interval_seconds: 30
+    instance_type: free
+    # Scale-to-zero is the free-tier default and cannot be turned
+    # off. The 1-hour idle window is also non-configurable on free
+    # instances. If you need always-on, upgrade to `eco` (~$1.61/mo).
+    scaler:
+      min: 0
+      max: 1
+    # Environment variables that have **no** secret value. Secrets
+    # are entered in the Koyeb dashboard (or via `koyeb service
+    # update --env KEY=value`).
+    env:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      # The following MUST be set in the Koyeb dashboard, NOT here:
+      # - DATABASE_URL          (Supabase session pooler, port 5432)
+      # - SUPABASE_URL
+      # - SUPABASE_ANON_KEY
+      # - SUPABASE_SERVICE_ROLE_KEY
+      # - GEMINI_API_KEY        (AI Studio key, AIza...; NOT ADC token)
+      # - GEMINI_MODEL, GEMINI_EMBEDDING_MODEL, GEMINI_EMBEDDING_DIMENSIONS
+      # - OCR_PROVIDER, OCR_LOCAL_FALLBACK
+      # - AI_IMAGE_DESCRIPTION_PROVIDER, AI_TLDR_PROVIDER
+      # - VISUAL_EMBEDDING_PROVIDER, GEMINI_VISUAL_EMBEDDING_MODEL,
+      #   GEMINI_VISUAL_EMBEDDING_DIMENSIONS
+      # - AI_TEXT_FALLBACK, AI_EMBEDDING_FALLBACK
+      # - GEMINI_REQUEST_TIMEOUT_MS, GEMINI_MAX_RETRIES,
+      #   GEMINI_MAX_CONCURRENT_REQUESTS, GEMINI_RATE_LIMIT_RPM,
+      #   GEMINI_QUEUE_WAIT_TIMEOUT_MS, GEMINI_TOTAL_BUDGET_MS,
+      #   GEMINI_TLDR_TOTAL_BUDGET_MS
+      # - AI_USER_DAILY_LIMIT
+      # - AUTH_AUTO_CONFIRM      (false for production)
+      # - DEV_AUTH_TOKEN         (MUST be empty in production)
+      # - DEV_USER_ID            (MUST be empty in production)
+      # - CORS_ALLOWED_ORIGINS   (Vercel web URL, no trailing slash)
+      # - BILLING_ENABLED, PAYMENT_PROVIDER, PAYMENT_CURRENCY,
+      #   PAYMENT_ORDER_EXPIRY_MINUTES, PAYMENT_RETURN_URL,
+      #   PAYMENT_CANCEL_URL, PAYOS_CLIENT_ID, PAYOS_API_KEY,
+      #   PAYOS_CHECKSUM_KEY
+      # - DEMO_MODE              (MUST be false in production)
