@@ -22,7 +22,9 @@
   --purple: #7567E8;
   --purple-soft: #2A2648;
   --border: #303541;
+  --border-strong: rgba(255, 255, 255, 0.12);
   --radius: 12px;
+  --radius-sm: 8px;
   --on-primary: #F4F5F7;
   --purple-button: #6557D6;
   --purple-button-hover: #6B5DDA;
@@ -31,6 +33,7 @@
   --purple-text: #9B90F5;
   --focus-ring: rgba(117, 103, 232, .35);
   --overlay: rgba(5, 7, 12, .68);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
   font-family: 'Inter', system-ui, sans-serif;
   color: var(--text);
@@ -53,6 +56,10 @@ button { cursor: pointer; border: 0; background: transparent; padding: 0; }
   gap: 42px;
   border-bottom: 1px solid var(--border);
   background: var(--elevated);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
 }
 
 .brand {
@@ -101,6 +108,12 @@ button { cursor: pointer; border: 0; background: transparent; padding: 0; }
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  padding: 0 4px;
+  cursor: pointer;
+  transition: color .15s;
 }
 
 .header-link:hover { color: var(--secondary); }
