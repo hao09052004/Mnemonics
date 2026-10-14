@@ -39,12 +39,13 @@ FROM base AS deps
 # Copy only the manifests first so this layer is cached unless a
 # package.json changes. Workspaces are apps/* and packages/*.
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc* ./
-COPY apps/api/package.json    ./apps/api/
-COPY apps/web/package.json    ./apps/web/
-COPY packages/shared/package.json   ./packages/shared/
-COPY packages/database/package.json ./packages/database/
+COPY apps/api/package.json          ./apps/api/
+COPY apps/extension/package.json    ./apps/extension/
+COPY apps/web/package.json          ./apps/web/
 COPY packages/ai/package.json       ./packages/ai/
-COPY packages/ui/package.json       ./packages/ui/
+COPY packages/bench/package.json    ./packages/bench/
+COPY packages/database/package.json ./packages/database/
+COPY packages/shared/package.json   ./packages/shared/
 
 # AllowBuilds in pnpm-workspace.yaml means sharp, tesseract.js, etc.
 # try to build during install. This needs network for binaries.
