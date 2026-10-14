@@ -76,11 +76,12 @@ RUN pnpm --filter @mnemonics/api       build
 # ──────────────────────────────────────────────────────────────────
 FROM build AS prod-deps
 
-# `pnpm deploy --prod` is the official way to assemble a
+# `pnpm deploy --legacy --prod` is the official way to assemble a
 # production-only copy of a single workspace package, with its
 # transitive prod-deps copied in (incl. workspace:* siblings).
+# In pnpm v10+, --legacy is required when inject-workspace-packages is not enabled.
 # Output lands in /out with a pruned, relocatable node_modules.
-RUN pnpm --filter @mnemonics/api deploy --prod /out
+RUN pnpm --filter @mnemonics/api deploy --legacy --prod /out
 
 # ──────────────────────────────────────────────────────────────────
 # Stage 5: final runtime
