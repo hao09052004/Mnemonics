@@ -1,0 +1,53 @@
+# Node + pnpm
+node_modules/
+.pnpm-store/
+
+# Build artefacts
+dist/
+*.tsbuildinfo
+.next/
+out/
+.turbo/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / coverage
+*.log
+coverage/
+apps/*/coverage/
+packages/*/coverage/
+
+# Env files (never bake secrets into the image)
+.env
+.env.*
+!.env.example
+
+# Local secret dumps
+secrets.json
+.security-scan/
+gitleaks-report.*
+
+# Vendored dependencies that don't ship in the image but live in
+# the repo. They are 200+ MB on disk; copy would blow up the
+# build context.
+vendor/
+
+# Benchmark output (regenerated on demand)
+benchmark-results.json
+
+# Tests + docs that the runtime image never needs
+**/*.test.ts
+**/*.test.mts
+**/*.spec.ts
+docs/
+**/README.md
+DEPLOYMENT.md
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
