@@ -359,12 +359,10 @@ function buildCorsMiddleware() {
   const isProd = process.env.NODE_ENV === 'production';
   const configured = (process.env.CORS_ALLOWED_ORIGINS ?? '')
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/+$/, ''))
     .filter(Boolean);
   // Defaults that are always safe to allow.
   const allowList = new Set<string>([
-    // Browser extension identifiers are arbitrary per install; allow
-    // any chrome-extension:// / edge-extension:// origin.
     ...(configured.length > 0 ? configured : [
       'https://app.mnemonics.example',
       'https://mnemonics.example'
@@ -375,6 +373,7 @@ function buildCorsMiddleware() {
     'http://127.0.0.1:3000',
     'http://127.0.0.1:5173'
   ]);
+  const allowAll = allowList.has('*');
 
   const corsMw = cors({
     origin(origin, callback) {
@@ -383,21 +382,32 @@ function buildCorsMiddleware() {
         callback(null, true);
         return;
       }
+      // If wildcard is configured
+      if (allowAll) {
+        callback(null, true);
+        return;
+      }
       // Browser extension origins — always allowed.
       if (/^chrome-extension:\/\//.test(origin) || /^edge-extension:\/\//.test(origin)) {
         callback(null, true);
         return;
       }
-      if (allowList.has(origin)) {
+      const cleanOrigin = origin.replace(/\/+$/, '');
+      if (allowList.has(cleanOrigin)) {
         callback(null, true);
         return;
       }
-      if (!isProd && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+      // Automatically allow Vercel deployment origins
+      if (/^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(cleanOrigin)) {
         callback(null, true);
         return;
       }
-      // Explicit deny. CORS will refuse the request.
-      callback(new Error(`CORS: origin not allowed: ${origin}`));
+      if (!isProd && /^http:\/\/localhost(:\d+)?$/.test(cleanOrigin)) {
+        callback(null, true);
+        return;
+      }
+      // Gracefully deny origin
+      callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
