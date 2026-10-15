@@ -76,6 +76,23 @@ export function Header({ floatOnTop = true }: HeaderProps) {
     }
   };
 
+  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    setOpen(false);
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo?.({ top: 0, left: 0, behavior: 'smooth' });
+    } catch {
+      // no-op in JSDOM / test environments
+    }
+
+    if (location.pathname === '/') {
+      e.preventDefault();
+      if (window.location.hash) {
+        window.history.pushState(null, '', '/');
+      }
+    }
+  };
+
   const faded = floatOnTop && scrolled;
 
   return (
@@ -104,8 +121,17 @@ export function Header({ floatOnTop = true }: HeaderProps) {
       >
         <Link
           to="/"
+          onClick={handleLogoClick}
           aria-label="Mnemonics home"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontWeight: 700, fontSize: 17 }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+            fontWeight: 700,
+            fontSize: 17,
+            textDecoration: 'none',
+            cursor: 'pointer'
+          }}
         >
           <Logo />
           <span>Mnemonics</span>

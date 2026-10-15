@@ -87,7 +87,15 @@ export function DashboardTopNav({
       <button
         type="button"
         className="brand"
-        onClick={() => onNavigate('Everything')}
+        onClick={() => {
+          onNavigate('Everything');
+          try {
+            window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+            document.documentElement.scrollTo?.({ top: 0, left: 0, behavior: 'smooth' });
+          } catch {
+            // no-op in JSDOM / test environments
+          }
+        }}
         aria-label="Mnemonics home"
         data-testid="brand"
       >
