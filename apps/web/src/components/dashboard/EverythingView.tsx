@@ -279,6 +279,18 @@ export function EverythingView({
           </button>
         </div>
       ) : null}
+
+      {/* mymind-style Floating Action Button (FAB) */}
+      <button
+        type="button"
+        className="floating-fab"
+        onClick={onCapture}
+        aria-label="Capture a memory"
+        title="Capture a memory (+)"
+        data-testid="floating-capture-fab"
+      >
+        <Icon name="plus" size={24} />
+      </button>
     </main>
   );
 }

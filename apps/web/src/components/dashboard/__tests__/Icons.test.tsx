@@ -8,7 +8,7 @@ describe('Icon', () => {
       'grid', 'star', 'layers', 'sparkle', 'bell', 'settings',
       'search', 'sliders', 'arrow', 'more', 'heart', 'plus',
       'chevron', 'clock', 'link', 'x', 'check', 'image',
-      'file', 'share', 'copy', 'upload', 'trash',
+      'file', 'share', 'copy', 'upload', 'trash', 'sun', 'moon',
     ] as const;
     for (const name of names) {
       const { container, unmount } = render(<Icon name={name} />);

@@ -16,7 +16,9 @@ export function SearchZone({
   return (
     <section className="search-zone" aria-label="Memory search">
       <div className="searchline">
-        <Icon name="search" size={20} />
+        <span className="search-icon-wrap" aria-hidden="true">
+          <Icon name="search" size={19} />
+        </span>
         <input
           aria-label="Search your memories"
           value={value}
@@ -25,7 +27,19 @@ export function SearchZone({
           autoFocus={autoFocus}
           data-mn-search
         />
-        <kbd>⌘ K</kbd>
+        {value ? (
+          <button
+            type="button"
+            className="search-clear-btn"
+            onClick={() => onChange('')}
+            aria-label="Clear search"
+            data-testid="search-clear"
+          >
+            <Icon name="x" size={14} />
+          </button>
+        ) : (
+          <kbd className="search-kbd">⌘ K</kbd>
+        )}
       </div>
     </section>
   );

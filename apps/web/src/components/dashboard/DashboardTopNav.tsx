@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Icon } from './Icons';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../../lib/api-client';
@@ -35,6 +36,31 @@ export function DashboardTopNav({
   isAdmin,
 }: DashboardTopNavProps) {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('mnemonics_theme');
+      if (stored === 'light' || stored === 'dark') return stored;
+    }
+    return 'dark';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.body.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mnemonics_theme', next);
+      document.documentElement.setAttribute('data-theme', next);
+      document.body.setAttribute('data-theme', next);
+    }
+  };
+
   return (
     <header className="app-header">
       <button
@@ -96,6 +122,16 @@ export function DashboardTopNav({
       <div className="header-actions">
         <button
           type="button"
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to Warm Paper theme' : 'Switch to Deep Obsidian theme'}
+          aria-label="Toggle theme"
+          data-testid="theme-toggle"
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18} />
+        </button>
+        <button
+          type="button"
           className="primary"
           onClick={onCapture}
           data-testid="capture-btn"
@@ -106,9 +142,9 @@ export function DashboardTopNav({
         <button
           type="button"
           className="avatar"
-          title={`Settings · ${initials}`}
+          title={`Tài khoản · ${initials}`}
           aria-label="Account settings"
-          onClick={() => onNavigate('Settings')}
+          onClick={() => navigate('/app/billing')}
           data-testid="avatar-btn"
         >
           {initials}

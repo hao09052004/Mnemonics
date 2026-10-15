@@ -281,9 +281,14 @@ export function MemoryCard({
           </div>
         </div>
 
+        {highlight ? (
+          <div className="card-quote-mark" aria-hidden="true">“</div>
+        ) : null}
         <h3>{item.title}</h3>
         {label === 'document' ? <DocumentMeta item={item} /> : null}
-        {item.snippet ? <p>{item.snippet}</p> : null}
+        {item.snippet ? (
+          <p className={highlight ? 'quote-text' : undefined}>{item.snippet}</p>
+        ) : null}
 
         {item.explanation ? <ExplainabilityPill explanation={item.explanation} /> : null}
 
