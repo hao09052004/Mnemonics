@@ -135,14 +135,20 @@ function BrowserMockup({ phase }: { phase: Phase }) {
       </div>
 
       {/* Page body */}
-      <div style={{ padding: 22 }}>
-        <div style={{ height: 12, width: 60, background: 'var(--brand-tint)', borderRadius: 4 }} />
-        <div style={{ height: 22, width: '80%', background: 'var(--ink)', borderRadius: 4, marginTop: 12 }} />
-        <div style={{ height: 22, width: '64%', background: 'var(--ink)', borderRadius: 4, marginTop: 8 }} />
-        <div style={{ height: 9, width: '92%', background: 'var(--border)', borderRadius: 4, marginTop: 16 }} />
-        <div style={{ height: 9, width: '85%', background: 'var(--border)', borderRadius: 4, marginTop: 6 }} />
-        <div style={{ height: 9, width: '90%', background: 'var(--border)', borderRadius: 4, marginTop: 6 }} />
-        <div style={{ height: 9, width: '50%', background: 'var(--border)', borderRadius: 4, marginTop: 6 }} />
+      <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand)', background: 'var(--brand-soft)', padding: '3px 8px', borderRadius: 6 }}>
+          Tech &bull; 6 min read
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.35, marginTop: 4 }}>
+          The quiet rise of personal AI
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+          How intelligent second-brain extensions quietly change the way we capture and recall knowledge across the web.
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'var(--surface-hover)', color: 'var(--muted)', border: '1px solid var(--border)' }}>#ai</span>
+          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'var(--surface-hover)', color: 'var(--muted)', border: '1px solid var(--border)' }}>#knowledge</span>
+        </div>
       </div>
 
       {/* Saved toast */}

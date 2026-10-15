@@ -236,31 +236,61 @@ body[data-theme="marketing"] {
   100% { left: 140%; }
 }
 .btn--outline {
-  background: rgba(26, 29, 38, 0.75);
+  background: rgba(26, 29, 38, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: var(--ink);
-  border-color: rgba(255, 255, 255, 0.14);
+  color: #f2f3f5;
+  border-color: rgba(255, 255, 255, 0.16);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 .btn--outline:hover {
   background: rgba(35, 39, 51, 0.95);
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #ffffff;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 .btn--outline:active {
   transform: translateY(0) scale(0.98);
 }
+
+[data-theme='light'] .btn--outline {
+  background: #ffffff;
+  color: #111827;
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+[data-theme='light'] .btn--outline:hover {
+  background: #f4f2ec;
+  border-color: rgba(0, 0, 0, 0.25);
+  color: #000000;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] .btn--outline,
+[data-theme='light'] [data-theme='dark'] .btn--outline {
+  background: rgba(26, 29, 38, 0.85);
+  color: #f2f3f5;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+[data-theme='dark'] .btn--outline:hover,
+[data-theme='light'] [data-theme='dark'] .btn--outline:hover {
+  background: rgba(35, 39, 51, 0.95);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
 .btn--ghost {
   background: transparent;
   color: var(--ink-soft);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--border);
 }
 .btn--ghost:hover {
   background: rgba(139, 111, 248, 0.1);
   border-color: rgba(139, 111, 248, 0.35);
-  color: #c4b5fd;
+  color: var(--brand);
   transform: translateY(-2px);
 }
 .btn--ghost:active {
@@ -336,6 +366,25 @@ body[data-theme="marketing"] {
   text-wrap: balance;
 }
 .mn-hero-gradient-text {
+  background: linear-gradient(135deg, #ffffff 15%, #e9d5ff 55%, #c084fc 85%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+  filter: drop-shadow(0 2px 18px rgba(168, 85, 247, 0.25));
+}
+
+[data-theme='light'] .mn-hero-gradient-text {
+  background: linear-gradient(135deg, #0f172a 0%, #3730a3 40%, #6d28d9 75%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+  filter: drop-shadow(0 2px 12px rgba(109, 40, 217, 0.12));
+}
+
+[data-theme='dark'] .mn-hero-gradient-text,
+[data-theme='light'] [data-theme='dark'] .mn-hero-gradient-text {
   background: linear-gradient(135deg, #ffffff 15%, #e9d5ff 55%, #c084fc 85%, #a855f7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

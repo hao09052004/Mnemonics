@@ -8,6 +8,7 @@ export function ExtensionCTA() {
   return (
     <section
       className="section"
+      data-theme="dark"
       style={{
         background: '#0c0e14',
         color: '#f2f3f5',
@@ -53,7 +54,7 @@ export function ExtensionCTA() {
         <h2 className="display h1 mn-hero-headline" style={{ marginTop: 16, color: '#f2f3f5', maxWidth: 18 + 'ch' }}>
           <span className="mn-hero-gradient-text">Remember it later.</span>
         </h2>
-        <p style={{ marginTop: 18, color: 'var(--ink-soft)', maxWidth: 56 + 'ch', lineHeight: 1.6, fontSize: 16 }}>
+        <p style={{ marginTop: 18, color: '#a2a9b8', maxWidth: 56 + 'ch', lineHeight: 1.6, fontSize: 16 }}>
           Mnemonics is a private, AI-shaped second brain. It works best when it lives where
           you already spend your day — the browser.
         </p>

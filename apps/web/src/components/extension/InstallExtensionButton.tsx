@@ -192,15 +192,15 @@ function EdgeGlyph() {
   // reading as "browser-shaped".
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="11" fill="rgba(255,255,255,0.18)" />
+      <circle cx="12" cy="12" r="11" fill="currentColor" fillOpacity="0.16" />
       <path
         d="M5.5 13.5C5.5 9.36 8.86 6 13 6c3.04 0 5.5 1.83 6.5 4.5-1.2-1.4-3.1-2.3-5.2-2.3-3.5 0-6.4 2.4-6.4 5.3 0 1.6.8 2.9 2.1 3.6-2.7-.6-4.5-2.6-4.5-3.6Z"
-        fill="#fff"
+        fill="currentColor"
       />
       <path
         d="M19 12.4c.4 2.4-1.1 4.7-3.6 5.4-2.6.7-5.3-.6-6.1-3-.3-.9-.2-1.8.1-2.6.6-1.6 2.2-2.7 4-2.7 2.6 0 4.7 1.7 5.6 2.9Z"
-        fill="#fff"
-        fillOpacity="0.85"
+        fill="currentColor"
+        fillOpacity="0.8"
       />
     </svg>
   );

@@ -121,11 +121,13 @@ export function Header({ floatOnTop = true }: HeaderProps) {
       <div
         className="container"
         style={{
+          minHeight: 'var(--header-h)',
           height: 'var(--header-h)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 16
+          flexWrap: 'nowrap',
+          gap: 12
         }}
       >
         <Link
@@ -135,12 +137,13 @@ export function Header({ floatOnTop = true }: HeaderProps) {
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 8,
             fontWeight: 700,
             fontSize: 17,
             color: 'var(--ink)',
             textDecoration: 'none',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            flexShrink: 0
           }}
         >
           <Logo />
@@ -151,7 +154,9 @@ export function Header({ floatOnTop = true }: HeaderProps) {
           aria-label="Primary"
           style={{
             display: 'none',
-            gap: 20
+            gap: 8,
+            alignItems: 'center',
+            whiteSpace: 'nowrap'
           }}
           className="mnemonics-header-nav"
         >
@@ -160,7 +165,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
               key={item.label}
               to={item.to}
               onClick={handleNavClick(item.to)}
-              style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 500 }}
+              style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 500, whiteSpace: 'nowrap' }}
             >
               {item.label}
             </Link>
@@ -168,11 +173,11 @@ export function Header({ floatOnTop = true }: HeaderProps) {
         </nav>
 
         {/* Vị trí chỗ trống trên thanh điều hướng — Theme Switcher */}
-        <div className="mnemonics-header-theme-slot" style={{ display: 'inline-flex', alignItems: 'center' }}>
-          <ThemeSwitch />
+        <div className="mnemonics-header-theme-slot" style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+          <ThemeSwitch compact />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} className="mnemonics-header-actions">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} className="mnemonics-header-actions">
           {authed ? (
             <Link to="/app" className="btn btn--ghost btn--sm">
               Open Mnemonics

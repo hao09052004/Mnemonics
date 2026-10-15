@@ -239,10 +239,10 @@ function ArticleCard() {
           border: '1px solid rgba(255, 255, 255, 0.1)'
         }}
       />
-      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#f2f3f5' }}>
         The quiet rise of personal AI
       </div>
-      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
+      <div style={{ marginTop: 4, fontSize: 11, color: '#9ca3af' }}>
         theverge.com · 6 min read
       </div>
     </div>
@@ -259,7 +259,7 @@ function QuoteCard() {
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid rgba(139, 111, 248, 0.35)',
-        color: 'var(--ink)',
+        color: '#f2f3f5',
         borderRadius: 16,
         padding: 16,
         boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
@@ -271,10 +271,10 @@ function QuoteCard() {
         </span>
         <span style={{ fontSize: 18, color: 'var(--brand)', opacity: 0.85, lineHeight: 1 }}>“</span>
       </div>
-      <div style={{ marginTop: 6, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-serif, serif)', fontStyle: 'italic', color: 'var(--ink)' }}>
+      <div style={{ marginTop: 6, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-serif, serif)', fontStyle: 'italic', color: '#f2f3f5' }}>
         “The best interface is the one that disappears.”
       </div>
-      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>— Naoto Fukasawa</div>
+      <div style={{ marginTop: 10, fontSize: 11, color: '#9ca3af' }}>— Naoto Fukasawa</div>
     </div>
   );
 }
@@ -302,7 +302,7 @@ function ScreenshotCard() {
           border: '1px solid rgba(255, 255, 255, 0.1)'
         }}
       />
-      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ marginTop: 8, fontSize: 11, color: '#d1d5db', display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399' }} />
         Screenshot · OCR indexed
       </div>
@@ -363,7 +363,7 @@ function SearchResultCard() {
         boxShadow: '0 16px 36px -6px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af' }}>
         <span>Semantic match</span>
         <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>AI Recall</span>
       </div>
@@ -386,7 +386,7 @@ function Result({ title, score }: { title: string; score: string }) {
         alignItems: 'center',
         justifyContent: 'space-between',
         fontSize: 12,
-        color: 'var(--ink-soft)',
+        color: '#e5e7eb',
         padding: '6px 10px',
         background: 'rgba(255, 255, 255, 0.04)',
         border: '1px solid rgba(255, 255, 255, 0.06)',
