@@ -57,6 +57,13 @@ export function ImageCaptureDialog({
     }
   }, [open]);
 
+  // Clean up the preview URL on unmount or when the dialog closes.
+  useEffect(() => {
+    if (!open && preview) {
+      URL.revokeObjectURL(preview);
+    }
+  }, [open, preview]);
+
   if (!open) return null;
 
   function pickFile() {
@@ -89,13 +96,6 @@ export function ImageCaptureDialog({
     setPreview(url);
     if (inputRef.current) inputRef.current.value = '';
   }
-
-  // Clean up the preview URL on unmount or when the dialog closes.
-  useEffect(() => {
-    if (!open && preview) {
-      URL.revokeObjectURL(preview);
-    }
-  }, [open, preview]);
 
   async function handleConfirm() {
     if (!fileState) return;
