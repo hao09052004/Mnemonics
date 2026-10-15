@@ -184,8 +184,10 @@ export function BillingPage({ api }: Props) {
                   <strong style={{ textTransform: 'uppercase' }}>{entitlement.planId}</strong>
                 </li>
                 <li>
-                  <span>Semantic search (Tìm kiếm ngữ nghĩa)</span>
-                  <strong>{entitlement.semanticSearchEnabled ? 'Đang bật' : 'Chưa kích hoạt'}</strong>
+                  <span>Toàn bộ tính năng AI của Mnemonics</span>
+                  <strong style={{ color: entitlement.semanticSearchEnabled ? 'var(--emerald, #22c55e)' : 'var(--muted)' }}>
+                    {entitlement.semanticSearchEnabled ? 'Đã mở khóa toàn bộ' : 'Chưa kích hoạt'}
+                  </strong>
                 </li>
                 <li>
                   <span>Thời hạn hiệu lực</span>
@@ -200,9 +202,52 @@ export function BillingPage({ api }: Props) {
                   </strong>
                 </li>
               </ul>
+
+              <div
+                style={{
+                  marginTop: '1.25rem',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: entitlement.semanticSearchEnabled
+                    ? 'rgba(34, 197, 94, 0.08)'
+                    : 'rgba(108, 71, 255, 0.08)',
+                  border: entitlement.semanticSearchEnabled
+                    ? '1px solid rgba(34, 197, 94, 0.25)'
+                    : '1px solid rgba(108, 71, 255, 0.25)',
+                  fontSize: '13px',
+                  lineHeight: '1.6',
+                  color: 'var(--text)',
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{entitlement.semanticSearchEnabled ? '✓' : '✨'}</span>
+                  <span>
+                    {entitlement.semanticSearchEnabled
+                      ? 'Gói Mastery: Toàn bộ công nghệ AI đang hoạt động'
+                      : 'Gói Mastery mở khóa trọn bộ tính năng AI có của Mnemonics:'}
+                  </span>
+                </div>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: '1.25rem',
+                    color: 'var(--secondary)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '4px',
+                  }}
+                >
+                  <li>• <strong>Semantic Search</strong>: Tìm kiếm ngữ nghĩa theo ý hiểu</li>
+                  <li>• <strong>AI Summary</strong>: Tóm tắt thông minh TL;DR</li>
+                  <li>• <strong>Smart Tags</strong>: Tự động phân tích &amp; gắn thẻ</li>
+                  <li>• <strong>AI Groups</strong>: Gom nhóm &amp; phát hiện chủ đề</li>
+                  <li>• <strong>Related Memories</strong>: Đề xuất tri thức liên quan</li>
+                </ul>
+              </div>
+
               <p style={{ marginTop: '1.25rem', marginBottom: 0 }}>
                 <Link to="/pricing" className="admin-button">
-                  Nâng cấp gói Mastery
+                  {entitlement.semanticSearchEnabled ? 'Gia hạn / Đổi gói Mastery' : 'Nâng cấp gói Mastery'}
                 </Link>
               </p>
             </>

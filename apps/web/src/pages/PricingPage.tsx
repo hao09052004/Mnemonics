@@ -92,7 +92,7 @@ export function PricingPage({ api }: PricingPageProps) {
         <Link to="/" className="pricing-back">← Trang chủ</Link>
         <h1>Chọn gói phù hợp với bạn</h1>
         <p className="pricing-tagline">
-          Lưu giữ tri thức không giới hạn với Mastery, hoặc bắt đầu miễn phí với Memory.
+          Lưu giữ tri thức không giới hạn &amp; mở khóa toàn bộ tính năng AI với Mastery, hoặc bắt đầu miễn phí với Memory.
         </p>
       </header>
 
@@ -113,7 +113,7 @@ export function PricingPage({ api }: PricingPageProps) {
               <li>✓ Lưu tối đa 50 memory mỗi tháng</li>
               <li>✓ Tổ chức bằng Spaces &amp; tags thủ công</li>
               <li>✓ Tìm kiếm từ khoá cơ bản</li>
-              <li>✗ Không bao gồm Semantic Search AI</li>
+              <li>✗ Chưa mở khóa các tính năng AI của Mnemonics</li>
             </ul>
             {!isOnMemory && entitlement && (
               <button type="button" className="pricing-cta" disabled>
@@ -123,7 +123,7 @@ export function PricingPage({ api }: PricingPageProps) {
           </article>
 
           <article className={`pricing-card pricing-card--highlight ${isOnMastery ? 'is-current' : ''}`}>
-            <h2>{monthly?.displayName ?? 'Mastery (Tháng)'}</h2>
+            <h2>{monthly?.displayName ?? 'Mastery (Monthly)'}</h2>
             <p className="pricing-price">
               <strong>{monthly ? formatVnd(monthly.amountVnd) : '29.000 VND'}</strong>
               <span> / tháng</span>
@@ -133,7 +133,19 @@ export function PricingPage({ api }: PricingPageProps) {
             )}
             <ul className="pricing-features">
               <li>✓ Lưu không giới hạn mỗi tháng</li>
-              <li>✓ <b>Semantic Search</b> bằng AI</li>
+              <li>✓ <b>Mở khóa toàn bộ tính năng AI</b> có của Mnemonics:</li>
+              <li style={{ paddingLeft: '1rem', fontSize: '0.88rem' }}>
+                • <b>Semantic Search</b> bằng AI (Tìm theo ý niệm)
+              </li>
+              <li style={{ paddingLeft: '1rem', fontSize: '0.88rem' }}>
+                • <b>Tóm tắt thông minh (AI TL;DR)</b> &amp; trích xuất
+              </li>
+              <li style={{ paddingLeft: '1rem', fontSize: '0.88rem' }}>
+                • <b>Auto Smart Tags</b> tự động phân tích &amp; gắn thẻ
+              </li>
+              <li style={{ paddingLeft: '1rem', fontSize: '0.88rem' }}>
+                • <b>AI Groups</b> gom cụm tri thức &amp; Related Memories
+              </li>
               <li>✓ Mọi tính năng của Memory</li>
               <li>✓ Hỗ trợ ưu tiên qua email</li>
             </ul>
@@ -148,7 +160,7 @@ export function PricingPage({ api }: PricingPageProps) {
           </article>
 
           <article className={`pricing-card ${isOnMastery && entitlement?.planId === 'mastery-yearly' ? 'is-current' : ''}`}>
-            <h2>{yearly?.displayName ?? 'Mastery (Năm)'}</h2>
+            <h2>{yearly?.displayName ?? 'Mastery (Yearly)'}</h2>
             <p className="pricing-price">
               <strong>{yearly ? formatVnd(yearly.amountVnd) : '249.000 VND'}</strong>
               <span> / năm</span>
@@ -159,8 +171,15 @@ export function PricingPage({ api }: PricingPageProps) {
             <ul className="pricing-features">
               <li>✓ Tiết kiệm ~28% so với gói tháng</li>
               <li>✓ Lưu không giới hạn mỗi tháng</li>
-              <li>✓ <b>Semantic Search</b> bằng AI</li>
-              <li>✓ Mọi tính năng cao cấp</li>
+              <li>✓ <b>Mở khóa toàn bộ tính năng AI</b> trọn năm:</li>
+              <li style={{ paddingLeft: '1rem', fontSize: '0.88rem' }}>
+                • <b>Semantic Search</b> &amp; Tóm tắt AI TL;DR
+              </li>
+              <li style={{ paddingLeft: '1rem', fontSize: '0.88rem' }}>
+                • <b>Auto Smart Tags</b>, AI Groups &amp; tri thức liên quan
+              </li>
+              <li>✓ Mọi tính năng cao cấp &amp; cập nhật AI mới</li>
+              <li>✓ Hỗ trợ ưu tiên 24/7</li>
             </ul>
             <button
               type="button"
@@ -176,6 +195,15 @@ export function PricingPage({ api }: PricingPageProps) {
 
       <section className="pricing-faq">
         <h2>Câu hỏi thường gặp</h2>
+        <details>
+          <summary>Gói Mastery mở khóa những tính năng AI nào?</summary>
+          <p>
+            Mastery mở khóa toàn bộ các tính năng AI có của Mnemonics, bao gồm:
+            Tìm kiếm ngữ nghĩa (Semantic Search) theo ý hiểu thay vì chỉ từ khóa, Tóm tắt AI (TL;DR) nhanh chóng,
+            Gợi ý và gắn thẻ thông minh (Smart Tags), Tự động phân cụm liên kết tri thức (AI Groups),
+            và Khám phá các ghi chú/tri thức liên quan (Related Memories).
+          </p>
+        </details>
         <details>
           <summary>Tôi có bị tính phí tự động không?</summary>
           <p>Không. Sau khi thanh toán chuyển khoản thành công, bạn sẽ được kích hoạt Mastery trong đúng thời hạn đã mua (1 tháng hoặc 1 năm). Khi hết hạn, hệ thống sẽ tự động chuyển về Memory — không có khoản phí nào được tự động trừ.</p>

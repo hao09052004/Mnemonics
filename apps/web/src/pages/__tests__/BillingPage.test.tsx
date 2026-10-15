@@ -86,6 +86,8 @@ describe('BillingPage', () => {
 
     // Order and plan details
     expect(await screen.findByText(/MNM-12345/)).toBeInTheDocument();
+    expect(screen.getByText(/Toàn bộ tính năng AI/)).toBeInTheDocument();
+    expect(screen.getByText('Đã mở khóa toàn bộ')).toBeInTheDocument();
 
     // Clicking logout calls saveSession(null)
     const logoutBtn = screen.getByTestId('account-logout-btn');
