@@ -28,6 +28,8 @@ import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 import { AdminPaymentsPage } from '../pages/admin/AdminPaymentsPage';
 import { AdminAuditLogsPage } from '../pages/admin/AdminAuditLogsPage';
 
+import { ScrollToHash } from '../components/common/ScrollToHash';
+
 interface AppRouterProps {
   api: ApiClient;
 }
@@ -42,6 +44,7 @@ interface AppRouterProps {
 export function AppRouter({ api }: AppRouterProps) {
   return (
     <div className="mnemonics-app-root">
+      <ScrollToHash />
       <Routes>
         <Route
           path="/"

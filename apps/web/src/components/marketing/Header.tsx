@@ -60,6 +60,22 @@ export function Header({ floatOnTop = true }: HeaderProps) {
     { label: 'Privacy', to: '/#privacy' }
   ];
 
+  const handleNavClick = (to: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (to.includes('#')) {
+      const [path, hashId] = to.split('#');
+      const currentPath = location.pathname;
+      if (path === '' || path === currentPath || (path === '/' && currentPath === '/')) {
+        e.preventDefault();
+        const el = document.getElementById(hashId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          window.history.pushState(null, '', `#${hashId}`);
+        }
+        setOpen(false);
+      }
+    }
+  };
+
   const faded = floatOnTop && scrolled;
 
   return (
@@ -107,6 +123,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
             <Link
               key={item.label}
               to={item.to}
+              onClick={handleNavClick(item.to)}
               style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 500 }}
             >
               {item.label}
@@ -168,6 +185,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
               <Link
                 key={item.label}
                 to={item.to}
+                onClick={handleNavClick(item.to)}
                 style={{
                   padding: '12px 4px',
                   fontSize: 16,

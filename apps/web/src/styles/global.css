@@ -21,6 +21,16 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+#product,
+#how,
+#privacy {
+  scroll-margin-top: calc(var(--header-h, 64px) + 24px);
+}
+
 html,
 body {
   margin: 0;
