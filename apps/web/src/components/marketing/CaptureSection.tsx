@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useLocale } from '../../lib/locale';
 
 type Phase = 'browse' | 'click' | 'saved' | 'synced';
 
@@ -19,6 +20,7 @@ const PHASES: Phase[] = ['browse', 'click', 'saved', 'synced'];
 
 export function CaptureSection() {
   const [phase, setPhase] = useState<Phase>('browse');
+  const { t } = useLocale();
 
   useEffect(() => {
     const reduce =
@@ -41,19 +43,18 @@ export function CaptureSection() {
     <section id="how" className="section section--tight" style={{ background: 'var(--bg-elevated)' }}>
       <div className="container" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 56, alignItems: 'center' }}>
         <div>
-          <div className="eyebrow">Capture</div>
+          <div className="eyebrow">{t('capture_eyebrow', 'Capture')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            One click.
+            {t('capture_headline_1', 'One click.')}
             <br />
-            Safely remembered.
+            {t('capture_headline_2', 'Safely remembered.')}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Click the Mnemonics browser button while you're on a page. We save the article,
-            the highlight, the screenshot — whichever you need — without you leaving the tab.
+            {t('capture_lead', "Click the Mnemonics browser button while you're on a page. We save the article, the highlight, the screenshot — whichever you need — without you leaving the tab.")}
           </p>
           <div style={{ marginTop: 28 }}>
             <Link to="/browser-extension" className="btn btn--primary btn--lg">
-              Get the browser extension
+              {t('capture_btn_install', 'Get the browser extension')}
             </Link>
           </div>
         </div>

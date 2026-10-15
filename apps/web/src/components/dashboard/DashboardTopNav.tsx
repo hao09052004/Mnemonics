@@ -3,7 +3,9 @@ import { Icon } from './Icons';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../../lib/api-client';
 import { useTheme } from '../../lib/theme';
+import { useLocale } from '../../lib/locale';
 import { ThemeSwitch } from '../common/ThemeSwitch';
+import { LanguageSwitch } from '../common/LanguageSwitch';
 
 export type DashboardPage =
   | 'Everything'
@@ -50,6 +52,7 @@ export function DashboardTopNav({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { mode, resolved } = useTheme();
+  const { locale, t } = useLocale();
 
   useEffect(() => {
     if (!accountMenuOpen) return;
@@ -140,6 +143,7 @@ export function DashboardTopNav({
 
       <div className="header-actions">
         <ThemeSwitch />
+        <LanguageSwitch compact />
         <button
           type="button"
           className="primary"
@@ -147,7 +151,7 @@ export function DashboardTopNav({
           data-testid="capture-btn"
         >
           <Icon name="plus" size={16} />
-          Capture
+          {t('btn_capture', 'Capture')}
         </button>
         <div className="header-account-wrapper" ref={menuRef}>
           <button
@@ -235,12 +239,32 @@ export function DashboardTopNav({
 
               <div style={{ padding: '8px 14px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>Giao diện</span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>
+                    {t('lang_label_theme', 'Giao diện')}
+                  </span>
                   <span style={{ fontSize: '11px', color: 'var(--purple-text)' }}>
-                    {mode === 'system' ? `Hệ thống (${resolved === 'dark' ? 'Tối' : 'Sáng'})` : mode === 'dark' ? 'Tối' : 'Sáng'}
+                    {mode === 'system'
+                      ? `${t('theme_system', 'Hệ thống')} (${resolved === 'dark' ? t('theme_dark', 'Tối') : t('theme_light', 'Sáng')})`
+                      : mode === 'dark'
+                        ? t('theme_dark', 'Tối')
+                        : t('theme_light', 'Sáng')}
                   </span>
                 </div>
                 <ThemeSwitch style={{ width: '100%', justifyContent: 'space-between' }} />
+              </div>
+
+              <div className="account-dropdown-divider" />
+
+              <div style={{ padding: '8px 14px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>
+                    {t('lang_label_language', 'Ngôn ngữ')}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--purple-text)' }}>
+                    {locale === 'vi' ? 'Tiếng Việt' : 'English'}
+                  </span>
+                </div>
+                <LanguageSwitch style={{ width: '100%', justifyContent: 'space-between' }} />
               </div>
 
               {onLogout && (
@@ -256,7 +280,7 @@ export function DashboardTopNav({
                     data-testid="dropdown-logout"
                   >
                     <Icon name="x" size={15} />
-                    <span>Đăng xuất</span>
+                    <span>{t('btn_logout', 'Đăng xuất')}</span>
                   </button>
                 </>
               )}

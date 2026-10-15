@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { productConfig } from '../../config/product';
 import { ThemeSwitch } from '../common/ThemeSwitch';
+import { LanguageSwitch } from '../common/LanguageSwitch';
 import { useTheme } from '../../lib/theme';
+import { useLocale } from '../../lib/locale';
 
 interface HeaderProps {
   /** When true, render a translucent floating header (used at top of page). */
@@ -28,6 +30,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [authed, setAuthed] = useState(false);
   const { resolved } = useTheme();
+  const { t } = useLocale();
   const location = useLocation();
 
   useEffect(() => {
@@ -56,11 +59,11 @@ export function Header({ floatOnTop = true }: HeaderProps) {
   useEffect(() => setOpen(false), [location.pathname]);
 
   const navItems: { label: string; to: string }[] = [
-    { label: 'Product', to: '/#product' },
-    { label: 'How it works', to: '/#how' },
-    { label: 'Bảng giá', to: '/pricing' },
-    { label: 'Browser extension', to: '/browser-extension' },
-    { label: 'Privacy', to: '/#privacy' }
+    { label: t('nav_product', 'Product'), to: '/#product' },
+    { label: t('nav_how_it_works', 'How it works'), to: '/#how' },
+    { label: t('nav_pricing', 'Pricing'), to: '/pricing' },
+    { label: t('nav_extension', 'Browser extension'), to: '/browser-extension' },
+    { label: t('nav_privacy', 'Privacy'), to: '/#privacy' }
   ];
 
   const handleNavClick = (to: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -172,19 +175,20 @@ export function Header({ floatOnTop = true }: HeaderProps) {
           ))}
         </nav>
 
-        {/* Vị trí chỗ trống trên thanh điều hướng — Theme Switcher */}
-        <div className="mnemonics-header-theme-slot" style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+        {/* Vị trí chỗ trống trên thanh điều hướng — Theme & Language Switchers */}
+        <div className="mnemonics-header-theme-slot" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <ThemeSwitch compact />
+          <LanguageSwitch compact />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} className="mnemonics-header-actions">
           {authed ? (
             <Link to="/app" className="btn btn--ghost btn--sm">
-              Open Mnemonics
+              {t('nav_open_app', 'Open Mnemonics')}
             </Link>
           ) : (
             <Link to="/login" className="btn btn--ghost btn--sm">
-              Log in
+              {t('nav_login', 'Log in')}
             </Link>
           )}
           <Link
@@ -247,7 +251,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
               to={authed ? '/app' : '/login'}
               style={{ padding: '12px 4px', fontSize: 16, fontWeight: 500, color: 'var(--ink)' }}
             >
-              {authed ? 'Open Mnemonics' : 'Log in'}
+              {authed ? t('nav_open_app', 'Open Mnemonics') : t('nav_login', 'Log in')}
             </Link>
             <div
               style={{
@@ -259,8 +263,23 @@ export function Header({ floatOnTop = true }: HeaderProps) {
                 justifyContent: 'space-between'
               }}
             >
-              <span style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 500 }}>Giao diện</span>
+              <span style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 500 }}>
+                {t('lang_label_theme', 'Giao diện')}
+              </span>
               <ThemeSwitch />
+            </div>
+            <div
+              style={{
+                paddingTop: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 500 }}>
+                {t('lang_label_language', 'Ngôn ngữ')}
+              </span>
+              <LanguageSwitch />
             </div>
           </div>
         </div>

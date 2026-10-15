@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { InstallExtensionButton } from '../extension/InstallExtensionButton';
 import { productConfig } from '../../config/product';
+import { useLocale } from '../../lib/locale';
 
 /**
  * Hero section.
@@ -16,6 +17,7 @@ import { productConfig } from '../../config/product';
 export function Hero() {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [drift, setDrift] = useState({ x: 0, y: 0 });
+  const { t } = useLocale();
 
   const chromeStoreUrl =
     productConfig.chromeExtensionUrl ||
@@ -122,31 +124,30 @@ export function Hero() {
               className="mn-hero-pill"
               aria-label="Mnemonics is live on the Chrome Web Store"
             >
-              <span className="mn-hero-pill-badge">CHROME STORE</span>
-              <span className="mn-hero-pill-text">Official extension is now live</span>
+              <span className="mn-hero-pill-badge">{t('hero_pill_badge', 'CHROME STORE')}</span>
+              <span className="mn-hero-pill-text">{t('hero_pill_text', 'Official extension is now live')}</span>
               <span className="mn-hero-pill-arrow">→</span>
             </a>
           </div>
 
           <h1 className="display h1 mn-hero-headline" style={{ marginTop: 0 }}>
-            <span className="mn-hero-gradient-text">Remember everything,</span>
+            <span className="mn-hero-gradient-text">{t('hero_headline_1', 'Remember everything,')}</span>
             <br />
-            without organising everything.
+            {t('hero_headline_2', 'without organising everything.')}
           </h1>
           <p className="lead" style={{ marginTop: 22 }}>
-            Mnemonics captures pages, thoughts, images and highlights — then quietly
-            connects them so you can find them later by meaning, not by filename.
+            {t('hero_lead', 'Mnemonics captures pages, thoughts, images and highlights — then quietly connects them so you can find them later by meaning, not by filename.')}
           </p>
 
           <div style={{ marginTop: 32, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
             <InstallExtensionButton browser="chrome" variant="primary" size="lg" />
             <InstallExtensionButton browser="edge" variant="secondary" size="lg" />
             <Link to="/app" className="btn btn--ghost btn--lg">
-              Open the web app →
+              {t('hero_open_web_app', 'Open the web app →')}
             </Link>
           </div>
           <div style={{ marginTop: 14, fontSize: 13, color: 'var(--muted)' }}>
-            Chrome · Edge · Brave · Chromium-based browsers
+            {t('hero_browser_compat', 'Chrome · Edge · Brave · Chromium-based browsers')}
           </div>
         </div>
 

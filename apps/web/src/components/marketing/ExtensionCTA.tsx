@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom';
 import { InstallExtensionButton } from '../extension/InstallExtensionButton';
+import { useLocale } from '../../lib/locale';
 
 /**
  * "Save it now. Remember it later." — final CTA.
  */
 export function ExtensionCTA() {
+  const { t } = useLocale();
+
   return (
     <section
       className="section"
@@ -49,14 +52,13 @@ export function ExtensionCTA() {
         style={{ position: 'relative', zIndex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
         <div className="eyebrow" style={{ color: 'var(--brand)' }}>
-          Save it now
+          {t('cta_eyebrow', 'Save it now')}
         </div>
         <h2 className="display h1 mn-hero-headline" style={{ marginTop: 16, color: '#f2f3f5', maxWidth: 18 + 'ch' }}>
-          <span className="mn-hero-gradient-text">Remember it later.</span>
+          <span className="mn-hero-gradient-text">{t('cta_headline', 'Remember it later.')}</span>
         </h2>
         <p style={{ marginTop: 18, color: '#a2a9b8', maxWidth: 56 + 'ch', lineHeight: 1.6, fontSize: 16 }}>
-          Mnemonics is a private, AI-shaped second brain. It works best when it lives where
-          you already spend your day — the browser.
+          {t('cta_lead', 'Mnemonics is a private, AI-shaped second brain. It works best when it lives where you already spend your day — the browser.')}
         </p>
 
         <div style={{ marginTop: 32, display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -67,7 +69,7 @@ export function ExtensionCTA() {
             size="lg"
           />
           <Link to="/app" className="btn btn--outline btn--lg">
-            Open web app
+            {t('cta_open_web_app', 'Open web app')}
           </Link>
         </div>
         <div style={{ marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
