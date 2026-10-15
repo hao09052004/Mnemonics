@@ -616,6 +616,13 @@ export class ApiClient {
     }
 
     if (!response.ok) {
+      if (response.status === 503) {
+        throw new ApiError(
+          503,
+          'Máy chủ Render đang khởi động (503 Service Unavailable). Quá trình này mất khoảng 20-40 giây trên gói miễn phí, vui lòng thử lại sau ít giây.',
+          'SERVICE_UNAVAILABLE'
+        );
+      }
       const errPayload = payload as ApiErrorPayload;
       const message = errPayload?.error?.message || `HTTP ${response.status}`;
       throw new ApiError(
