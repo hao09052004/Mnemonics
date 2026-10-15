@@ -1,5 +1,6 @@
 import { Icon, type IconName } from './Icons';
 import type { DashboardPage } from './DashboardTopNav';
+import { useLocale } from '../../lib/locale';
 
 interface MobileBottomNavProps {
   active: DashboardPage;
@@ -7,15 +8,17 @@ interface MobileBottomNavProps {
   onCapture: () => void;
 }
 
-const ITEMS: Array<{ label: DashboardPage; icon: IconName }> = [
-  { label: 'Everything', icon: 'grid' },
-  { label: 'Favorites', icon: 'heart' },
-  { label: 'Spaces', icon: 'layers' },
-  { label: 'Rediscover', icon: 'sparkle' },
-  { label: 'Settings', icon: 'settings' },
+const ITEMS: Array<{ label: DashboardPage; icon: IconName; key: string }> = [
+  { label: 'Everything', icon: 'grid', key: 'nav_everything' },
+  { label: 'Favorites', icon: 'heart', key: 'nav_favorites' },
+  { label: 'Spaces', icon: 'layers', key: 'nav_spaces' },
+  { label: 'Rediscover', icon: 'sparkle', key: 'nav_rediscover' },
+  { label: 'Settings', icon: 'settings', key: 'nav_mobile_settings' },
 ];
 
 export function MobileBottomNav({ active, onNavigate, onCapture }: MobileBottomNavProps) {
+  const { t } = useLocale();
+
   return (
     <nav className="mobile-nav" aria-label="Mobile navigation">
       {ITEMS.map((item) => (
@@ -26,12 +29,12 @@ export function MobileBottomNav({ active, onNavigate, onCapture }: MobileBottomN
           onClick={() => onNavigate(item.label)}
         >
           <span><Icon name={item.icon} /></span>
-          <small>{item.label}</small>
+          <small>{t(item.key, item.label)}</small>
         </button>
       ))}
       <button type="button" onClick={onCapture} aria-label="Capture memory">
         <span className="capture-mobile"><Icon name="plus" /></span>
-        <small>Capture</small>
+        <small>{t('nav_mobile_capture', 'Capture')}</small>
       </button>
     </nav>
   );

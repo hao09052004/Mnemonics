@@ -25,6 +25,7 @@ import {
 import type { MemoryCardItem } from '../components/dashboard/MemoryCard';
 import { normalizeKind, type MemoryLabel } from '../lib/memory-kind';
 import type { DashboardPage as DashboardPageName } from '../components/dashboard/DashboardTopNav';
+import { useLocale } from '../lib/locale';
 
 interface DashboardPageProps {
   api: ApiClient;
@@ -33,6 +34,7 @@ interface DashboardPageProps {
 
 export function DashboardPage({ api, isFavoritesRoute }: DashboardPageProps) {
   const navigate = useNavigate();
+  const { t, locale } = useLocale();
   const location = useLocation();
   const isFavorites = Boolean(isFavoritesRoute || location.pathname === '/app/favorites');
   const [session, setSession] = useState<Session | null>(null);
@@ -181,8 +183,12 @@ export function DashboardPage({ api, isFavoritesRoute }: DashboardPageProps) {
       const target =
         items.find((it) => String(it.id) === id) ??
         (searchHits ?? []).find((it) => String(it.id) === id);
-      const label = target?.title || 'this memory';
-      if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+      const label = target?.title || (locale === 'vi' ? 'ghi nhớ này' : 'this memory');
+      const confirmMsg =
+        locale === 'vi'
+          ? `Xóa "${label}"? Thao tác này không thể hoàn tác.`
+          : `Delete "${label}"? This cannot be undone.`;
+      if (!window.confirm(confirmMsg)) return;
 
       setDeletingIds((prev) => new Set(prev).add(id));
       try {
@@ -391,17 +397,17 @@ export function DashboardPage({ api, isFavoritesRoute }: DashboardPageProps) {
       demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
     >
       <EverythingView
-        title={isFavorites ? 'Favorites' : 'Everything'}
+        title={isFavorites ? t('favorites_title', 'Favorites') : t('everything_title', 'Everything')}
         subtitle={
           isFavorites
-            ? 'Your favorited memories in one place.'
-            : 'Your saved memories in one place.'
+            ? t('favorites_sub', 'Your favorited memories in one place.')
+            : t('everything_sub', 'Your saved memories in one place.')
         }
         emptyState={
           isFavorites
             ? {
-                title: 'No favorites yet.',
-                text: 'Click the heart on any memory to save it here.'
+                title: t('favorites_empty_title', 'No favorites yet.'),
+                text: t('favorites_empty_text', 'Click the heart on any memory to save it here.')
               }
             : undefined
         }
@@ -438,7 +444,7 @@ export function DashboardPage({ api, isFavoritesRoute }: DashboardPageProps) {
               setSmartDialogOpen(true);
             }}
           >
-            Save as Space
+            {t('btn_save_as_space', 'Save as Space')}
           </button>
         ) : null}
       </EverythingView>

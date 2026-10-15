@@ -87,23 +87,34 @@ export function DashboardTopNav({
         </span>
         <span>
           mnemonics
-          <span className="brand-tagline">Save once — Find anytime.</span>
+          <span className="brand-tagline">{t('brand_tagline', 'Save once — Find anytime.')}</span>
         </span>
       </button>
 
       <nav aria-label="Main navigation">
-        {NAV.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            className={active === item.label ? 'header-link active' : 'header-link'}
-            aria-current={active === item.label ? 'page' : undefined}
-            onClick={() => onNavigate(item.label)}
-            data-testid={`nav-${item.label.toLowerCase()}`}
-          >
-            {item.label}
-          </button>
-        ))}
+        {NAV.map((item) => {
+          const map: Record<string, string> = {
+            Everything: t('nav_everything', 'Everything'),
+            Favorites: t('nav_favorites', 'Favorites'),
+            Groups: t('nav_groups', 'Groups'),
+            Spaces: t('nav_spaces', 'Spaces'),
+            Rediscover: t('nav_rediscover', 'Rediscover'),
+            Reminders: t('nav_reminders', 'Reminders'),
+          };
+          const displayLabel = map[item.label] ?? item.label;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              className={active === item.label ? 'header-link active' : 'header-link'}
+              aria-current={active === item.label ? 'page' : undefined}
+              onClick={() => onNavigate(item.label)}
+              data-testid={`nav-${item.label.toLowerCase()}`}
+            >
+              {displayLabel}
+            </button>
+          );
+        })}
         <button
           type="button"
           className={
@@ -114,7 +125,7 @@ export function DashboardTopNav({
           onClick={() => navigate('/app/analytics')}
           data-testid="nav-analytics"
         >
-          Phân tích
+          {t('nav_analytics', 'Analytics')}
         </button>
         <button
           type="button"
@@ -126,7 +137,7 @@ export function DashboardTopNav({
           onClick={() => navigate('/app/billing')}
           data-testid="nav-billing"
         >
-          Tài khoản
+          {t('nav_account', 'Account')}
         </button>
         {isAdmin && (
           <button
@@ -134,9 +145,9 @@ export function DashboardTopNav({
             className="header-link"
             onClick={() => navigate('/admin')}
             data-testid="nav-admin"
-            title="Khu vực quản trị"
+            title={t('nav_admin', 'Quản trị')}
           >
-            Admin
+            {t('nav_admin', 'Admin')}
           </button>
         )}
       </nav>
@@ -159,8 +170,8 @@ export function DashboardTopNav({
             className={accountMenuOpen ? 'avatar active' : 'avatar'}
             title={
               user?.email
-                ? `${user.email} (Bấm để xem menu tài khoản)`
-                : `Tài khoản · ${initials}`
+                ? `${user.email} (${locale === 'vi' ? 'Bấm để xem menu tài khoản' : 'Click to view account menu'})`
+                : `${t('account_default_name', 'Account')} · ${initials}`
             }
             aria-label="Account menu"
             aria-expanded={accountMenuOpen}
@@ -177,16 +188,16 @@ export function DashboardTopNav({
                 <div className="account-dropdown-avatar">{initials}</div>
                 <div className="account-dropdown-info">
                   <div className="account-dropdown-name">
-                    {user?.name || user?.email?.split('@')[0] || 'Tài khoản'}
+                    {user?.name || user?.email?.split('@')[0] || t('account_default_name', 'Account')}
                   </div>
                   <div className="account-dropdown-email" title={user?.email}>
-                    {user?.email || 'Chưa xác định'}
+                    {user?.email || t('account_unknown_email', 'Unknown')}
                   </div>
                   <div className="account-dropdown-badge">
                     {isAdmin ? (
                       <span className="admin-badge">Admin</span>
                     ) : (
-                      <span className="user-badge">Đang hoạt động</span>
+                      <span className="user-badge">{t('badge_active', 'Active')}</span>
                     )}
                   </div>
                 </div>
@@ -205,7 +216,7 @@ export function DashboardTopNav({
                   data-testid="dropdown-nav-billing"
                 >
                   <Icon name="settings" size={15} />
-                  <span>Tài khoản & Gói cước</span>
+                  <span>{t('menu_account_plans', 'Account & Plans')}</span>
                 </button>
                 <button
                   type="button"
@@ -217,7 +228,7 @@ export function DashboardTopNav({
                   data-testid="dropdown-nav-analytics"
                 >
                   <Icon name="sliders" size={15} />
-                  <span>Thống kê phân tích</span>
+                  <span>{t('menu_analytics', 'Analytics & Stats')}</span>
                 </button>
                 {isAdmin && (
                   <button
@@ -230,7 +241,7 @@ export function DashboardTopNav({
                     data-testid="dropdown-nav-admin"
                   >
                     <Icon name="layers" size={15} />
-                    <span>Quản trị hệ thống (Admin)</span>
+                    <span>{t('menu_admin', 'System Administration (Admin)')}</span>
                   </button>
                 )}
               </div>

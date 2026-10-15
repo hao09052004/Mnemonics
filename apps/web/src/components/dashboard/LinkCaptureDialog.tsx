@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ApiClient } from '../../lib/api-client';
 import { extractPageMetadata, type ExtractedPage } from '../../lib/page-metadata';
 import { extractSmartTags } from '../../lib/smart-tags';
+import { useLocale } from '../../lib/locale';
 
 export interface LinkCaptureDialogProps {
   api: ApiClient;
@@ -65,6 +66,7 @@ export function LinkCaptureDialog({
   onClose,
   onSaved
 }: LinkCaptureDialogProps) {
+  const { t, locale } = useLocale();
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -149,7 +151,7 @@ export function LinkCaptureDialog({
         className="capture-sheet capture-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label="Save a link"
+        aria-label={t('dialog_link_title', 'Save a link')}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="dialog-header">
@@ -161,17 +163,17 @@ export function LinkCaptureDialog({
               </svg>
             </div>
             <div>
-              <h2>Save a link</h2>
-              <p className="dialog-sub">Lưu trang web, bài viết hoặc tài liệu trực tuyến.</p>
+              <h2>{t('dialog_link_title', 'Save a link')}</h2>
+              <p className="dialog-sub">{t('dialog_link_sub', 'Lưu trang web, bài viết hoặc tài liệu trực tuyến.')}</p>
             </div>
           </div>
-          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label="Close">
+          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label={t('btn_close', 'Close')}>
             ✕
           </button>
         </div>
 
         <label className="document-title-label">
-          <span>Đường dẫn (URL)</span>
+          <span>{t('dialog_link_url_label', 'Đường dẫn (URL)')}</span>
           <input
             type="url"
             data-testid="link-url-input"
@@ -183,7 +185,7 @@ export function LinkCaptureDialog({
           />
         </label>
         <label className="document-title-label">
-          <span>Tiêu đề (không bắt buộc)</span>
+          <span>{t('dialog_link_title_label', 'Tiêu đề (không bắt buộc)')}</span>
           <input
             type="text"
             data-testid="link-title-input"
@@ -191,11 +193,11 @@ export function LinkCaptureDialog({
             onChange={(e) => setTitle(e.target.value)}
             disabled={disabled}
             maxLength={200}
-            placeholder="Tự động trích xuất nếu để trống..."
+            placeholder={t('dialog_link_title_placeholder', 'Tự động trích xuất nếu để trống...')}
           />
         </label>
         <label className="document-title-label">
-          <span>Ghi chú thêm (không bắt buộc)</span>
+          <span>{t('dialog_link_note_label', 'Ghi chú thêm (không bắt buộc)')}</span>
           <textarea
             data-testid="link-note-input"
             value={note}
@@ -203,13 +205,13 @@ export function LinkCaptureDialog({
             disabled={disabled}
             maxLength={2000}
             rows={3}
-            placeholder="Thêm tóm tắt hoặc lý do bạn lưu liên kết này..."
+            placeholder={t('dialog_link_note_placeholder', 'Thêm tóm tắt hoặc lý do bạn lưu liên kết này...')}
           />
         </label>
 
         <div className="smart-tags-preview" style={{ marginTop: 6, marginBottom: 8, padding: '10px 14px', background: 'var(--purple-soft, rgba(91,63,228,0.08))', borderRadius: 8, border: '1px solid rgba(91,63,228,0.18)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', color: 'var(--purple, #5B3FE4)', textTransform: 'uppercase', marginBottom: 6 }}>
-            ★ Smart Tags (Tự động gợi ý)
+            ★ {locale === 'vi' ? 'Smart Tags (Tự động gợi ý)' : 'Smart Tags (Auto suggested)'}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {smartTags.map((tag) => (
@@ -226,7 +228,7 @@ export function LinkCaptureDialog({
         ) : null}
         {phase === 'saved' ? (
           <p className="document-status" data-testid="link-status">
-            <span>✓</span> Saved — processing…
+            <span>✓</span> {t('dialog_link_saved_proc', 'Saved — processing…')}
           </p>
         ) : null}
         <div className="document-actions">
@@ -237,7 +239,7 @@ export function LinkCaptureDialog({
             onClick={handleCancel}
             disabled={disabled}
           >
-            Cancel
+            {t('btn_cancel', 'Cancel')}
           </button>
           <button
             type="button"
@@ -245,7 +247,7 @@ export function LinkCaptureDialog({
             onClick={handleSave}
             disabled={!url.trim() || disabled}
           >
-            {phase === 'saving' ? 'Saving…' : phase === 'saved' ? 'Saved' : 'Save link'}
+            {phase === 'saving' ? t('status_saving', 'Saving…') : phase === 'saved' ? t('status_saved', 'Saved') : t('dialog_link_btn_save', 'Save link')}
           </button>
         </div>
       </div>

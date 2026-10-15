@@ -8,23 +8,25 @@
  * `explain.structResults === 0` heuristic on the parent
  * component — see `EverythingView`).
  */
+import { useLocale } from '../../lib/locale';
+
 /** M3 — detected type values from item_classifications.detected_type. */
 export type DetectedType =
   | 'article' | 'product' | 'recipe' | 'video' | 'quote' | 'highlight'
   | 'webpage' | 'image' | 'note' | 'document' | 'other';
 
-const DETECTED_LABELS: Array<{ id: DetectedType; name: string }> = [
-  { id: 'article', name: 'Articles' },
-  { id: 'product', name: 'Products' },
-  { id: 'recipe', name: 'Recipes' },
-  { id: 'video', name: 'Videos' },
-  { id: 'quote', name: 'Quotes' },
-  { id: 'highlight', name: 'Highlights' },
-  { id: 'webpage', name: 'Webpages' },
-  { id: 'image', name: 'Images' },
-  { id: 'note', name: 'Notes' },
-  { id: 'document', name: 'Documents' },
-  { id: 'other', name: 'Other' }
+const DETECTED_LABELS: Array<{ id: DetectedType; name: string; key: string }> = [
+  { id: 'article', name: 'Articles', key: 'detected_article' },
+  { id: 'product', name: 'Products', key: 'detected_product' },
+  { id: 'recipe', name: 'Recipes', key: 'detected_recipe' },
+  { id: 'video', name: 'Videos', key: 'detected_video' },
+  { id: 'quote', name: 'Quotes', key: 'detected_quote' },
+  { id: 'highlight', name: 'Highlights', key: 'detected_highlight' },
+  { id: 'webpage', name: 'Webpages', key: 'detected_webpage' },
+  { id: 'image', name: 'Images', key: 'detected_image' },
+  { id: 'note', name: 'Notes', key: 'detected_note' },
+  { id: 'document', name: 'Documents', key: 'detected_document' },
+  { id: 'other', name: 'Other', key: 'detected_other' }
 ];
 
 interface Props {
@@ -33,6 +35,8 @@ interface Props {
 }
 
 export function StructuredChipRow({ active, onChange }: Props) {
+  const { t } = useLocale();
+
   const toggle = (id: DetectedType) => {
     if (active.includes(id)) {
       onChange(active.filter(x => x !== id));
@@ -52,7 +56,7 @@ export function StructuredChipRow({ active, onChange }: Props) {
             className={`chip ${active.includes(label.id) ? 'active' : ''}`}
             data-testid={`chip-detected-${label.id}`}
           >
-            {label.name}
+            {t(label.key, label.name)}
           </button>
         ))}
       </div>

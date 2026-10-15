@@ -16,6 +16,7 @@ import {
   type Session,
   type SpaceWithCount
 } from '../lib/api-client';
+import { useLocale } from '../lib/locale';
 import type { MemoryCardItem } from '../components/dashboard/MemoryCard';
 
 interface SpaceDetailPageProps {
@@ -37,6 +38,7 @@ type EditState = { name: string; color: NonNullable<SpaceWithCount['color']> } |
 export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t, locale } = useLocale();
   const [session, setSession] = useState<Session | null>(null);
   const [space, setSpace] = useState<SpaceWithCount | null>(null);
   const [items, setItems] = useState<MemoryCardItem[]>([]);
@@ -147,7 +149,11 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
 
   const handleDeleteSpace = useCallback(async () => {
     if (!space) return;
-    if (!window.confirm('Delete this Space?\n\nYour memories will remain in Mnemonics.')) return;
+    const confirmMsg =
+      locale === 'vi'
+        ? 'Xóa Space này?\n\nCác ký ức bên trong vẫn được giữ an toàn trên Mnemonics.'
+        : 'Delete this Space?\n\nYour memories will remain in Mnemonics.';
+    if (!window.confirm(confirmMsg)) return;
     try {
       const token = await api.getValidAccessToken();
       if (!token) throw new Error('Session expired');
@@ -156,7 +162,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete this Space');
     }
-  }, [api, space, navigate]);
+  }, [api, space, navigate, locale]);
 
   if (!session) return null;
 
@@ -172,10 +178,10 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
       >
         <main className="spaces-page">
           <p role="alert" data-testid="space-error">
-            {error ?? 'Space not found.'}
+            {error ?? (locale === 'vi' ? 'Không tìm thấy Space.' : 'Space not found.')}
           </p>
           <button type="button" className="ghost" onClick={() => navigate('/app/spaces')}>
-            Back to Spaces
+            {t('btn_back_spaces', 'Back to Spaces')}
           </button>
         </main>
       </DashboardShell>
@@ -219,7 +225,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
                 setEditing({ name: space.name, color: space.color ?? 'violet' })
               }
             >
-              Edit
+              {t('btn_edit', 'Edit')}
             </button>
             <button
               type="button"
@@ -227,7 +233,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
               data-testid="space-delete-btn"
               onClick={() => void handleDeleteSpace()}
             >
-              Delete
+              {t('btn_delete', 'Delete')}
             </button>
           </div>
         </header>
@@ -238,11 +244,12 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
             {space.itemCount === null
               ? items.length
               : space.itemCount}{' '}
-            {space.itemCount === 1 ? 'memory' : 'memories'}
+            {locale === 'vi' ? 'ghi nhớ' : (space.itemCount === 1 ? 'memory' : 'memories')}
           </span>
           {space.updatedAt ? (
             <span className="space-card__rule">
-              Updated {new Date(space.updatedAt).toLocaleDateString('en-US', {
+              {locale === 'vi' ? 'Cập nhật ' : 'Updated '}
+              {new Date(space.updatedAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', {
                 day: '2-digit',
                 month: 'short'
               })}
@@ -256,11 +263,10 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
             style={{ marginBottom: 18 }}
             data-testid="space-detail-rules"
           >
-            <span className="field-label">Saved criteria</span>
+            <span className="field-label">{t('space_saved_criteria', 'Saved criteria')}</span>
             <SpaceRuleSummary rule={space.rule} />
             <p className="space-picker__note">
-              Memories matching this search appear here on their own. Change the criteria
-              with Edit.
+              {t('space_smart_explain', 'Memories matching this search appear here on their own. Change the criteria with Edit.')}
             </p>
           </div>
         ) : null}
@@ -275,8 +281,8 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
           <div className="space-card" style={{ cursor: 'default' }} data-testid="space-empty">
             <p className="space-card__count">
               {isManual
-                ? 'No memories here yet.'
-                : 'No memories currently match this Space.'}
+                ? t('space_empty_manual', 'No memories here yet.')
+                : t('space_empty_smart', 'No memories currently match this Space.')}
             </p>
             {isManual ? (
               <button
@@ -286,7 +292,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
                 data-testid="space-empty-add"
                 onClick={() => navigate('/app')}
               >
-                Add memories
+                {t('btn_add_memories', 'Add memories')}
               </button>
             ) : null}
           </div>
@@ -328,13 +334,13 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
             className="space-dialog"
             role="dialog"
             aria-modal="true"
-            aria-label="Edit Space"
+            aria-label={t('space_edit_title', 'Edit Space')}
             data-testid="space-edit-dialog"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2>Edit Space</h2>
+            <h2>{t('space_edit_title', 'Edit Space')}</h2>
             <label className="field-label" htmlFor="space-edit-name">
-              Name
+              {t('space_name_label', 'Name')}
             </label>
             <input
               id="space-edit-name"
@@ -347,7 +353,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
             <SpaceColorPicker
               value={editing.color}
               onChange={(color) => setEditing({ ...editing, color })}
-              label="Colour"
+              label={t('space_color_label', 'Colour')}
             />
             <div className="space-dialog__actions">
               <button
@@ -356,7 +362,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
                 onClick={() => setEditing(null)}
                 disabled={savingEdit}
               >
-                Cancel
+                {t('btn_cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -365,7 +371,7 @@ export function SpaceDetailPage({ api }: SpaceDetailPageProps) {
                 data-testid="space-edit-save"
                 onClick={() => void handleSaveEdit()}
               >
-                {savingEdit ? 'Saving…' : 'Save'}
+                {savingEdit ? t('status_saving', 'Saving…') : t('btn_save', 'Save')}
               </button>
             </div>
           </div>

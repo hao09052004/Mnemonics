@@ -73,7 +73,7 @@ export function ExtensionCTA() {
           </Link>
         </div>
         <div style={{ marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
-          Chrome · Edge · Brave · Chromium-based browsers
+          {t('hero_browser_compat', 'Chrome · Edge · Brave · Chromium-based browsers')}
         </div>
       </div>
     </section>

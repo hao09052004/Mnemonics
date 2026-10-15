@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useLocale } from '../../lib/locale';
 
 export function Footer() {
+  const { t } = useLocale();
+
   return (
     <footer
       style={{
@@ -55,28 +58,28 @@ export function Footer() {
             Mnemonics
           </Link>
           <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 14, maxWidth: 36 + 'ch', lineHeight: 1.55 }}>
-            Save once. Remember anytime. A personal second brain for the browser-first generation.
+            {t('footer_slogan', 'Save once. Remember anytime. A personal second brain for the browser-first generation.')}
           </p>
         </div>
 
         <FooterColumn
-          title="Product"
+          title={t('footer_col_product', 'Product')}
           items={[
-            { label: 'Browser extension', to: '/browser-extension' },
-            { label: 'Privacy', to: '/#privacy' },
-            { label: 'How it works', to: '/#how' }
+            { label: t('nav_extension', 'Browser extension'), to: '/browser-extension' },
+            { label: t('nav_privacy', 'Privacy'), to: '/#privacy' },
+            { label: t('nav_how_it_works', 'How it works'), to: '/#how' }
           ]}
         />
         <FooterColumn
-          title="Account"
+          title={t('footer_col_account', 'Account')}
           items={[
-            { label: 'Log in', to: '/login' },
-            { label: 'Create account', to: '/signup' },
-            { label: 'Open dashboard', to: '/app' }
+            { label: t('nav_login', 'Log in'), to: '/login' },
+            { label: t('footer_link_create_account', 'Create account'), to: '/signup' },
+            { label: t('footer_link_open_dashboard', 'Open dashboard'), to: '/app' }
           ]}
         />
         <FooterColumn
-          title="Resources"
+          title={t('footer_col_resources', 'Resources')}
           items={[
             { label: 'GitHub', to: 'https://github.com/hao09052004/Mnemonics' }
           ]}
@@ -97,8 +100,8 @@ export function Footer() {
           gap: 12
         }}
       >
-        <span>© {new Date().getFullYear()} Mnemonics. All rights reserved.</span>
-        <span>Built privately, for one mind at a time.</span>
+        <span>© {new Date().getFullYear()} Mnemonics. {t('footer_copyright', 'All rights reserved.')}</span>
+        <span>{t('footer_tagline', 'Built privately, for one mind at a time.')}</span>
       </div>
 
       <style>{`

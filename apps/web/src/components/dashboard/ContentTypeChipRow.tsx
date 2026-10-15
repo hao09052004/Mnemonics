@@ -1,21 +1,24 @@
 import type { MemoryLabel } from '../../lib/memory-kind';
+import { useLocale } from '../../lib/locale';
 
 interface Props {
   active: MemoryLabel | 'all';
   onChange: (label: MemoryLabel | 'all') => void;
 }
 
-const LABELS: Array<{ id: MemoryLabel | 'all'; name: string }> = [
-  { id: 'all', name: 'All' },
-  { id: 'note', name: 'Notes' },
-  { id: 'article', name: 'Articles' },
-  { id: 'image', name: 'Images' },
-  { id: 'screenshot', name: 'Screenshots' },
-  { id: 'highlight', name: 'Highlights' },
-  { id: 'document', name: 'Documents' },
+const LABELS: Array<{ id: MemoryLabel | 'all'; name: string; key: string }> = [
+  { id: 'all', name: 'All', key: 'chip_all' },
+  { id: 'note', name: 'Notes', key: 'chip_note' },
+  { id: 'article', name: 'Articles', key: 'chip_article' },
+  { id: 'image', name: 'Images', key: 'chip_image' },
+  { id: 'screenshot', name: 'Screenshots', key: 'chip_screenshot' },
+  { id: 'highlight', name: 'Highlights', key: 'chip_highlight' },
+  { id: 'document', name: 'Documents', key: 'chip_document' },
 ];
 
 export function ContentTypeChipRow({ active, onChange }: Props) {
+  const { t } = useLocale();
+
   return (
     <div className="filter-row">
       <div className="chips" aria-label="Content type">
@@ -27,7 +30,7 @@ export function ContentTypeChipRow({ active, onChange }: Props) {
             onClick={() => onChange(label.id)}
             className={`chip ${active === label.id ? 'active' : ''}`}
           >
-            {label.name}
+            {t(label.key, label.name)}
           </button>
         ))}
       </div>

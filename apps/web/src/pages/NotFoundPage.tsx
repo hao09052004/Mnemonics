@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useLocale } from '../lib/locale';
 
 export function NotFoundPage() {
+  const { t } = useLocale();
+
   return (
     <div
       style={{
@@ -14,13 +17,15 @@ export function NotFoundPage() {
         gap: 16
       }}
     >
-      <div className="eyebrow">404</div>
-      <h1 className="display h2" style={{ marginTop: 4 }}>This page slipped out of your library.</h1>
+      <div className="eyebrow">{t('not_found_eyebrow', '404')}</div>
+      <h1 className="display h2" style={{ marginTop: 4 }}>
+        {t('not_found_title', 'This page slipped out of your library.')}
+      </h1>
       <p className="lead" style={{ marginTop: 0 }}>
-        The URL you followed isn't a Mnemonics page. Try heading back home.
+        {t('not_found_lead', "The URL you followed isn't a Mnemonics page. Try heading back home.")}
       </p>
       <Link to="/" className="btn btn--primary btn--lg" style={{ marginTop: 12 }}>
-        Back to homepage
+        {t('not_found_btn', 'Back to homepage')}
       </Link>
     </div>
   );

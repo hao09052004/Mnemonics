@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
 import { Icon } from '../components/dashboard/Icons';
 import type { ApiClient, ItemDetail } from '../lib/api-client';
+import { useLocale } from '../lib/locale';
 
 interface ItemDetailPageProps {
   api: ApiClient;
@@ -11,6 +12,7 @@ interface ItemDetailPageProps {
 export function ItemDetailPage({ api }: ItemDetailPageProps) {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t, locale } = useLocale();
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +90,7 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
   if (loading) {
     return (
       <div className="mnemonics-app-root">
-        <p style={{ padding: 24 }}>Loading…</p>
+        <p style={{ padding: 24 }}>{t('status_loading', 'Loading…')}</p>
       </div>
     );
   }
@@ -104,7 +106,7 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
             className="ghost"
             onClick={() => navigate('/app')}
           >
-            Back to dashboard
+            {locale === 'vi' ? 'Về trang chủ' : 'Back to dashboard'}
           </button>
         </div>
       </div>
@@ -140,19 +142,19 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
             onClick={() => navigate(-1)}
             data-testid="item-detail-back"
           >
-            ← Back
+            {t('detail_back', '← Back')}
           </button>
           <button
             type="button"
             className={`ghost ${item.is_favorite ? 'is-favorite' : ''}`}
             onClick={handleToggleFavorite}
             disabled={favoriting}
-            title={item.is_favorite ? 'Bỏ yêu thích' : 'Yêu thích'}
-            aria-label={item.is_favorite ? 'Bỏ yêu thích' : 'Yêu thích'}
+            title={item.is_favorite ? (locale === 'vi' ? 'Bỏ yêu thích' : 'Remove favorite') : (locale === 'vi' ? 'Yêu thích' : 'Favorite')}
+            aria-label={item.is_favorite ? (locale === 'vi' ? 'Bỏ yêu thích' : 'Remove favorite') : (locale === 'vi' ? 'Yêu thích' : 'Favorite')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: item.is_favorite ? 'var(--purple)' : undefined }}
           >
             <Icon name="heart" size={16} filled={item.is_favorite === true} />
-            <span>{item.is_favorite ? 'Favorited' : 'Favorite'}</span>
+            <span>{item.is_favorite ? t('detail_favorited', 'Favorited') : t('detail_favorite', 'Favorite')}</span>
           </button>
         </div>
 
@@ -160,7 +162,7 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
           <span className={`item-kind-pill item-kind-pill--${item.kind}`}>
             {item.kind}
           </span>
-          <h1 data-testid="item-detail-title">{item.title || 'Untitled'}</h1>
+          <h1 data-testid="item-detail-title">{item.title || t('detail_untitled', 'Untitled')}</h1>
           {subtitle ? (
             <a
               className="item-detail-source"
@@ -172,14 +174,15 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
             </a>
           ) : null}
           <p className="item-detail-meta">
-            Saved {captured.toLocaleString()} · status: {item.status}
+            {locale === 'vi' ? 'Đã lưu ' : 'Saved '}
+            {captured.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')} · status: {item.status}
           </p>
         </header>
 
         {item.snippet ? (
           <section className="item-detail-section item-detail-section--tldr" data-testid="item-detail-tldr" style={{ background: 'var(--mn-surface-2, rgba(255,255,255,0.03))', padding: '16px 20px', borderRadius: 12, border: '1px solid var(--mn-border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--mn-text-2)', margin: 0 }}>TL;DR · Tóm tắt AI</h2>
+              <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--mn-text-2)', margin: 0 }}>{t('detail_tldr_title', 'TL;DR · Tóm tắt AI')}</h2>
               <button
                 type="button"
                 className="ghost"
@@ -191,7 +194,7 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
                 style={{ fontSize: 12, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
               >
                 <Icon name={copied ? 'check' : 'copy'} size={13} />
-                <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
+                <span>{copied ? t('detail_copied', 'Đã sao chép') : t('detail_copy', 'Sao chép')}</span>
               </button>
             </div>
             <p style={{ marginTop: 10, marginBottom: 0, lineHeight: 1.6, color: 'var(--mn-text-1)', fontSize: 14 }}>
@@ -211,21 +214,21 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
 
         {item.raw_text ? (
           <section className="item-detail-section" data-testid="item-detail-raw">
-            <h2>Content</h2>
+            <h2>{t('detail_content', 'Content')}</h2>
             <pre className="item-detail-raw">{item.raw_text}</pre>
           </section>
         ) : null}
 
         {item.ocr_text ? (
           <section className="item-detail-section" data-testid="item-detail-ocr">
-            <h2>OCR text</h2>
+            <h2>{t('detail_ocr_text', 'OCR text')}</h2>
             <pre className="item-detail-raw">{item.ocr_text}</pre>
           </section>
         ) : null}
 
         {item.tags && item.tags.length > 0 ? (
           <section className="item-detail-section" data-testid="item-detail-tags">
-            <h2>Tags</h2>
+            <h2>{t('detail_tags', 'Tags')}</h2>
             <ul className="item-detail-tags">
               {item.tags.map((t) => (
                 <li key={t} className="item-detail-tag">
@@ -237,13 +240,13 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
         ) : null}
 
         <section className="item-detail-section" data-testid="item-detail-notes">
-          <h2>Ghi chú cá nhân</h2>
+          <h2>{t('detail_personal_notes', 'Ghi chú cá nhân')}</h2>
           <textarea
             className="item-detail-raw"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="Thêm ghi chú cá nhân của bạn cho ký ức này..."
+            placeholder={t('detail_notes_placeholder', 'Thêm ghi chú cá nhân của bạn cho ký ức này...')}
             style={{ width: '100%', resize: 'vertical', marginTop: 8, fontFamily: 'inherit', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
@@ -254,9 +257,9 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
               onClick={handleSaveNotes}
               style={{ padding: '7px 16px', fontSize: 13, borderRadius: 6, cursor: 'pointer' }}
             >
-              {notesSaving ? 'Đang lưu…' : 'Lưu ghi chú'}
+              {notesSaving ? t('detail_saving_notes', 'Đang lưu…') : t('detail_save_notes', 'Lưu ghi chú')}
             </button>
-            {notesSaved && <span style={{ color: 'var(--accent)', fontSize: 12 }}>✓ Đã lưu</span>}
+            {notesSaved && <span style={{ color: 'var(--accent)', fontSize: 12 }}>✓ {t('detail_saved_notes', 'Đã lưu')}</span>}
           </div>
         </section>
 
@@ -268,21 +271,23 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
               target="_blank"
               rel="noopener noreferrer"
             >
-              Open original
+              {t('detail_open_original', 'Open original')}
             </a>
           ) : null}
           <button
             type="button"
             className="ghost danger"
             onClick={async () => {
-              if (!window.confirm(`Delete "${item.title || 'this memory'}"?`)) return;
+              const label = item.title || (locale === 'vi' ? 'ghi nhớ này' : 'this memory');
+              const confirmMsg = locale === 'vi' ? `Xóa "${label}"?` : `Delete "${label}"?`;
+              if (!window.confirm(confirmMsg)) return;
               const token = await api.getValidAccessToken();
               if (!token) return;
               await api.deleteItem(item.id, token);
               navigate('/app');
             }}
           >
-            Delete
+            {t('btn_delete', 'Delete')}
           </button>
         </div>
       </div>

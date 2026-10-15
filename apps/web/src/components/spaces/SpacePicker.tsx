@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../dashboard/Icons';
 import { SpaceColorPicker, SpaceDot, spaceColorVars } from './SpaceIdentity';
 import type { ApiClient, SpaceColor, SpaceWithCount } from '../../lib/api-client';
+import { useLocale } from '../../lib/locale';
 import './spaces.css';
 
 interface SpacePickerProps {
@@ -23,6 +24,7 @@ interface SpacePickerProps {
  * state says so rather than looking broken.
  */
 export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: SpacePickerProps) {
+  const { t, locale } = useLocale();
   const [spaces, setSpaces] = useState<SpaceWithCount[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -127,7 +129,11 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
   }, [api, busyId, itemIds, newName, newColor, onAdded, onClose]);
 
   const selectedLabel =
-    itemIds.length === 1 ? '1 memory' : `${itemIds.length} memories`;
+    locale === 'vi'
+      ? `${itemIds.length} ghi nhớ`
+      : itemIds.length === 1
+      ? '1 memory'
+      : `${itemIds.length} memories`;
 
   return (
     <div className="space-picker-backdrop" role="presentation">
@@ -135,12 +141,12 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
         className="space-picker"
         role="dialog"
         aria-modal="true"
-        aria-label="Add to Space"
+        aria-label={t('space_picker_title', 'Add to Space')}
         ref={panelRef}
         data-testid="space-picker"
       >
         <header className="space-picker__head">
-          <h2>Add to Space</h2>
+          <h2>{t('space_picker_title', 'Add to Space')}</h2>
           {itemIds.length > 0 ? (
             <span className="space-picker__count">{selectedLabel}</span>
           ) : null}
@@ -152,8 +158,8 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
             <input
               type="search"
               value={query}
-              placeholder="Search Spaces"
-              aria-label="Search Spaces"
+              placeholder={t('space_picker_search', 'Search Spaces')}
+              aria-label={t('space_picker_search', 'Search Spaces')}
               data-testid="space-picker-search"
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -162,12 +168,12 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
 
         <div className="space-picker__list">
           {loading ? (
-            <p className="space-picker__hint">Loading Spaces…</p>
+            <p className="space-picker__hint">{t('spaces_loading', 'Loading Spaces…')}</p>
           ) : filtered.length === 0 ? (
             <p className="space-picker__hint" data-testid="space-picker-empty">
               {manual.length === 0
-                ? 'No manual Spaces yet. Create one below.'
-                : 'No Space matches that name.'}
+                ? t('space_picker_no_manual', 'No manual Spaces yet. Create one below.')
+                : t('space_picker_no_match', 'No Space matches that name.')}
             </p>
           ) : (
             filtered.map((space) => {
@@ -186,7 +192,7 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
                   <SpaceDot color={space.color} />
                   <span className="space-picker__name">{space.name}</span>
                   <span className="space-picker__meta">
-                    {busy ? 'Adding…' : `${space.itemCount ?? 0}`}
+                    {busy ? t('status_loading', 'Adding…') : `${space.itemCount ?? 0}`}
                   </span>
                 </button>
               );
@@ -196,8 +202,7 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
 
         {spaces.some((s) => s.spaceType === 'smart') ? (
           <p className="space-picker__note">
-            Smart Spaces fill themselves from their saved search, so they are not listed
-            here.
+            {t('space_picker_smart_note', 'Smart Spaces fill themselves from their saved search, so they are not listed here.')}
           </p>
         ) : null}
 
@@ -210,7 +215,7 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
         {creating ? (
           <div className="space-picker__create" data-testid="space-picker-create">
             <label className="field-label" htmlFor="space-picker-name">
-              New Space
+              {t('space_dialog_manual_title', 'New Space')}
             </label>
             <input
               id="space-picker-name"
@@ -224,10 +229,10 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
                 if (e.key === 'Enter') void createAndAdd();
               }}
             />
-            <SpaceColorPicker value={newColor} onChange={setNewColor} label="Colour" />
+            <SpaceColorPicker value={newColor} onChange={setNewColor} label={t('space_field_color', 'Colour')} />
             <div className="space-picker__actions">
               <button type="button" className="ghost" onClick={() => setCreating(false)}>
-                Cancel
+                {t('btn_cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -236,7 +241,7 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
                 data-testid="space-picker-create-submit"
                 onClick={() => void createAndAdd()}
               >
-                {busyId === '__new__' ? 'Creating…' : 'Create & add'}
+                {busyId === '__new__' ? t('status_loading', 'Creating…') : t('space_picker_create_and_add', 'Create & add')}
               </button>
             </div>
           </div>
@@ -247,7 +252,7 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
             data-testid="space-picker-new"
             onClick={() => setCreating(true)}
           >
-            <Icon name="plus" size={14} /> New Space
+            <Icon name="plus" size={14} /> {t('space_dialog_manual_title', 'New Space')}
           </button>
         ) : (
           <button
@@ -256,7 +261,7 @@ export function SpacePicker({ api, itemIds, onClose, onAdded, onCreateNew }: Spa
             data-testid="space-picker-new"
             onClick={() => setCreating(true)}
           >
-            <Icon name="plus" size={14} /> Create New Space
+            <Icon name="plus" size={14} /> {t('space_picker_create_new', 'Create New Space')}
           </button>
         )}
       </div>

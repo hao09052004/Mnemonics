@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocale } from '../../lib/locale';
 
 /**
  * Animated search demonstration using a fake marketing-only dataset.
@@ -7,7 +8,7 @@ import { useEffect, useState } from 'react';
  */
 const SAMPLE_QUERY = 'the article about safe reinforcement learning';
 
-const SAMPLE_RESULTS: { title: string; url: string; score: number; matches: string[] }[] = [
+const SAMPLE_RESULTS_EN: { title: string; url: string; score: number; matches: string[] }[] = [
   {
     title: 'Concrete Problems in AI Safety',
     url: 'arxiv.org/abs/1606.06565',
@@ -34,15 +35,46 @@ const SAMPLE_RESULTS: { title: string; url: string; score: number; matches: stri
   }
 ];
 
+const SAMPLE_RESULTS_VI: { title: string; url: string; score: number; matches: string[] }[] = [
+  {
+    title: 'Các vấn đề thực tiễn về an toàn AI',
+    url: 'arxiv.org/abs/1606.06565',
+    score: 0.93,
+    matches: ['an toàn AI', 'mô hình phần thưởng']
+  },
+  {
+    title: 'Tối ưu hóa học sâu và an toàn AI',
+    url: 'deepmind.google/research',
+    score: 0.86,
+    matches: ['học tăng cường', 'căn chỉnh']
+  },
+  {
+    title: 'Quy chuẩn an toàn trong học tăng cường',
+    url: 'people.eecs.berkeley.edu',
+    score: 0.81,
+    matches: ['RL an toàn', 'ràng buộc']
+  },
+  {
+    title: 'Ghi chú về rủi ro AGI (cá nhân)',
+    url: 'notebook · 12-08-2025',
+    score: 0.74,
+    matches: ['rủi ro AI', 'dài hạn']
+  }
+];
+
 export function SemanticSearchDemo() {
   const [typed, setTyped] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const { t, locale } = useLocale();
+
+  const sampleResults = locale === 'vi' ? SAMPLE_RESULTS_VI : SAMPLE_RESULTS_EN;
+  const queryText = t('semantic_sample_query', SAMPLE_QUERY);
 
   useEffect(() => {
     if (typeof window !== 'undefined' &&
         window.matchMedia &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setTyped(SAMPLE_QUERY);
+      setTyped(queryText);
       setShowResults(true);
       return;
     }
@@ -51,32 +83,31 @@ export function SemanticSearchDemo() {
     let i = 0;
     const tick = () => {
       if (cancelled) return;
-      setTyped(SAMPLE_QUERY.slice(0, i));
+      setTyped(queryText.slice(0, i));
       i += 1;
-      if (i <= SAMPLE_QUERY.length) {
+      if (i <= queryText.length) {
         window.setTimeout(tick, 38);
       } else {
         window.setTimeout(() => !cancelled && setShowResults(true), 240);
       }
     };
-    const t = window.setTimeout(tick, 400);
+    const tTimer = window.setTimeout(tick, 400);
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.clearTimeout(tTimer);
     };
-  }, []);
+  }, [queryText]);
 
   return (
     <section className="section" style={{ background: 'var(--bg-elevated)' }}>
       <div className="container">
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow">Recall</div>
+          <div className="eyebrow">{t('semantic_eyebrow', 'Recall')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            Search the way you remember.
+            {t('semantic_headline', 'Search the way you remember.')}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Type it the way you'd ask a friend. Mnemonics finds it by meaning, not by the words
-            that happened to be in the title.
+            {t('semantic_lead', "Type it the way you'd ask a friend. Mnemonics finds it by meaning, not by the words that happened to be in the title.")}
           </p>
         </div>
 
@@ -119,7 +150,7 @@ export function SemanticSearchDemo() {
             }}
             data-testid="search-results"
           >
-            {SAMPLE_RESULTS.map((r) => (
+            {sampleResults.map((r) => (
               <li
                 key={r.title}
                 style={{
@@ -166,7 +197,7 @@ export function SemanticSearchDemo() {
                     {r.score.toFixed(2)}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                    match
+                    {t('semantic_match_label', 'match')}
                   </div>
                 </div>
               </li>

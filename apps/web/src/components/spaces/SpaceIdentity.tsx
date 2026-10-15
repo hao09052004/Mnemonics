@@ -101,10 +101,13 @@ interface SpaceKindBadgeProps {
  * so this is plain text with no sparkle icon and no branding. An icon
  * here would imply intelligence the product does not use.
  */
+import { useLocale } from '../../lib/locale';
+
 export function SpaceKindBadge({ kind }: SpaceKindBadgeProps) {
+  const { t } = useLocale();
   return (
     <span className={`space-kind space-kind--${kind}`} data-testid={`space-kind-${kind}`}>
-      {kind}
+      {t(kind === 'smart' ? 'space_kind_smart' : 'space_kind_manual', kind)}
     </span>
   );
 }

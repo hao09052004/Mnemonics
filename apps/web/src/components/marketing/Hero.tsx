@@ -218,6 +218,8 @@ function cardStyle(x: number, y: number, rot: number, tx: number, ty: number): R
 }
 
 function ArticleCard() {
+  const { locale } = useLocale();
+  const isVi = locale === 'vi';
   return (
     <div
       className="mn-hero-card"
@@ -241,16 +243,18 @@ function ArticleCard() {
         }}
       />
       <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#f2f3f5' }}>
-        The quiet rise of personal AI
+        {isVi ? 'Sự trỗi dậy thầm lặng của AI cá nhân' : 'The quiet rise of personal AI'}
       </div>
       <div style={{ marginTop: 4, fontSize: 11, color: '#9ca3af' }}>
-        theverge.com · 6 min read
+        {isVi ? 'theverge.com · 6 phút đọc' : 'theverge.com · 6 min read'}
       </div>
     </div>
   );
 }
 
 function QuoteCard() {
+  const { locale } = useLocale();
+  const isVi = locale === 'vi';
   return (
     <div
       className="mn-hero-card"
@@ -268,12 +272,12 @@ function QuoteCard() {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brand)', fontWeight: 700 }}>
-          Highlight
+          {isVi ? 'Trích dẫn' : 'Highlight'}
         </span>
         <span style={{ fontSize: 18, color: 'var(--brand)', opacity: 0.85, lineHeight: 1 }}>“</span>
       </div>
       <div style={{ marginTop: 6, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-serif, serif)', fontStyle: 'italic', color: '#f2f3f5' }}>
-        “The best interface is the one that disappears.”
+        {isVi ? '“Giao diện tốt nhất là giao diện vô hình.”' : '“The best interface is the one that disappears.”'}
       </div>
       <div style={{ marginTop: 10, fontSize: 11, color: '#9ca3af' }}>— Naoto Fukasawa</div>
     </div>
@@ -281,6 +285,8 @@ function QuoteCard() {
 }
 
 function ScreenshotCard() {
+  const { locale } = useLocale();
+  const isVi = locale === 'vi';
   return (
     <div
       className="mn-hero-card"
@@ -305,14 +311,15 @@ function ScreenshotCard() {
       />
       <div style={{ marginTop: 8, fontSize: 11, color: '#d1d5db', display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399' }} />
-        Screenshot · OCR indexed
+        {isVi ? 'Ảnh chụp · Nhận dạng OCR' : 'Screenshot · OCR indexed'}
       </div>
     </div>
   );
 }
 
 function TagBubble() {
-  const tags = ['design', 'long-form', 'AI', 'craft'];
+  const { locale } = useLocale();
+  const tags = locale === 'vi' ? ['thiết kế', 'bài viết dài', 'AI', 'tinh gọn'] : ['design', 'long-form', 'AI', 'craft'];
   return (
     <div
       className="mn-hero-card"
@@ -350,6 +357,8 @@ function TagBubble() {
 }
 
 function SearchResultCard() {
+  const { locale } = useLocale();
+  const isVi = locale === 'vi';
   return (
     <div
       className="mn-hero-card"
@@ -365,15 +374,23 @@ function SearchResultCard() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af' }}>
-        <span>Semantic match</span>
-        <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>AI Recall</span>
+        <span>{isVi ? 'Khớp ngữ nghĩa' : 'Semantic match'}</span>
+        <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {isVi ? 'Tìm kiếm AI' : 'AI Recall'}
+        </span>
       </div>
       <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: '#f3e8ff' }}>
-        “the article about safe reinforcement learning”
+        {isVi ? '“bài viết về trí tuệ nhân tạo an toàn”' : '“the article about safe reinforcement learning”'}
       </div>
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <Result title="Concrete Problems in AI Safety" score="98%" />
-        <Result title="Reward Hacking in Deep RL" score="91%" />
+        <Result
+          title={isVi ? 'Các vấn đề thực tiễn về an toàn AI' : 'Concrete Problems in AI Safety'}
+          score="98%"
+        />
+        <Result
+          title={isVi ? 'Tối ưu hóa học sâu và an toàn AI' : 'Reward Hacking in Deep RL'}
+          score="91%"
+        />
       </div>
     </div>
   );

@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { ApiClient } from '../../lib/api-client';
+import { useLocale } from '../../lib/locale';
 
 export interface DocumentCaptureDialogProps {
   api: ApiClient;
@@ -55,6 +56,7 @@ export function DocumentCaptureDialog({
   onClose,
   onUploaded
 }: DocumentCaptureDialogProps) {
+  const { t } = useLocale();
   const [fileState, setFileState] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -168,11 +170,11 @@ export function DocumentCaptureDialog({
               </svg>
             </div>
             <div>
-              <h2>Upload document</h2>
-              <p className="dialog-sub">Tải lên tài liệu PDF, DOCX hoặc văn bản để lập chỉ mục.</p>
+              <h2>{t('dialog_doc_title', 'Upload document')}</h2>
+              <p className="dialog-sub">{t('dialog_doc_sub', 'Tải lên tài liệu PDF, DOCX hoặc văn bản để lập chỉ mục.')}</p>
             </div>
           </div>
-          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label="Close">
+          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label={t('dialog_doc_close', 'Close')}>
             ✕
           </button>
         </div>
@@ -205,13 +207,13 @@ export function DocumentCaptureDialog({
               }}
               disabled={phase === 'uploading' || phase === 'finalizing'}
             >
-              Choose file…
+              {t('dialog_doc_choose', 'Choose file…')}
             </button>
             <p className="dropzone-hint">
-              Kéo thả hoặc bấm để chọn tệp tài liệu
+              {t('dialog_doc_drop_hint', 'Kéo thả hoặc bấm để chọn tệp tài liệu')}
             </p>
             <p className="dropzone-sub">
-              Hỗ trợ PDF, DOCX, TXT (tối đa 20 MB). Tự động phân tích nội dung văn bản.
+              {t('dialog_doc_drop_sub', 'Hỗ trợ PDF, DOCX, TXT (tối đa 20 MB). Tự động phân tích nội dung văn bản.')}
             </p>
           </div>
         ) : null}
@@ -233,12 +235,12 @@ export function DocumentCaptureDialog({
                 onClick={pickFile}
                 disabled={phase === 'uploading' || phase === 'finalizing'}
               >
-                Đổi tệp
+                {t('dialog_doc_change', 'Đổi tệp')}
               </button>
             </div>
 
             <label className="document-title-label">
-              <span>Tiêu đề</span>
+              <span>{t('dialog_doc_title_label', 'Tiêu đề')}</span>
               <input
                 type="text"
                 data-testid="document-title-input"
@@ -257,7 +259,7 @@ export function DocumentCaptureDialog({
                 onClick={handleCancel}
                 disabled={phase === 'uploading' || phase === 'finalizing'}
               >
-                Cancel
+                {t('btn_cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -272,10 +274,10 @@ export function DocumentCaptureDialog({
                 }
               >
                 {phase === 'uploading' || phase === 'finalizing'
-                  ? 'Uploading…'
+                  ? t('status_saving', 'Uploading…')
                   : phase === 'saved'
-                    ? 'Saved'
-                    : 'Save to Mnemonics'}
+                    ? t('status_saved', 'Saved')
+                    : t('dialog_doc_save_btn', 'Save to Mnemonics')}
               </button>
             </div>
             {error ? (
@@ -285,7 +287,7 @@ export function DocumentCaptureDialog({
             ) : null}
             {phase === 'saved' ? (
               <p className="document-status" data-testid="document-status">
-                <span>✓</span> Saved — processing document…
+                <span>✓</span> {t('dialog_doc_saved_status', 'Saved — processing document…')}
               </p>
             ) : null}
           </div>
@@ -299,7 +301,7 @@ export function DocumentCaptureDialog({
               onClick={handleCancel}
               disabled={phase === 'uploading' || phase === 'finalizing'}
             >
-              Close
+              {t('dialog_doc_close', 'Close')}
             </button>
           </div>
         )}

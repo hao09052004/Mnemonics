@@ -10,43 +10,18 @@ import {
   type BrowserKind,
   type StoreUrlKind
 } from '../../config/browser';
+import { useLocale } from '../../lib/locale';
 
 type ButtonBrowser = 'chrome' | 'edge';
 
 interface InstallExtensionButtonProps {
-  /**
-   * Which store the button targets. When omitted, the button
-   * auto-detects from the user agent.
-   *
-   *   - "chrome" → "Add to Chrome", opens VITE_CHROME_EXTENSION_URL
-   *   - "edge"   → "Add to Edge",   opens VITE_EDGE_EXTENSION_URL
-   *
-   * The Chrome CTA is always rendered first and with a stronger visual
-   * weight — that order is enforced by callers, not this component.
-   */
   browser?: ButtonBrowser;
-  /** Visual treatment. "primary" is the bold violet filled button. */
   variant?: 'primary' | 'secondary' | 'ghost';
   size?: 'md' | 'lg';
-  /**
-   * When true, the button is full-width inside its container.
-   * Used inside the AuthLayout's narrow email panel.
-   */
   fullWidth?: boolean;
-  /**
-   * Optional click override. When provided, the default
-   * navigate-to-store / open-modal behaviour is bypassed. Used by
-   * the homepage hero which prefers to route to /browser-extension
-   * instead of opening the Web Store directly.
-   */
   onClickOverride?: () => void;
   className?: string;
 }
-
-const PRIMARY_LABELS: Record<ButtonBrowser, string> = {
-  chrome: 'Add to Chrome',
-  edge: 'Add to Edge'
-};
 
 const COMING_SOON_TITLE: Record<StoreUrlKind, { chrome: string; edge: string }> = {
   chrome: {
@@ -59,23 +34,6 @@ const COMING_SOON_TITLE: Record<StoreUrlKind, { chrome: string; edge: string }> 
   }
 };
 
-/**
- * "Add to Chrome" / "Add to Edge" CTA.
- *
- * Behaviour:
- *   1. If a store URL is configured for the requested browser AND the
- *      detected browser supports it, open the URL in a new tab with
- *      `target="_blank" rel="noopener noreferrer"`.
- *   2. If the URL isn't configured (or the browser is Firefox/Safari),
- *      open an InstallModal so the user never sees a broken link.
- *   3. If `onClickOverride` is provided, defer to the caller.
- *
- * Edge users get the Edge Add-ons URL; Chrome/Brave/Opera users get
- * the Chrome Web Store URL. The button itself doesn't care which
- * store the detected browser *would* prefer — that decision belongs
- * to the caller. The hero always renders Chrome first; an "Also on
- * Edge" companion is rendered alongside.
- */
 export function InstallExtensionButton({
   browser: requestedBrowser,
   variant = 'primary',
@@ -86,24 +44,21 @@ export function InstallExtensionButton({
 }: InstallExtensionButtonProps) {
   const [detected, setDetected] = useState<BrowserKind>('other');
   const [modalOpen, setModalOpen] = useState(false);
+  const { t } = useLocale();
 
   useEffect(() => {
     setDetected(detectBrowser());
   }, []);
 
-  // Default browser is the detected one; if detection says edge and no
-  // explicit prop, we still render the Edge button. The caller can
-  // override.
   const browser: ButtonBrowser =
     requestedBrowser ??
     (detected === 'edge' ? 'edge' : 'chrome');
 
   const label = installLabelFor(detected);
-  // The "Add to {Browser}" label is *separate* from the detected
-  // browser's `installLabelFor` — that one is for the auto-detected
-  // label when the caller doesn't pass a `browser` prop. Here we
-  // honour the caller's intent.
-  const buttonText = PRIMARY_LABELS[browser];
+  const buttonText =
+    browser === 'edge'
+      ? t('hero_add_edge', 'Add to Edge')
+      : t('hero_add_chrome', 'Add to Chrome');
   const storeUrl = extensionStoreUrl(browser);
   const storeConfigured = hasExtensionUrl(browser);
   // The install button only opens the store for browsers that have
@@ -217,16 +172,19 @@ function InstallModal({
   detectedBrowser,
   onClose
 }: InstallModalProps) {
+  const { t, locale } = useLocale();
   const isUnsupported = detectedBrowser === 'firefox' || detectedBrowser === 'safari';
   const title = isUnsupported
-    ? 'Your browser is on the way.'
-    : COMING_SOON_TITLE[requestedBrowser][requestedBrowser];
+    ? t('modal_ext_title_other', 'Your browser is on the way.')
+    : requestedBrowser === 'edge'
+      ? t('modal_ext_title_edge', 'Microsoft Edge Add-ons release coming soon.')
+      : t('modal_ext_title_chrome', 'Chrome Web Store release coming soon.');
 
   const description = isUnsupported
-    ? 'The Mnemonics extension is currently shipping on Chromium-based browsers. Firefox and Safari builds are in progress — sign in to the web app in the meantime to keep saving memories.'
+    ? t('modal_ext_desc_other', 'The Mnemonics extension is currently shipping on Chromium-based browsers. Firefox and Safari builds are in progress — sign in to the web app in the meantime to keep saving memories.')
     : requestedBrowser === 'edge'
-      ? 'We are finalising the Microsoft Edge Add-ons review. In the meantime you can load the development build locally.'
-      : 'We are finalising the Chrome Web Store review. In the meantime you can load the development build locally.';
+      ? t('modal_ext_desc_edge', 'We are finalising the Microsoft Edge Add-ons review. In the meantime you can load the development build locally.')
+      : t('modal_ext_desc_chrome', 'We are finalising the Chrome Web Store review. In the meantime you can load the development build locally.');
 
   const devUnpackUrl = requestedBrowser === 'edge' ? 'edge://extensions' : 'chrome://extensions';
 
@@ -302,7 +260,7 @@ function InstallModal({
           }}
         >
           <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--ink)' }}>
-            Load the development build
+            {t('modal_ext_dev_summary', 'Load the development build')}
           </summary>
           <ol
             style={{
@@ -313,15 +271,23 @@ function InstallModal({
               lineHeight: 1.6
             }}
           >
-            <li>Download or clone the Mnemonics repo.</li>
+            <li>{t('modal_ext_step1', 'Download or clone the Mnemonics repo.')}</li>
             <li>
-              Open <code>{devUnpackUrl}</code> in your browser.
+              {t('modal_ext_step2', 'Open in your browser:')} <code>{devUnpackUrl}</code>
             </li>
             <li>
-              Enable <b>Developer mode</b> in the top right.
+              {locale === 'vi' ? (
+                <>Bật <b>Chế độ nhà phát triển (Developer mode)</b> ở góc trên bên phải.</>
+              ) : (
+                <>Enable <b>Developer mode</b> in the top right.</>
+              )}
             </li>
             <li>
-              Click <b>Load unpacked</b> and select <code>apps/extension</code>.
+              {locale === 'vi' ? (
+                <>Nhấn <b>Tải tiện ích đã giải nén (Load unpacked)</b> và chọn <code>apps/extension</code>.</>
+              ) : (
+                <>Click <b>Load unpacked</b> and select <code>apps/extension</code>.</>
+              )}
             </li>
           </ol>
         </details>
@@ -332,7 +298,7 @@ function InstallModal({
             onClick={onClose}
             className="btn btn--ghost btn--sm"
           >
-            Close
+            {t('btn_close', 'Close')}
           </button>
         </div>
       </div>

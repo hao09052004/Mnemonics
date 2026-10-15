@@ -1,33 +1,32 @@
-/**
- * "No folders required." — visualises the actual processing pipeline
- * (Capture → Processing → Tags → Embedding → Ready) that the API
- * already implements. No invented stages.
- */
+import { useLocale } from '../../lib/locale';
+
 export function AIPipelineSection() {
+  const { t } = useLocale();
+
   const steps: { title: string; body: string; tone: 'muted' | 'warm' | 'brand' | 'ink' }[] = [
     {
-      title: 'Capture',
-      body: 'Anything you save — page, highlight, image, screenshot — is forwarded to the API as a memory with a stable id.',
+      title: t('pipeline_step_1_title', 'Capture'),
+      body: t('pipeline_step_1_body', 'Anything you save — page, highlight, image, screenshot — is forwarded to the API as a memory with a stable id.'),
       tone: 'muted'
     },
     {
-      title: 'Processing',
-      body: 'OCR runs on images and screenshots. The pipeline waits for it before generating tags or embeddings.',
+      title: t('pipeline_step_2_title', 'Processing'),
+      body: t('pipeline_step_2_body', 'OCR runs on images and screenshots. The pipeline waits for it before generating tags or embeddings.'),
       tone: 'warm'
     },
     {
-      title: 'Tags',
-      body: 'A small language model picks 1–5 tags from your existing tag set, falling back to new ones when needed.',
+      title: t('pipeline_step_3_title', 'Tags'),
+      body: t('pipeline_step_3_body', 'A small language model picks 1–5 tags from your existing tag set, falling back to new ones when needed.'),
       tone: 'brand'
     },
     {
-      title: 'Embedding',
-      body: 'A vector embedding is computed for the memory so semantic search can find it by meaning.',
+      title: t('pipeline_step_4_title', 'Embedding'),
+      body: t('pipeline_step_4_body', 'A vector embedding is computed for the memory so semantic search can find it by meaning.'),
       tone: 'ink'
     },
     {
-      title: 'Ready',
-      body: 'The memory flips to ready. It now shows up in lists, tag filters, semantic search and related-memory rails.',
+      title: t('pipeline_step_5_title', 'Ready'),
+      body: t('pipeline_step_5_body', 'The memory flips to ready. It now shows up in lists, tag filters, semantic search and related-memory rails.'),
       tone: 'brand'
     }
   ];
@@ -36,13 +35,12 @@ export function AIPipelineSection() {
     <section className="section">
       <div className="container">
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow">Understand</div>
+          <div className="eyebrow">{t('pipeline_eyebrow', 'Understand')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            No folders required.
+            {t('pipeline_headline', 'No folders required.')}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Mnemonics quietly processes what you save — extracting text, picking tags,
-            embedding for search. By the time you go looking for it, the memory is ready.
+            {t('pipeline_lead', 'Mnemonics quietly processes what you save — extracting text, picking tags, embedding for search. By the time you go looking for it, the memory is ready.')}
           </p>
         </div>
 

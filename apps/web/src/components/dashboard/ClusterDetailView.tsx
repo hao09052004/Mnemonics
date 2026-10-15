@@ -25,6 +25,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { type ClusterDetailSummary, type ClusterMember, type ApiClient } from '../../lib/api-client';
 import { MemoryCard } from './MemoryCard';
 import { EmptyState } from './EmptyState';
+import { useLocale } from '../../lib/locale';
 import '../spaces/spaces.css';
 
 interface ClusterDetailViewProps {
@@ -38,6 +39,7 @@ const PAGE_SIZE = 50;
 export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetailViewProps) {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useLocale();
 
   const [summary, setSummary] = useState<ClusterDetailSummary | null>(null);
   const [members, setMembers] = useState<ClusterMember[]>([]);
@@ -98,19 +100,19 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
     // member. If the backend did not compute one (singleton,
     // algorithm-cold start) we keep a stable fallback so the page
     // never shows a blank header.
-    return summary?.title?.trim() || 'Untitled group';
-  }, [summary]);
+    return summary?.title?.trim() || t('clusters_untitled', 'Untitled group');
+  }, [summary, t]);
 
   if (loading) {
-    return <div className="mnx-everything__loading">Loading group…</div>;
+    return <div className="mnx-everything__loading">{t('clusters_loading', 'Loading group…')}</div>;
   }
 
   if (error) {
     return (
       <EmptyState
-        title="We can't load this group"
+        title={t('clusters_load_error_title', "We can't load this group")}
         text={error}
-        action={{ label: 'Back to groups', onClick: () => navigate('/app/clusters') }}
+        action={{ label: t('clusters_back_btn', 'Back to groups'), onClick: () => navigate('/app/clusters') }}
       />
     );
   }
@@ -118,12 +120,14 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
   if (members.length === 0) {
     return (
       <EmptyState
-        title="This group is empty"
-        text="It may have been recomputed. Try refreshing groups."
-        action={{ label: 'Back to groups', onClick: () => navigate('/app/clusters') }}
+        title={t('clusters_empty_group_title', 'This group is empty')}
+        text={t('clusters_empty_group_text', 'It may have been recomputed. Try refreshing groups.')}
+        action={{ label: t('clusters_back_btn', 'Back to groups'), onClick: () => navigate('/app/clusters') }}
       />
     );
   }
+
+  const count = summary?.itemCount ?? members.length;
 
   return (
     <div className="mnx-everything" data-testid="cluster-detail">
@@ -137,9 +141,9 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
           </p>
         ) : null}
         <p className="mnx-everything__subtitle" data-testid="cluster-count">
-          {summary?.itemCount ?? members.length}{' '}
-          {(summary?.itemCount ?? members.length) === 1 ? 'memory' : 'memories'}
-          {hasMore ? ' (showing first ' + members.length + ')' : ''}
+          {count}{' '}
+          {count === 1 ? t('memory_unit_one', 'memory') : t('memory_unit_other', 'memories')}
+          {hasMore ? ' (' + t('clusters_showing_first', 'showing first') + ' ' + members.length + ')' : ''}
         </p>
         <div className="mnx-clusters__actions">
           <button
@@ -149,7 +153,7 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
             disabled={savingAsSpace}
             data-testid="cluster-save-as-space"
           >
-            {savingAsSpace ? 'Saving…' : 'Save as Space'}
+            {savingAsSpace ? t('status_saving', 'Saving…') : t('btn_save_as_space', 'Save as Space')}
           </button>
         </div>
       </header>
@@ -161,7 +165,7 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
             item={{
               id: it.id,
               kind: it.kind,
-              title: it.title ?? 'Untitled',
+              title: it.title ?? t('detail_untitled', 'Untitled'),
               snippet: '',
               source_url: it.sourceUrl,
               image_url: it.thumbnailUrl,
@@ -184,7 +188,7 @@ export function ClusterDetailView({ api, accessToken, onOpenItem }: ClusterDetai
             onClick={() => void loadPage(offset, true)}
             data-testid="cluster-load-more"
           >
-            {loadingMore ? 'Loading…' : 'Load more'}
+            {loadingMore ? t('status_loading', 'Loading…') : t('btn_load_more', 'Load more')}
           </button>
         </div>
       ) : null}

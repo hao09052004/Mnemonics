@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
 import { ApiClient, type Session } from '../lib/api-client';
+import { useLocale } from '../lib/locale';
 
 interface RediscoverPageProps {
   api: ApiClient;
@@ -9,6 +10,7 @@ interface RediscoverPageProps {
 
 export function RediscoverPage({ api }: RediscoverPageProps) {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
@@ -37,9 +39,9 @@ export function RediscoverPage({ api }: RediscoverPageProps) {
       <main className="main standard">
         <header className="page-header">
           <div>
-            <span className="eyebrow">A QUIET RETURN</span>
-            <h1>Rediscover</h1>
-            <p>Things worth remembering again.</p>
+            <span className="eyebrow">{t('rediscover_eyebrow', 'A QUIET RETURN')}</span>
+            <h1>{t('rediscover_title', 'Rediscover')}</h1>
+            <p>{t('rediscover_sub', 'Things worth remembering again.')}</p>
           </div>
         </header>
         <section className="empty" aria-label="Rediscover stub">
@@ -49,10 +51,9 @@ export function RediscoverPage({ api }: RediscoverPageProps) {
               <span />
               <span />
             </div>
-            <h1>Coming soon</h1>
+            <h1>{t('coming_soon', 'Coming soon')}</h1>
             <p>
-              Mnemonics Rediscover is on the roadmap. It will resurface
-              memories you saved a long time ago.
+              {t('rediscover_coming_soon', 'Mnemonics Rediscover is on the roadmap. It will resurface memories you saved a long time ago.')}
             </p>
           </div>
         </section>

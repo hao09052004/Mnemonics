@@ -1,24 +1,19 @@
 import { Link } from 'react-router-dom';
+import { useLocale } from '../../lib/locale';
 
-/**
- * "Your memories, wherever you need them."
- *
- * Honest sync description: extension → API → web dashboard. We
- * explicitly do NOT claim native mobile sync (no mobile build ships
- * today).
- */
 export function SyncSection() {
+  const { t } = useLocale();
+
   return (
     <section className="section" style={{ background: 'var(--bg-elevated)' }}>
       <div className="container">
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow">Access</div>
+          <div className="eyebrow">{t('sync_eyebrow', 'Access')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            Your memories, wherever you need them.
+            {t('sync_headline', 'Your memories, wherever you need them.')}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Save from the browser, find it in the dashboard. Mnemonics is a small system with
-            a single source of truth: the API.
+            {t('sync_lead', 'Save from the browser, find it in the dashboard. Mnemonics is a small system with a single source of truth: the API.')}
           </p>
         </div>
 
@@ -33,28 +28,28 @@ export function SyncSection() {
         >
           <SyncCard
             label="01"
-            title="Browser extension"
-            body="Capture from any tab. Highlights, images, screenshots, the whole page."
+            title={t('sync_card_1_title', 'Browser extension')}
+            body={t('sync_card_1_body', 'Capture from any tab. Highlights, images, screenshots, the whole page.')}
             icon="🧩"
           />
           <SyncCard
             label="02"
-            title="Mnemonics API"
-            body="A single REST API processes your memories, runs OCR + tags, and stores vectors."
+            title={t('sync_card_2_title', 'Mnemonics API')}
+            body={t('sync_card_2_body', 'A single REST API processes your memories, runs OCR + tags, and stores vectors.')}
             icon="⚙️"
           />
           <SyncCard
             label="03"
-            title="Web dashboard"
-            body="Search, browse and refine. The same library, accessible from any modern browser."
+            title={t('sync_card_3_title', 'Web dashboard')}
+            body={t('sync_card_3_body', 'Search, browse and refine. The same library, accessible from any modern browser.')}
             icon="🖥️"
           />
         </div>
 
         <div style={{ marginTop: 36, fontSize: 13, color: 'var(--muted)' }}>
-          Native iOS / Android sync is on the roadmap. We only list what's shipping today.
+          {t('sync_footer_note', "Native iOS / Android sync is on the roadmap. We only list what's shipping today.")}
           <Link to="/app" style={{ marginLeft: 6, color: 'var(--brand)', fontWeight: 600 }}>
-            Open the dashboard →
+            {t('sync_open_dash', 'Open the dashboard →')}
           </Link>
         </div>
       </div>

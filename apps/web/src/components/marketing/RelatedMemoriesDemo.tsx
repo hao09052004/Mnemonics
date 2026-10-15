@@ -15,18 +15,35 @@ const RELATED = [
   { title: 'Aesthetics of slow software', tag: 'Article', tilt: -2 }
 ];
 
+const CENTRE_VI = {
+  title: 'Giao diện tĩnh lặng và triết lý tối giản',
+  tag: 'Tiểu luận',
+  excerpt: 'Vì sao những sản phẩm được yêu thích nhất thập kỷ tới sẽ là những ứng dụng ít đòi hỏi sự chú ý nhất.'
+};
+
+const RELATED_VI = [
+  { title: 'Naoto Fukasawa — Tư duy trực giác', tag: 'Điểm nhấn', tilt: -4 },
+  { title: 'Ghi chú thực địa: Ma sát như một tính năng', tag: 'Ghi chú', tilt: 3 },
+  { title: 'Thẩm mỹ của phần mềm tĩnh tại', tag: 'Bài viết', tilt: -2 }
+];
+
+import { useLocale } from '../../lib/locale';
+
 export function RelatedMemoriesDemo() {
+  const { locale, t } = useLocale();
+  const centre = locale === 'vi' ? CENTRE_VI : CENTRE;
+  const related = locale === 'vi' ? RELATED_VI : RELATED;
+
   return (
     <section className="section">
       <div className="container">
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow">Connect</div>
+          <div className="eyebrow">{t('related_eyebrow', 'Connect')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            One memory leads to another.
+            {t('related_headline', 'One memory leads to another.')}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Save enough, and Mnemonics starts surfacing unexpected connections. Related memories
-            appear inline so a single save can become the start of a long thread.
+            {t('related_lead', 'Save enough, and Mnemonics starts surfacing unexpected connections. Related memories appear inline so a single save can become the start of a long thread.')}
           </p>
         </div>
 
@@ -53,14 +70,14 @@ export function RelatedMemoriesDemo() {
           </svg>
 
           <RelatedCard
-            title={CENTRE.title}
-            tag={CENTRE.tag}
-            excerpt={CENTRE.excerpt}
+            title={centre.title}
+            tag={centre.tag}
+            excerpt={centre.excerpt}
             size="lg"
             style={{ gridArea: '1 / 1' }}
           />
 
-          {RELATED.map((r, i) => {
+          {related.map((r, i) => {
             const positionStyles: React.CSSProperties[] = [
               { position: 'absolute', top: 20, left: 20, transform: `rotate(${r.tilt}deg)` },
               { position: 'absolute', top: 20, right: 20, transform: `rotate(${r.tilt}deg)` },

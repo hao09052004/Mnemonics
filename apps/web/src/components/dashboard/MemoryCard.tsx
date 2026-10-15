@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
 import { normalizeKind, type MemoryLabel } from '../../lib/memory-kind';
+import { useLocale } from '../../lib/locale';
 import '../spaces/spaces.css';
 
 // Mirrors the BE's `items` shape (subset). Pages convert to this
@@ -88,6 +89,7 @@ export function MemoryCard({
   onToggleSelect,
   onAddToSpace
 }: MemoryCardProps) {
+  const { t, locale } = useLocale();
   const label = normalizeKind(item.kind);
   const highlight = isHighlight(item, label);
   const variantClass = highlight ? 'highlight' : label;
@@ -167,12 +169,12 @@ export function MemoryCard({
 
       <div className="card-body">
         <div className="card-top">
-          <span className="eyebrow">{LABEL_EYEBROW[label]}</span>
+          <span className="eyebrow">{locale === 'vi' ? t(`chip_${label}`, LABEL_EYEBROW[label]) : LABEL_EYEBROW[label]}</span>
           <div className="card-actions">
             {onToggleFavorite && !selecting ? (
               <button
                 type="button"
-                aria-label={item.is_favorite ? 'Remove favorite' : 'Add favorite'}
+                aria-label={item.is_favorite ? t('card_remove_favorite', 'Remove favorite') : t('card_add_favorite', 'Add favorite')}
                 aria-pressed={item.is_favorite === true}
                 data-card-action
                 data-testid={`item-favorite-${item.id}`}
@@ -223,7 +225,7 @@ export function MemoryCard({
                       }}
                     >
                       <Icon name="arrow" size={14} />
-                      Open details
+                      {t('card_open_details', 'Open details')}
                     </button>
                   ) : null}
                   {onToggleFavorite ? (
@@ -238,7 +240,7 @@ export function MemoryCard({
                       }}
                     >
                       <Icon name="heart" size={14} filled={item.is_favorite === true} />
-                      {item.is_favorite ? 'Remove favorite' : 'Add favorite'}
+                      {item.is_favorite ? t('card_remove_favorite', 'Remove favorite') : t('card_add_favorite', 'Add favorite')}
                     </button>
                   ) : null}
                   {onAddToSpace ? (
@@ -254,7 +256,7 @@ export function MemoryCard({
                       }}
                     >
                       <Icon name="plus" size={14} />
-                      Add to Space
+                      {t('card_add_to_space', 'Add to Space')}
                     </button>
                   ) : null}
                   {onDelete ? (
@@ -272,7 +274,7 @@ export function MemoryCard({
                       }}
                     >
                       <Icon name="trash" size={14} />
-                      Delete
+                      {t('btn_delete', 'Delete')}
                     </button>
                   ) : null}
                 </div>
@@ -285,7 +287,7 @@ export function MemoryCard({
           <div className="card-quote-mark" aria-hidden="true">“</div>
         ) : null}
         <h3>{item.title}</h3>
-        {label === 'document' ? <DocumentMeta item={item} /> : null}
+        {label === 'document' ? <DocumentMeta item={item} locale={locale} /> : null}
         {item.snippet ? (
           <p className={highlight ? 'quote-text' : undefined}>{item.snippet}</p>
         ) : null}
@@ -293,7 +295,7 @@ export function MemoryCard({
         {item.explanation ? <ExplainabilityPill explanation={item.explanation} /> : null}
 
         <div className="meta">
-          <span>{sourceLabel || formatDate(item.captured_at)}</span>
+          <span>{sourceLabel || formatDate(item.captured_at, locale)}</span>
           {item.tags && item.tags.length > 0 ? (
             <span className="tags">{item.tags.slice(0, 3).join(' · ')}</span>
           ) : null}
@@ -301,7 +303,7 @@ export function MemoryCard({
 
         {relatedCount > 0 ? (
           <div className="related" aria-label={`${relatedCount} related memories`}>
-            <i aria-hidden="true" /> {relatedCount} related
+            <i aria-hidden="true" /> {locale === 'vi' ? `${relatedCount} liên quan` : `${relatedCount} related`}
           </div>
         ) : null}
       </div>
@@ -318,11 +320,11 @@ function hostnameOf(url?: string | null): string {
   }
 }
 
-function formatDate(iso?: string | null): string {
+function formatDate(iso?: string | null, locale?: string): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+  return d.toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: 'short' });
 }
 
 /**
@@ -334,7 +336,7 @@ function formatDate(iso?: string | null): string {
  * While the item is still being processed the row collapses to
  * "Processing document…" so the user isn't shown "PDF · 0 pages · 0 B".
  */
-function DocumentMeta({ item }: { item: MemoryCardItem }) {
+function DocumentMeta({ item, locale }: { item: MemoryCardItem; locale: string }) {
   const mime = item.asset?.mime_type ?? null;
   const sizeBytes = item.asset?.size_bytes ?? null;
   const pageCount = item.page_count ?? null;
@@ -343,7 +345,7 @@ function DocumentMeta({ item }: { item: MemoryCardItem }) {
   if (isProcessing) {
     return (
       <p className="card-meta-document" data-testid={`item-status-${item.id}`}>
-        Processing document…
+        {locale === 'vi' ? 'Đang xử lý tài liệu…' : 'Processing document…'}
       </p>
     );
   }
@@ -352,7 +354,7 @@ function DocumentMeta({ item }: { item: MemoryCardItem }) {
   if (mime === 'application/pdf') parts.push('PDF');
   else if (mime === 'text/plain') parts.push('TXT');
   else if (mime === 'text/markdown') parts.push('Markdown');
-  if (pageCount && pageCount > 0) parts.push(`${pageCount} page${pageCount === 1 ? '' : 's'}`);
+  if (pageCount && pageCount > 0) parts.push(locale === 'vi' ? `${pageCount} trang` : `${pageCount} page${pageCount === 1 ? '' : 's'}`);
   if (sizeBytes && sizeBytes > 0) parts.push(formatBytes(sizeBytes));
 
   if (parts.length === 0) return null;
@@ -385,9 +387,10 @@ interface ExplainabilityPillProps {
  * hidden by default; the summary is the visible string.
  */
 function ExplainabilityPill({ explanation }: ExplainabilityPillProps): JSX.Element {
+  const { t } = useLocale();
   return (
     <details className="memory-card-explainability" data-testid="memory-card-explainability">
-      <summary>Why this matched</summary>
+      <summary>{t('card_why_matched', 'Why this matched')}</summary>
       <table>
         <tbody>
           <tr><th>Lexical</th><td>{explanation.lexical.toFixed(4)}</td></tr>

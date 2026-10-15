@@ -6,6 +6,7 @@ import { ApiClient } from '../../lib/api-client';
 import { detectBrowser, installLabelFor } from '../../config/browser';
 import { hasChromeExtensionUrl, productConfig } from '../../config/product';
 import { MnemonicsWordmark } from '../MnemonicsWordmark';
+import { useLocale } from '../../lib/locale';
 
 export type AuthMode = 'login' | 'signup';
 export type AuthStep = 'primary' | 'email';
@@ -38,6 +39,7 @@ export function AuthLayout({ api, mode, onAuthenticated }: AuthLayoutProps) {
   const [step, setStep] = useState<AuthStep>('primary');
   const [authed, setAuthed] = useState<boolean>(() => hasSession());
   const [browser] = useState(detectBrowser());
+  const { t } = useLocale();
   const label = installLabelFor(browser);
   const webStoreReady = hasChromeExtensionUrl() && label.webStoreReady;
 
@@ -53,7 +55,7 @@ export function AuthLayout({ api, mode, onAuthenticated }: AuthLayoutProps) {
           <MnemonicsWordmark />
         </Link>
         <Link to="/" className="mnemonics-auth-back">
-          ← Back to home
+          {t('auth_back_home', '← Back to home')}
         </Link>
       </header>
 
@@ -80,8 +82,8 @@ export function AuthLayout({ api, mode, onAuthenticated }: AuthLayoutProps) {
 
       <footer className="mnemonics-auth-footer">
         <span>© {new Date().getFullYear()} Mnemonics</span>
-        <Link to="/#privacy" className="mnemonics-auth-foot-link">Privacy</Link>
-        <Link to="/browser-extension" className="mnemonics-auth-foot-link">Browser extension</Link>
+        <Link to="/#privacy" className="mnemonics-auth-foot-link">{t('nav_privacy', 'Privacy')}</Link>
+        <Link to="/browser-extension" className="mnemonics-auth-foot-link">{t('nav_extension', 'Browser extension')}</Link>
       </footer>
 
       <AuthStyles />
@@ -107,23 +109,25 @@ function PrimaryPanel({
   onContinueWithEmail: () => void;
   onAuthenticated: () => void;
 }) {
+  const { t } = useLocale();
+
   const heading =
     mode === 'signup'
-      ? 'Save once.\nRemember anytime.'
-      : 'Welcome back\nto your second brain.';
+      ? `${t('auth_signup_h1_1', 'Save once.')}\n${t('auth_signup_h1_2', 'Remember anytime.')}`
+      : `${t('auth_login_h1_1', 'Welcome back')}\n${t('auth_login_h1_2', 'to your second brain.')}`;
 
   const subheading =
     mode === 'signup'
-      ? 'Start by adding Mnemonics to your browser. Your first memory is one click away.'
-      : 'Pick up where you left off. Continue with the extension or sign in below.';
+      ? t('auth_signup_sub', 'Start by adding Mnemonics to your browser. Your first memory is one click away.')
+      : t('auth_login_sub', 'Pick up where you left off. Continue with the extension or sign in below.');
 
   const primaryCta = authed
-    ? { kind: 'link' as const, label: 'Open the web app', to: '/app' }
+    ? { kind: 'link' as const, label: t('cta_open_web_app', 'Open the web app'), to: '/app' }
     : { kind: 'install' as const, label: label.primary };
 
   return (
     <section className="mnemonics-auth-panel" aria-labelledby="auth-heading">
-      <div className="eyebrow">{mode === 'signup' ? 'Get started' : 'Sign in'}</div>
+      <div className="eyebrow">{mode === 'signup' ? t('auth_signup_eyebrow', 'Get started') : t('auth_login_eyebrow', 'Sign in')}</div>
       <h1 id="auth-heading" className="display h1 mnemonics-auth-heading">
         {heading.split('\n').map((line, i) => (
           <span key={i} style={{ display: 'block' }}>
@@ -171,13 +175,13 @@ function PrimaryPanel({
           className="mnemonics-auth-secondary"
           onClick={onContinueWithEmail}
         >
-          {mode === 'signup' ? 'Use email instead' : 'Continue with email'} →
+          {mode === 'signup' ? t('auth_use_email_instead', 'Use email instead') : t('auth_continue_with_email', 'Continue with email')} →
         </button>
       </div>
 
       <p className="mnemonics-auth-foot">
-        By continuing you agree to our <Link to="/#privacy">privacy promise</Link>.
-        {' '}Works on Chrome, Brave, Edge, and any Chromium-based browser.
+        {t('auth_agree_prefix', 'By continuing you agree to our')} <Link to="/#privacy">{t('auth_privacy_promise', 'privacy promise')}</Link>.
+        {' '}{t('auth_browser_compat', 'Works on Chrome, Brave, Edge, and any Chromium-based browser.')}
       </p>
     </section>
   );
@@ -197,15 +201,16 @@ function EmailPanel({
   onLogin: (next: () => void) => () => void;
 }) {
   const [view, setView] = useState<'auth' | 'forgot'>('auth');
+  const { t } = useLocale();
 
   if (view === 'forgot') {
     return (
       <section className="mnemonics-auth-panel" aria-labelledby="auth-heading">
         <h2 id="auth-heading" className="display h2" style={{ marginBottom: 8 }}>
-          Reset your password
+          {t('auth_reset_password_title', 'Reset your password')}
         </h2>
         <p className="lead mnemonics-auth-lead" style={{ marginBottom: 24 }}>
-          Enter your email and we'll send a link if the account exists.
+          {t('auth_reset_password_lead', "Enter your email and we'll send a link if the account exists.")}
         </p>
         <ForgotPasswordForm
           api={api}
@@ -218,7 +223,7 @@ function EmailPanel({
           onClick={onBack}
           style={{ marginTop: 16 }}
         >
-          ← Back
+          {t('btn_back', '← Back')}
         </button>
       </section>
     );
@@ -228,10 +233,10 @@ function EmailPanel({
     <section className="mnemonics-auth-panel" aria-labelledby="auth-heading">
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <div className="eyebrow" style={{ color: '#a78bfa', letterSpacing: '1.2px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
-          {mode === 'signup' ? 'Create account' : 'Sign in with email'}
+          {mode === 'signup' ? t('auth_signup_form_eyebrow', 'Create account') : t('auth_login_form_eyebrow', 'Sign in with email')}
         </div>
         <h1 id="auth-heading" className="display h2 mnemonics-auth-heading" style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 750, letterSpacing: '-0.5px', color: '#ffffff' }}>
-          {mode === 'signup' ? 'Just a few details.' : 'Welcome back.'}
+          {mode === 'signup' ? t('auth_signup_form_h1', 'Just a few details.') : t('auth_login_form_h1', 'Welcome back.')}
         </h1>
       </div>
 
@@ -248,11 +253,17 @@ function EmailPanel({
       <div className="mnemonics-auth-foot" style={{ marginTop: 22, textAlign: 'center', fontSize: 13.5 }}>
         {mode === 'signup' ? (
           <>
-            Already have an account? <Link to="/login" style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 4 }}>Log in</Link>
+            {t('auth_already_have_acc', 'Already have an account?')}{' '}
+            <Link to="/login" style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 4 }}>
+              {t('nav_login', 'Log in')}
+            </Link>
           </>
         ) : (
           <>
-            New here? <Link to="/signup" style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 4 }}>Create an account</Link>
+            {t('auth_new_here', 'New here?')}{' '}
+            <Link to="/signup" style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 4 }}>
+              {t('auth_create_acc', 'Create an account')}
+            </Link>
           </>
         )}
       </div>
@@ -264,7 +275,7 @@ function EmailPanel({
           onClick={onBack}
           style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.45)', padding: '6px 12px' }}
         >
-          ← Back to the extension option
+          {t('btn_back', '← Back to the extension option')}
         </button>
       </div>
     </section>

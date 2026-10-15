@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { ApiClient } from '../lib/api-client';
+import { useLocale } from '../lib/locale';
 
 interface ResetPasswordPageProps {
   api: ApiClient;
@@ -18,13 +19,17 @@ interface ResetPasswordPageProps {
  */
 export function ResetPasswordPage({ api }: ResetPasswordPageProps) {
   const navigate = useNavigate();
+  const { locale } = useLocale();
+
   useEffect(() => {
-    document.title = 'Reset your password — Mnemonics';
+    document.title = locale === 'vi' ? 'Đặt lại mật khẩu — Mnemonics' : 'Reset your password — Mnemonics';
     setMeta(
       'description',
-      'Forgot your Mnemonics password? Request a reset link and we will email it to you.'
+      locale === 'vi'
+        ? 'Quên mật khẩu Mnemonics? Yêu cầu liên kết đặt lại và chúng tôi sẽ gửi qua email cho bạn.'
+        : 'Forgot your Mnemonics password? Request a reset link and we will email it to you.'
     );
-  }, []);
+  }, [locale]);
 
   return (
     <AuthLayout

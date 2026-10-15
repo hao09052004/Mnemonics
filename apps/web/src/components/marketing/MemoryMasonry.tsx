@@ -7,6 +7,8 @@
  * `screenshot`, `quote`, `file`, `note`). No backend capability is
  * invented here — every type listed exists in `specs/api/capture.md`.
  */
+import { useLocale } from '../../lib/locale';
+
 type CardKind = 'link' | 'text' | 'image' | 'screenshot' | 'quote' | 'file' | 'note';
 
 const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: string; size: 'sm' | 'md' | 'lg' | 'tall' | 'wide' }[] = [
@@ -84,6 +86,81 @@ const CARDS: { kind: CardKind; title: string; body: string; tone: string; tag: s
   }
 ];
 
+const CARDS_VI: typeof CARDS = [
+  {
+    kind: 'link',
+    title: 'Sự trỗi dậy âm thầm của AI cá nhân',
+    body: 'Bài viết sâu sắc về việc các mô hình nhỏ và ngữ cảnh cá nhân đang tái định hình kỳ vọng của chúng ta đối với phần mềm',
+    tone: 'linear-gradient(135deg, rgba(139, 111, 248, 0.2), var(--surface))',
+    tag: 'theverge.com',
+    size: 'tall'
+  },
+  {
+    kind: 'quote',
+    title: '“Giao diện xuất sắc nhất là giao diện vô hình.”',
+    body: '— Naoto Fukasawa',
+    tone: 'var(--surface-hover)',
+    tag: 'Trích dẫn',
+    size: 'md'
+  },
+  {
+    kind: 'image',
+    title: 'Moodboard · phong cách brutalist',
+    body: 'Lưu từ are.na',
+    tone: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), var(--surface))',
+    tag: 'Hình ảnh',
+    size: 'wide'
+  },
+  {
+    kind: 'note',
+    title: 'Ý tưởng — trải nghiệm quay lại',
+    body: 'Khi người dùng trở lại sau một khoảng thời gian, dashboard nên chào đón họ bằng các nhóm gần nhất thay vì chỉ theo thứ tự thời gian.',
+    tone: 'var(--surface)',
+    tag: 'Ghi chú nhanh',
+    size: 'md'
+  },
+  {
+    kind: 'screenshot',
+    title: 'Bảng điều khiển Stripe · cài đặt',
+    body: 'Ảnh chụp màn hình để tra cứu sau',
+    tone: 'linear-gradient(135deg, rgba(139, 111, 248, 0.15), var(--surface))',
+    tag: 'Ảnh màn hình',
+    size: 'sm'
+  },
+  {
+    kind: 'link',
+    title: 'Cẩm nang xây dựng hệ thống quản lý tri thức',
+    body: 'Hướng dẫn xây dựng bộ não thứ hai hiệu quả và bền vững',
+    tone: 'var(--surface)',
+    tag: 'Bài viết dài',
+    size: 'sm'
+  },
+  {
+    kind: 'quote',
+    title: '“Hãy biến điều đúng đắn thành điều dễ dàng nhất.”',
+    body: '— Lời khuyên từ người thầy',
+    tone: 'linear-gradient(135deg, rgba(139, 111, 248, 0.25), var(--surface))',
+    tag: 'Trích dẫn',
+    size: 'md'
+  },
+  {
+    kind: 'file',
+    title: 'Mục tiêu OKR Q3 — bản thảo làm việc',
+    body: 'PDF · 12 trang',
+    tone: 'var(--surface)',
+    tag: 'Tài liệu',
+    size: 'tall'
+  },
+  {
+    kind: 'note',
+    title: 'Danh sách câu hỏi cần trao đổi với team',
+    body: 'Ghi chú chuẩn bị cho buổi họp 1-on-1',
+    tone: 'var(--surface)',
+    tag: 'Ghi chú',
+    size: 'wide'
+  }
+];
+
 const SIZE_TO_HEIGHT: Record<typeof CARDS[number]['size'], number> = {
   sm: 180,
   md: 240,
@@ -93,17 +170,19 @@ const SIZE_TO_HEIGHT: Record<typeof CARDS[number]['size'], number> = {
 };
 
 export function MemoryMasonry() {
+  const { t, locale } = useLocale();
+  const activeCards = locale === 'vi' ? CARDS_VI : CARDS;
+
   return (
     <section className="section" style={{ background: 'var(--bg-elevated)' }}>
       <div className="container">
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow">Save anything</div>
+          <div className="eyebrow">{t('masonry_eyebrow', 'Save anything')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            A memory board, not a folder tree.
+            {t('masonry_headline', 'A memory board, not a folder tree.')}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Articles, quotes, screenshots, code snippets, quick notes — Mnemonics keeps them
-            together and lets the connections happen later.
+            {t('masonry_lead', 'Articles, quotes, screenshots, code snippets, quick notes — Mnemonics keeps them together and lets the connections happen later.')}
           </p>
         </div>
 
@@ -115,7 +194,7 @@ export function MemoryMasonry() {
           }}
           className="mnemonics-masonry"
         >
-          {CARDS.map((card, i) => (
+          {activeCards.map((card, i) => (
             <article
               key={i}
               className="card mn-masonry-card"

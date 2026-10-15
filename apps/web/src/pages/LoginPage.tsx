@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthLayout } from '../components/auth/AuthLayout';
 import { ApiClient } from '../lib/api-client';
+import { useLocale } from '../lib/locale';
 
 interface LoginPageProps {
   api: ApiClient;
@@ -10,11 +11,17 @@ interface LoginPageProps {
 export function LoginPage({ api }: LoginPageProps) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const { locale } = useLocale();
 
   useEffect(() => {
-    document.title = 'Log in — Mnemonics';
-    setMeta('description', 'Log in to Mnemonics. Save once, remember anytime.');
-  }, []);
+    document.title = locale === 'vi' ? 'Đăng nhập — Mnemonics' : 'Log in — Mnemonics';
+    setMeta(
+      'description',
+      locale === 'vi'
+        ? 'Đăng nhập vào Mnemonics. Lưu một lần, nhớ mọi lúc.'
+        : 'Log in to Mnemonics. Save once, remember anytime.'
+    );
+  }, [locale]);
 
   const next = params.get('next') || '/app';
 

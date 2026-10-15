@@ -196,7 +196,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
             className="btn btn--brand btn--sm"
             data-testid="header-add-to-chrome"
           >
-            Get Mnemonics
+            {t('header_get_mnemonics', 'Get Mnemonics')}
           </Link>
           <button
             type="button"

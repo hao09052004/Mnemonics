@@ -7,6 +7,7 @@ import { EmptyState } from './EmptyState';
 import { Icon } from './Icons';
 import type { MemoryCardItem } from './MemoryCard';
 import type { MemoryLabel } from '../../lib/memory-kind';
+import { useLocale } from '../../lib/locale';
 import '../spaces/spaces.css';
 
 interface EverythingViewProps {
@@ -105,6 +106,7 @@ export function EverythingView({
   onLoadMore,
   totalCount
 }: EverythingViewProps) {
+  const { t, locale } = useLocale();
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
@@ -126,10 +128,10 @@ export function EverythingView({
     return (
       <main className="main everything">
         <EmptyState
-          title="Session expired"
-          text="Please sign in again to continue."
+          title={t('auth_session_expired', 'Session expired')}
+          text={t('auth_session_expired_sub', 'Please sign in again to continue.')}
           action={{
-            label: 'Sign in',
+            label: t('btn_signin', 'Sign in'),
             onClick: () => {
               window.location.href = '/login';
             }
@@ -145,20 +147,22 @@ export function EverythingView({
     <main className="main everything">
       <header className="dashboard-heading">
         <div>
-          <h1>{title || 'Everything'}</h1>
-          <p>{subtitle || 'Your saved memories in one place.'}</p>
+          <h1>{title || t('everything_title', 'Everything')}</h1>
+          <p>{subtitle || t('everything_sub', 'Your saved memories in one place.')}</p>
         </div>
         <span className="memory-count">
           {typeof totalCount === 'number' && totalCount > items.length
-            ? `${items.length} of ${totalCount} memories`
-            : `${items.length} memories`}
+            ? (locale === 'vi' ? `${items.length} / ${totalCount} ghi nhớ` : `${items.length} of ${totalCount} memories`)
+            : (locale === 'vi' ? `${items.length} ghi nhớ` : `${items.length} memories`)}
         </span>
       </header>
 
       {selectMode ? (
         <div className="selection-bar" data-testid="selection-bar">
           <span className="selection-bar__count" data-testid="selection-count">
-            {selectedIds.length} {selectedIds.length === 1 ? 'memory' : 'memories'} selected
+            {locale === 'vi'
+              ? `Đã chọn ${selectedIds.length} ghi nhớ`
+              : `${selectedIds.length} ${selectedIds.length === 1 ? 'memory' : 'memories'} selected`}
           </span>
           <span className="selection-bar__spacer" />
           {onAddToSpace ? (
@@ -168,7 +172,7 @@ export function EverythingView({
               disabled={selectedIds.length === 0}
               onClick={() => onAddToSpace(selectedIds)}
             >
-              <Icon name="plus" size={13} /> Add to Space
+              <Icon name="plus" size={13} /> {t('card_add_to_space', 'Add to Space')}
             </button>
           ) : null}
           <button
@@ -176,7 +180,7 @@ export function EverythingView({
             data-testid="selection-cancel"
             onClick={exitSelection}
           >
-            Cancel
+            {t('btn_cancel', 'Cancel')}
           </button>
         </div>
       ) : null}
@@ -212,7 +216,7 @@ export function EverythingView({
               cursor: 'pointer'
             }}
           >
-            Select
+            {t('search_select', 'Select')}
           </button>
         ) : null}
       </div>
@@ -236,13 +240,13 @@ export function EverythingView({
           />
         ) : (
           <EmptyState
-            title={query ? 'No memories found.' : 'Your memory starts here.'}
+            title={query ? t('empty_no_found', 'No memories found.') : t('empty_memory_starts', 'Your memory starts here.')}
             text={
               query
-                ? 'Try another keyword or a different content type.'
-                : 'Save something worth remembering.'
+                ? t('empty_try_another', 'Try another keyword or a different content type.')
+                : t('empty_save_something', 'Save something worth remembering.')
             }
-            action={query ? undefined : { label: 'Capture', onClick: onCapture }}
+            action={query ? undefined : { label: t('btn_capture', 'Capture'), onClick: onCapture }}
           />
         )
       ) : (
@@ -279,7 +283,7 @@ export function EverythingView({
             onClick={onLoadMore}
             disabled={loadingMore}
           >
-            {loadingMore ? 'Loading…' : 'Load more'}
+            {loadingMore ? t('status_loading', 'Loading…') : t('btn_load_more', 'Load more')}
           </button>
         </div>
       ) : null}
@@ -289,8 +293,8 @@ export function EverythingView({
         type="button"
         className="floating-fab"
         onClick={onCapture}
-        aria-label="Capture a memory"
-        title="Capture a memory (+)"
+        aria-label={t('capture_sheet_title', 'Capture a memory')}
+        title={t('capture_sheet_title', 'Capture a memory') + ' (+)'}
         data-testid="floating-capture-fab"
       >
         <Icon name="plus" size={24} />

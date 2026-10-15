@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SpaceColorPicker } from './SpaceIdentity';
 import type { SpaceColor, SpaceRule } from '../../lib/api-client';
+import { useLocale } from '../../lib/locale';
 import './spaces.css';
 
 interface SpaceRuleSummaryProps {
@@ -68,6 +69,7 @@ export function CreateSpaceDialog({
   busy = false,
   error = null
 }: CreateSpaceDialogProps) {
+  const { t } = useLocale();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<SpaceColor>('violet');
@@ -94,25 +96,24 @@ export function CreateSpaceDialog({
         className="space-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={mode === 'smart' ? 'Create Smart Space' : 'Create Space'}
+        aria-label={mode === 'smart' ? t('space_dialog_smart_title', 'Create Smart Space') : t('space_dialog_manual_title', 'New Space')}
         data-testid="create-space-dialog"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{mode === 'smart' ? 'Create Smart Space' : 'New Space'}</h2>
+        <h2>{mode === 'smart' ? t('space_dialog_smart_title', 'Create Smart Space') : t('space_dialog_manual_title', 'New Space')}</h2>
 
         {mode === 'smart' && rule ? (
           <div className="space-dialog__criteria" data-testid="space-dialog-criteria">
             <p className="space-dialog__explain">
-              This Space automatically stays up to date using your current search and
-              filters. Memories that match will appear on their own — nothing is copied.
+              {t('space_dialog_explain', 'This Space automatically stays up to date using your current search and filters. Memories that match will appear on their own — nothing is copied.')}
             </p>
-            <span className="field-label">Current criteria</span>
+            <span className="field-label">{t('space_dialog_current_criteria', 'Current criteria')}</span>
             <SpaceRuleSummary rule={rule} />
           </div>
         ) : null}
 
         <label className="field-label" htmlFor="space-dialog-name">
-          Name
+          {t('space_field_name', 'Name')}
         </label>
         <input
           id="space-dialog-name"
@@ -129,19 +130,19 @@ export function CreateSpaceDialog({
         />
 
         <label className="field-label" htmlFor="space-dialog-description">
-          Description <span className="field-optional">optional</span>
+          {t('space_field_desc', 'Description')} <span className="field-optional">{t('space_field_optional', 'optional')}</span>
         </label>
         <input
           id="space-dialog-description"
           className="field-input"
           value={description}
           maxLength={1000}
-          placeholder="What belongs in here?"
+          placeholder={t('space_field_desc_placeholder', 'What belongs in here?')}
           data-testid="space-dialog-description"
           onChange={(e) => setDescription(e.target.value)}
         />
 
-        <SpaceColorPicker value={color} onChange={setColor} label="Colour" />
+        <SpaceColorPicker value={color} onChange={setColor} label={t('space_field_color', 'Colour')} />
 
         {error ? (
           <p className="space-picker__error" role="alert" data-testid="space-dialog-error">
@@ -151,7 +152,7 @@ export function CreateSpaceDialog({
 
         <div className="space-dialog__actions">
           <button type="button" className="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('btn_cancel', 'Cancel')}
           </button>
           <button
             type="button"
@@ -160,7 +161,7 @@ export function CreateSpaceDialog({
             data-testid="space-dialog-submit"
             onClick={submit}
           >
-            {busy ? 'Creating…' : mode === 'smart' ? 'Create Smart Space' : 'Create Space'}
+            {busy ? t('status_loading', 'Creating…') : mode === 'smart' ? t('space_dialog_smart_title', 'Create Smart Space') : t('space_btn_create', 'Create Space')}
           </button>
         </div>
       </div>

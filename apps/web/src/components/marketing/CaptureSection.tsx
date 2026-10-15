@@ -72,6 +72,8 @@ export function CaptureSection() {
 }
 
 function BrowserMockup({ phase }: { phase: Phase }) {
+  const { t, locale } = useLocale();
+
   return (
     <div
       data-testid="capture-mockup"
@@ -138,13 +140,15 @@ function BrowserMockup({ phase }: { phase: Phase }) {
       {/* Page body */}
       <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', width: 'fit-content', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand)', background: 'var(--brand-soft)', padding: '3px 8px', borderRadius: 6 }}>
-          Tech &bull; 6 min read
+          {locale === 'vi' ? 'Công nghệ • Đọc 6 phút' : 'Tech • 6 min read'}
         </div>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.35, marginTop: 4 }}>
-          The quiet rise of personal AI
+          {locale === 'vi' ? 'Sự trỗi dậy âm thầm của AI cá nhân' : 'The quiet rise of personal AI'}
         </div>
         <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
-          How intelligent second-brain extensions quietly change the way we capture and recall knowledge across the web.
+          {locale === 'vi'
+            ? 'Cách tiện ích bộ não thứ hai thông minh âm thầm thay đổi cách chúng ta thu thập và nhớ lại tri thức trên web.'
+            : 'How intelligent second-brain extensions quietly change the way we capture and recall knowledge across the web.'}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
           <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'var(--surface-hover)', color: 'var(--muted)', border: '1px solid var(--border)' }}>#ai</span>
@@ -171,7 +175,7 @@ function BrowserMockup({ phase }: { phase: Phase }) {
           pointerEvents: 'none'
         }}
       >
-        Saved to Mnemonics ✓
+        {locale === 'vi' ? 'Đã lưu vào Mnemonics ✓' : 'Saved to Mnemonics ✓'}
       </div>
     </div>
   );

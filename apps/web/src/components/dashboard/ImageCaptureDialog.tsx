@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ApiClient } from '../../lib/api-client';
 import { extractSmartTags } from '../../lib/smart-tags';
+import { useLocale } from '../../lib/locale';
 
 export interface ImageCaptureDialogProps {
   api: ApiClient;
@@ -38,6 +39,7 @@ export function ImageCaptureDialog({
   onClose,
   onSaved
 }: ImageCaptureDialogProps) {
+  const { t } = useLocale();
   const [fileState, setFileState] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -79,14 +81,14 @@ export function ImageCaptureDialog({
   function handleImageSelected(f: File, customTitle?: string) {
     if (f.size > MAX_BYTES) {
       setPhase('error');
-      setError('Image is too large. The maximum is 10 MB.');
+      setError(t('dialog_image_size_error', 'Image is too large. The maximum is 10 MB.'));
       setFileState(null);
       setPreview(null);
       return;
     }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
       setPhase('error');
-      setError('Unsupported image type. Use JPEG, PNG, or WebP.');
+      setError(t('dialog_image_type_error', 'Unsupported image type. Use JPEG, PNG, or WebP.'));
       setFileState(null);
       setPreview(null);
       return;
@@ -230,11 +232,11 @@ export function ImageCaptureDialog({
               </svg>
             </div>
             <div>
-              <h2>Upload image</h2>
-              <p className="dialog-sub">Tải lên hình ảnh, ảnh chụp màn hình hoặc tài liệu scan.</p>
+              <h2>{t('dialog_image_title', 'Upload image')}</h2>
+              <p className="dialog-sub">{t('dialog_image_sub', 'Tải lên hình ảnh, ảnh chụp màn hình hoặc tài liệu scan.')}</p>
             </div>
           </div>
-          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label="Close">
+          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label={t('dialog_image_close', 'Close')}>
             ✕
           </button>
         </div>
@@ -282,7 +284,7 @@ export function ImageCaptureDialog({
                 }}
                 disabled={phase === 'uploading' || phase === 'finalizing'}
               >
-                Choose image…
+                {t('dialog_image_choose', 'Choose image…')}
               </button>
               <button
                 type="button"
@@ -294,14 +296,14 @@ export function ImageCaptureDialog({
                 }}
                 disabled={phase === 'uploading' || phase === 'finalizing'}
               >
-                📸 Chụp màn hình
+                {t('dialog_image_screenshot', '📸 Screenshot')}
               </button>
             </div>
             <p className="dropzone-hint">
-              Kéo thả, dán ảnh chụp (Ctrl+V) hoặc bấm để chọn ảnh
+              {t('dialog_image_drop_hint', 'Kéo thả, dán ảnh chụp (Ctrl+V) hoặc bấm để chọn ảnh')}
             </p>
             <p className="dropzone-sub">
-              Hỗ trợ JPEG, PNG, WebP (tối đa 10 MB). Hệ thống tự động OCR & trích xuất chữ.
+              {t('dialog_image_drop_sub', 'Hỗ trợ JPEG, PNG, WebP (tối đa 10 MB). Hệ thống tự động OCR & trích xuất chữ.')}
             </p>
           </div>
         ) : (
@@ -325,11 +327,11 @@ export function ImageCaptureDialog({
                 onClick={pickFile}
                 disabled={phase === 'uploading' || phase === 'finalizing'}
               >
-                Đổi ảnh
+                {t('dialog_image_change', 'Đổi ảnh')}
               </button>
             </div>
             <label className="document-title-label">
-              <span>Tiêu đề</span>
+              <span>{t('dialog_image_title_label', 'Tiêu đề')}</span>
               <input
                 type="text"
                 data-testid="image-title-input"
@@ -340,7 +342,7 @@ export function ImageCaptureDialog({
               />
             </label>
             <label className="document-title-label">
-              <span>Ghi chú (không bắt buộc)</span>
+              <span>{t('dialog_image_note_label', 'Ghi chú (không bắt buộc)')}</span>
               <textarea
                 data-testid="image-note-input"
                 value={note}
@@ -348,12 +350,12 @@ export function ImageCaptureDialog({
                 disabled={phase === 'uploading' || phase === 'finalizing' || phase === 'saved'}
                 maxLength={2000}
                 rows={3}
-                placeholder="Ghi chú về hình ảnh này..."
+                placeholder={t('dialog_image_note_placeholder', 'Ghi chú về hình ảnh này...')}
               />
             </label>
             <div className="smart-tags-preview" style={{ marginTop: 6, marginBottom: 8, padding: '10px 14px', background: 'var(--purple-soft, rgba(91,63,228,0.08))', borderRadius: 8, border: '1px solid rgba(91,63,228,0.18)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', color: 'var(--purple, #5B3FE4)', textTransform: 'uppercase', marginBottom: 6 }}>
-                ★ Smart Tags (Tự động gợi ý)
+                {t('dialog_image_smart_tags', '★ Smart Tags (Auto-suggested)')}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {smartTags.map((tag) => (
@@ -371,7 +373,7 @@ export function ImageCaptureDialog({
                 onClick={handleCancel}
                 disabled={phase === 'uploading' || phase === 'finalizing'}
               >
-                Cancel
+                {t('btn_cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -385,10 +387,10 @@ export function ImageCaptureDialog({
                 }
               >
                 {phase === 'uploading' || phase === 'finalizing'
-                  ? 'Uploading…'
+                  ? t('status_saving', 'Uploading…')
                   : phase === 'saved'
-                    ? 'Saved'
-                    : 'Save image'}
+                    ? t('status_saved', 'Saved')
+                    : t('dialog_image_btn_save', 'Save image')}
               </button>
             </div>
             {error ? (
@@ -398,7 +400,7 @@ export function ImageCaptureDialog({
             ) : null}
             {phase === 'saved' ? (
               <p className="document-status" data-testid="image-status">
-                <span>✓</span> Saved — running OCR…
+                <span>✓</span> {t('dialog_image_saved_ocr', 'Saved — running OCR…')}
               </p>
             ) : null}
           </div>
@@ -416,7 +418,7 @@ export function ImageCaptureDialog({
               onClick={handleCancel}
               disabled={phase === 'uploading' || phase === 'finalizing'}
             >
-              Close
+              {t('dialog_image_close', 'Close')}
             </button>
           </div>
         )}

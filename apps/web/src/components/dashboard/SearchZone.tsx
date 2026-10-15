@@ -1,4 +1,5 @@
 import { Icon } from './Icons';
+import { useLocale } from '../../lib/locale';
 
 interface SearchZoneProps {
   value: string;
@@ -10,9 +11,12 @@ interface SearchZoneProps {
 export function SearchZone({
   value,
   onChange,
-  placeholder = 'Search your memories...',
+  placeholder,
   autoFocus,
 }: SearchZoneProps) {
+  const { t } = useLocale();
+  const effectivePlaceholder = placeholder ?? t('search_placeholder', 'Search your memories...');
+
   return (
     <section className="search-zone" aria-label="Memory search">
       <div className="searchline">
@@ -23,7 +27,7 @@ export function SearchZone({
           aria-label="Search your memories"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={effectivePlaceholder}
           autoFocus={autoFocus}
           data-mn-search
         />

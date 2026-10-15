@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type ClusterSummary, type ApiClient } from '../../lib/api-client';
 import { EmptyState } from './EmptyState';
+import { useLocale } from '../../lib/locale';
 
 interface ClustersViewProps {
   api: ApiClient;
@@ -26,6 +27,7 @@ interface PersistedState {
 
 export function ClustersView({ api, accessToken }: ClustersViewProps) {
   const navigate = useNavigate();
+  const { t, locale } = useLocale();
   const [clusters, setClusters] = useState<ClusterSummary[]>([]);
   const [unclusteredCount, setUnclusteredCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
   if (loading) {
     return (
       <div className="mnx-everything">
-        <div className="mnx-everything__loading">Loading groups…</div>
+        <div className="mnx-everything__loading">{t('clusters_loading', 'Loading groups…')}</div>
       </div>
     );
   }
@@ -102,9 +104,9 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
     return (
       <div className="mnx-everything">
         <EmptyState
-          title="We can't update groups right now"
-          text="Search, capture and Spaces continue to work. Try refreshing in a moment."
-          action={{ label: 'Try again', onClick: () => void load() }}
+          title={t('clusters_error_title', "We can't update groups right now")}
+          text={t('clusters_error_text', 'Search, capture and Spaces continue to work. Try refreshing in a moment.')}
+          action={{ label: t('btn_try_again', 'Try again'), onClick: () => void load() }}
         />
       </div>
     );
@@ -120,8 +122,8 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
     return (
       <div className="mnx-everything">
         <EmptyState
-          title="Save a few more memories to start seeing related groups"
-          text="Groups appear automatically once a few similar memories share enough in common."
+          title={t('clusters_threshold_title', 'Save a few more memories to start seeing related groups')}
+          text={t('clusters_threshold_text', 'Groups appear automatically once a few similar memories share enough in common.')}
         />
       </div>
     );
@@ -130,9 +132,9 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
   return (
     <div className="mnx-everything">
       <header className="mnx-everything__header">
-        <h1 className="mnx-everything__title">Groups</h1>
+        <h1 className="mnx-everything__title">{t('clusters_title', 'Groups')}</h1>
         <p className="mnx-everything__subtitle">
-          Memories that share a topic. Save a group as a Space to keep it your way.
+          {t('clusters_subtitle', 'Memories that share a topic. Save a group as a Space to keep it your way.')}
         </p>
         <div className="mnx-clusters__actions">
           <button
@@ -142,15 +144,15 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
             disabled={refreshing}
             data-testid="cluster-refresh"
           >
-            {refreshing ? 'Updating groups…' : 'Refresh groups'}
+            {refreshing ? t('clusters_refreshing', 'Updating groups…') : t('clusters_refresh_btn', 'Refresh groups')}
           </button>
         </div>
       </header>
 
       {clusters.length === 0 ? (
         <EmptyState
-          title="No groups yet"
-          text="Save more memories on a similar topic to see them cluster here."
+          title={t('clusters_empty_title', 'No groups yet')}
+          text={t('clusters_empty_text', 'Save more memories on a similar topic to see them cluster here.')}
         />
       ) : (
         <ul className="mnx-clusters" data-testid="clusters-list">
@@ -162,8 +164,10 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
               data-testid={`cluster-card-${c.id}`}
             >
               <div className="mnx-clusters__card-head">
-                <h2 className="mnx-clusters__card-title">{c.title ?? 'Untitled group'}</h2>
-                <span className="mnx-clusters__count">{c.itemCount} memories</span>
+                <h2 className="mnx-clusters__card-title">{c.title ?? t('clusters_untitled', 'Untitled group')}</h2>
+                <span className="mnx-clusters__count">
+                  {c.itemCount} {c.itemCount === 1 ? t('memory_unit_one', 'memory') : t('memory_unit_other', 'memories')}
+                </span>
               </div>
               {c.summary ? (
                 <p className="mnx-clusters__card-summary">{c.summary}</p>
@@ -177,13 +181,13 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
                 ))}
                 {c.representativeItems.length === 0 ? (
                   <div className="mnx-clusters__preview mnx-clusters__preview--empty">
-                    Preview unavailable
+                    {t('clusters_preview_empty', 'Preview unavailable')}
                   </div>
                 ) : null}
               </div>
               <div className="mnx-clusters__card-foot">
                 <span className="mnx-clusters__updated">
-                  Updated {formatRelative(c.updatedAt)}
+                  {t('clusters_updated', 'Updated')} {formatRelative(c.updatedAt, t, locale)}
                 </span>
               </div>
             </li>
@@ -193,20 +197,26 @@ export function ClustersView({ api, accessToken }: ClustersViewProps) {
 
       {unclusteredCount > 0 ? (
         <p className="mnx-clusters__unclustered">
-          {unclusteredCount} {unclusteredCount === 1 ? 'memory is' : 'memories are'} not
-          in any group yet.
+          {unclusteredCount}{' '}
+          {unclusteredCount === 1
+            ? t('clusters_unclustered_one', 'memory is not in any group yet.')
+            : t('clusters_unclustered_other', 'memories are not in any group yet.')}
         </p>
       ) : null}
     </div>
   );
 }
 
-function formatRelative(iso: string): string {
+function formatRelative(
+  iso: string,
+  t: (k: string, fallback?: string) => string,
+  locale: string
+): string {
   const ts = Date.parse(iso);
-  if (Number.isNaN(ts)) return 'recently';
+  if (Number.isNaN(ts)) return t('clusters_recently', 'recently');
   const delta = Date.now() - ts;
-  if (delta < 60_000) return 'just now';
-  if (delta < 60 * 60_000) return `${Math.round(delta / 60_000)} min ago`;
-  if (delta < 24 * 60 * 60_000) return `${Math.round(delta / (60 * 60_000))} h ago`;
-  return new Date(ts).toLocaleDateString();
+  if (delta < 60_000) return t('clusters_just_now', 'just now');
+  if (delta < 60 * 60_000) return `${Math.round(delta / 60_000)} ${t('clusters_min_ago', 'min ago')}`;
+  if (delta < 24 * 60 * 60_000) return `${Math.round(delta / (60 * 60_000))} ${t('clusters_h_ago', 'h ago')}`;
+  return new Date(ts).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US');
 }

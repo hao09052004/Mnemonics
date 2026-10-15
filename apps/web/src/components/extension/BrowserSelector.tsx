@@ -4,6 +4,7 @@ import {
   installLabelFor,
   type BrowserKind
 } from '../../config/browser';
+import { useLocale } from '../../lib/locale';
 
 interface BrowserSelectorProps {
   /**
@@ -41,6 +42,7 @@ const CHIPS: Chip[] = [
  */
 export function BrowserSelector({ onSelect }: BrowserSelectorProps) {
   const [detected, setDetected] = useState<BrowserKind>('other');
+  const { t } = useLocale();
   useEffect(() => setDetected(detectBrowser()), []);
 
   return (
@@ -96,11 +98,11 @@ export function BrowserSelector({ onSelect }: BrowserSelectorProps) {
               }}
             >
               {chip.status === 'coming-soon'
-                ? 'Soon'
+                ? t('browser_status_soon', 'Soon')
                 : isActive
-                  ? 'Detected'
+                  ? t('browser_status_detected', 'Detected')
                   : install.webStoreReady
-                    ? 'Available'
+                    ? t('browser_status_available', 'Available')
                     : ''}
             </span>
           </button>

@@ -18,6 +18,7 @@ import {
   type SpaceColor,
   type SpaceWithCount
 } from '../lib/api-client';
+import { useLocale } from '../lib/locale';
 
 interface SpacesPageProps {
   api: ApiClient;
@@ -34,6 +35,7 @@ interface SpacesPageProps {
  */
 export function SpacesPage({ api }: SpacesPageProps) {
   const navigate = useNavigate();
+  const { t, locale } = useLocale();
   const [session, setSession] = useState<Session | null>(null);
   const [spaces, setSpaces] = useState<SpaceWithCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,9 +122,9 @@ export function SpacesPage({ api }: SpacesPageProps) {
       <main className="spaces-page">
         <header className="spaces-page__head">
           <div>
-            <h1 className="spaces-page__title">Spaces</h1>
+            <h1 className="spaces-page__title">{t('spaces_title', 'Spaces')}</h1>
             <p className="spaces-page__sub">
-              Organize memories around the things that matter.
+              {t('spaces_sub', 'Organize memories around the things that matter.')}
             </p>
           </div>
           <button
@@ -134,7 +136,7 @@ export function SpacesPage({ api }: SpacesPageProps) {
             }}
             data-testid="new-space-btn"
           >
-            <Icon name="plus" size={16} /> New Space
+            <Icon name="plus" size={16} /> {t('spaces_new_btn', 'New Space')}
           </button>
         </header>
 
@@ -146,16 +148,16 @@ export function SpacesPage({ api }: SpacesPageProps) {
 
         <section>
           <h2 className="spaces-section__label">
-            My Spaces
+            {t('spaces_my_spaces', 'My Spaces')}
             <span className="memory-count">{spaces.length}</span>
           </h2>
 
           {loading && spaces.length === 0 ? (
-            <p className="space-picker__hint">Loading Spaces…</p>
+            <p className="space-picker__hint">{t('spaces_loading', 'Loading Spaces…')}</p>
           ) : spaces.length === 0 ? (
             <div className="space-card" data-testid="spaces-empty" style={{ cursor: 'default' }}>
               <p className="space-card__count">
-                Create a Space to keep related memories together.
+                {t('spaces_empty_hint', 'Create a Space to keep related memories together.')}
               </p>
               <button
                 type="button"
@@ -163,7 +165,7 @@ export function SpacesPage({ api }: SpacesPageProps) {
                 style={{ alignSelf: 'flex-start' }}
                 onClick={() => setDialogOpen(true)}
               >
-                New Space
+                {t('spaces_new_btn', 'New Space')}
               </button>
             </div>
           ) : (
@@ -188,17 +190,19 @@ export function SpacesPage({ api }: SpacesPageProps) {
 
                     <p className="space-card__count">
                       {space.itemCount === null
-                        ? 'Updating…'
-                        : `${space.itemCount} ${
-                            space.itemCount === 1 ? 'memory' : 'memories'
-                          }`}
+                        ? t('status_updating', 'Updating…')
+                        : locale === 'vi'
+                          ? `${space.itemCount} ghi nhớ`
+                          : `${space.itemCount} ${
+                              space.itemCount === 1 ? 'memory' : 'memories'
+                            }`}
                     </p>
 
                     {tiles.length > 0 ? (
                       <div className="space-card__preview" aria-hidden="true">
                         {tiles.map((tile) => (
                           <div className="space-card__tile" key={tile.id} title={tile.title}>
-                            <span>{shortKind(tile.kind)}</span>
+                            <span>{shortKind(tile.kind, locale)}</span>
                           </div>
                         ))}
                       </div>
@@ -236,17 +240,17 @@ export function SpacesPage({ api }: SpacesPageProps) {
  * than an image that would fail to load — a grid of broken images reads
  * as data loss.
  */
-function shortKind(kind: string): string {
+function shortKind(kind: string, locale?: string): string {
   switch (kind) {
     case 'image':
-      return 'img';
+      return locale === 'vi' ? 'ảnh' : 'img';
     case 'screenshot':
-      return 'shot';
+      return locale === 'vi' ? 'chụp' : 'shot';
     case 'link':
       return 'link';
     case 'text':
-      return 'note';
+      return locale === 'vi' ? 'ghi' : 'note';
     default:
-      return kind.slice(0, 4) || 'item';
+      return kind.slice(0, 4) || (locale === 'vi' ? 'mục' : 'item');
   }
 }

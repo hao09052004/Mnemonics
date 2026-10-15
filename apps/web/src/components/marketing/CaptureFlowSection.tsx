@@ -1,31 +1,21 @@
 import { Link } from 'react-router-dom';
+import { useLocale } from '../../lib/locale';
 
-/**
- * "Capture without leaving what you're doing."
- *
- * Three sub-scenarios that map to actual extension gestures:
- *   1. Highlight → right-click → Save to Mnemonics
- *   2. Right-click an image → Save image
- *   3. Screenshot → crop → save
- *
- * Each tile is an original mini-mockup (no screenshots copied from
- * anywhere) so the section reads as product documentation rather
- * than marketing.
- */
 export function CaptureFlowSection() {
+  const { t } = useLocale();
+
   return (
     <section className="section">
       <div className="container">
         <div style={{ maxWidth: 720 }}>
-          <div className="eyebrow">Flows</div>
+          <div className="eyebrow">{t('flow_eyebrow', 'Flows')}</div>
           <h2 className="display h2" style={{ marginTop: 14 }}>
-            Capture without leaving
+            {t('flow_headline_1', 'Capture without leaving')}
             <br />
-            what you're doing.
+            {t('flow_headline_2', "what you're doing.")}
           </h2>
           <p className="lead" style={{ marginTop: 18 }}>
-            Three gestures cover almost every web moment: highlight something you care about,
-            right-click an image, or grab a screenshot. Mnemonics handles the rest.
+            {t('flow_lead', 'Three gestures cover almost every web moment: highlight something you care about, right-click an image, or grab a screenshot. Mnemonics handles the rest.')}
           </p>
         </div>
 
@@ -39,27 +29,27 @@ export function CaptureFlowSection() {
         >
           <FlowTile
             number="01"
-            title="Highlight text"
-            body="Select any passage on a page. Right-click → Save to Mnemonics. The original source is kept, the quote is extracted, and the right tags appear without you typing them."
+            title={t('flow_tile_1_title', 'Highlight text')}
+            body={t('flow_tile_1_body', 'Select any passage on a page. Right-click → Save to Mnemonics. The original source is kept, the quote is extracted, and the right tags appear without you typing them.')}
             mockup={<HighlightMockup />}
           />
           <FlowTile
             number="02"
-            title="Save an image"
-            body="Right-click on an image → Save image. Mnemonics stores a local copy, fingerprints where it came from, and surfaces it whenever a related memory is recalled."
+            title={t('flow_tile_2_title', 'Save an image')}
+            body={t('flow_tile_2_body', 'Right-click on an image → Save image. Mnemonics stores a local copy, fingerprints where it came from, and surfaces it whenever a related memory is recalled.')}
             mockup={<ImageMockup />}
           />
           <FlowTile
             number="03"
-            title="Crop a screenshot"
-            body="Capture the visible tab, drag a rectangle around what matters, save. Screenshots get OCR'd and embedded, so a text search can find them later."
+            title={t('flow_tile_3_title', 'Crop a screenshot')}
+            body={t('flow_tile_3_body', "Capture the visible tab, drag a rectangle around what matters, save. Screenshots get OCR'd and embedded, so a text search can find them later.")}
             mockup={<ScreenshotMockup />}
           />
         </div>
 
         <div style={{ marginTop: 40 }}>
           <Link to="/browser-extension" className="btn btn--ghost btn--lg">
-            See all capture gestures →
+            {t('flow_guide_link', 'See all capture gestures →')}
           </Link>
         </div>
       </div>
@@ -102,6 +92,7 @@ function FlowTile({
 }
 
 function HighlightMockup() {
+  const { locale } = useLocale();
   return (
     <div
       style={{
@@ -113,7 +104,9 @@ function HighlightMockup() {
       }}
     >
       <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.55 }}>
-        “The best <Mark /> is the one that disappears.”
+        {locale === 'vi' ? '“Giao diện tốt nhất là giao diện ' : '“The best '}
+        <Mark word={locale === 'vi' ? 'vô hình' : 'disappears'} />
+        {locale === 'vi' ? '.”' : '.”'}
       </div>
       <div
         style={{
@@ -129,21 +122,22 @@ function HighlightMockup() {
           boxShadow: '0 4px 12px rgba(139, 111, 248, 0.4)'
         }}
       >
-        Save to Mnemonics
+        {locale === 'vi' ? 'Lưu vào Mnemonics' : 'Save to Mnemonics'}
       </div>
     </div>
   );
 }
 
-function Mark() {
+function Mark({ word = 'interface' }: { word?: string }) {
   return (
     <span style={{ background: 'rgba(139, 111, 248, 0.25)', color: '#c4b5fd', padding: '1px 6px', borderRadius: 4, fontWeight: 500 }}>
-      interface
+      {word}
     </span>
   );
 }
 
 function ImageMockup() {
+  const { locale } = useLocale();
   return (
     <div
       style={{
@@ -177,13 +171,14 @@ function ImageMockup() {
           boxShadow: '0 4px 12px rgba(139, 111, 248, 0.4)'
         }}
       >
-        Save image to Mnemonics
+        {locale === 'vi' ? 'Lưu ảnh vào Mnemonics' : 'Save image to Mnemonics'}
       </div>
     </div>
   );
 }
 
 function ScreenshotMockup() {
+  const { locale } = useLocale();
   return (
     <div
       style={{
@@ -232,7 +227,7 @@ function ScreenshotMockup() {
             boxShadow: '0 4px 12px rgba(139, 111, 248, 0.4)'
           }}
         >
-          Save crop
+          {locale === 'vi' ? 'Lưu vùng chọn' : 'Save crop'}
         </div>
       </div>
     </div>
