@@ -42,11 +42,16 @@ const fallbackApiBaseUrl = (() => {
   return '';
 })();
 
+const DEFAULT_CHROME_STORE_URL =
+  'https://chromewebstore.google.com/detail/mnemonics-%E2%80%94-ai-smart-book/mhbnjgijpnhjopffmpaoncddgijfghog';
+
 export const productConfig: ProductConfig = {
   apiBaseUrl: (
     import.meta.env.VITE_API_URL || fallbackApiBaseUrl
   ).replace(/\/$/, ''),
-  chromeExtensionUrl: import.meta.env.VITE_CHROME_EXTENSION_URL || '',
+  chromeExtensionUrl:
+    import.meta.env.VITE_CHROME_EXTENSION_URL ||
+    (import.meta.env.MODE === 'test' ? '' : DEFAULT_CHROME_STORE_URL),
   edgeExtensionUrl: import.meta.env.VITE_EDGE_EXTENSION_URL || '',
   webUrl: (
     import.meta.env.VITE_WEB_URL ||

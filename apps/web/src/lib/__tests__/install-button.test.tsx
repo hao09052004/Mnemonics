@@ -11,6 +11,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, screen, cleanup } from '@testing-library/react';
 import { InstallExtensionButton } from '../../components/extension/InstallExtensionButton';
+import { productConfig } from '../../config/product';
 
 const ORIGINAL_OPEN = window.open;
 
@@ -55,6 +56,25 @@ describe('InstallExtensionButton', () => {
     render(<InstallExtensionButton onClickOverride={onClick} />);
     fireEvent.click(screen.getByTestId('install-extension-btn'));
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens window.open with the chrome store URL when configured', () => {
+    const originalUrl = productConfig.chromeExtensionUrl;
+    productConfig.chromeExtensionUrl =
+      'https://chromewebstore.google.com/detail/mnemonics-%E2%80%94-ai-smart-book/mhbnjgijpnhjopffmpaoncddgijfghog';
+    try {
+      render(<InstallExtensionButton />);
+      const btn = screen.getByTestId('install-extension-btn');
+      expect(btn.getAttribute('data-web-store-ready')).toBe('true');
+      fireEvent.click(btn);
+      expect(window.open).toHaveBeenCalledWith(
+        'https://chromewebstore.google.com/detail/mnemonics-%E2%80%94-ai-smart-book/mhbnjgijpnhjopffmpaoncddgijfghog',
+        '_blank',
+        'noopener,noreferrer'
+      );
+    } finally {
+      productConfig.chromeExtensionUrl = originalUrl;
+    }
   });
 
   it('modal is dismissable and removes the dialog from the DOM', () => {
