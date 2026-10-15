@@ -59,6 +59,9 @@
   --elevated: #f4f2ec;
   --hover: #edeae1;
   --text: #191b20;
+  --ink: #191b20;
+  --ink-soft: #5a606e;
+  --surface-hover: #edeae1;
   --secondary: #5a606e;
   --muted: #8890a0;
   --purple: #6a49e6;
@@ -220,6 +223,20 @@ button { cursor: pointer; border: 0; background: transparent; padding: 0; }
   transform: rotate(20deg) scale(1.05);
   border-color: var(--border-strong);
 }
+
+/* Segmented Theme Switch */
+.theme-segmented-switch {
+  --theme-switch-bg: rgba(255, 255, 255, 0.05);
+}
+[data-theme='light'] .theme-segmented-switch {
+  --theme-switch-bg: rgba(0, 0, 0, 0.04);
+}
+@media (max-width: 900px) {
+  .theme-segmented-switch .theme-switch-label {
+    display: none;
+  }
+}
+
 
 .header-account-wrapper {
   position: relative;

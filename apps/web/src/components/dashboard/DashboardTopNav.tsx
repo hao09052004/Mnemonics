@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icons';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../../lib/api-client';
+import { useTheme } from '../../lib/theme';
+import { ThemeSwitch } from '../common/ThemeSwitch';
 
 export type DashboardPage =
   | 'Everything'
@@ -47,21 +49,7 @@ export function DashboardTopNav({
   const navigate = useNavigate();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('mnemonics_theme');
-      if (stored === 'light' || stored === 'dark') return stored;
-    }
-    return 'dark';
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', theme);
-      document.body.setAttribute('data-theme', theme);
-    }
-  }, [theme]);
+  const { mode, resolved } = useTheme();
 
   useEffect(() => {
     if (!accountMenuOpen) return;
@@ -73,16 +61,6 @@ export function DashboardTopNav({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [accountMenuOpen]);
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('mnemonics_theme', next);
-      document.documentElement.setAttribute('data-theme', next);
-      document.body.setAttribute('data-theme', next);
-    }
-  };
 
   return (
     <header className="app-header">
@@ -161,16 +139,7 @@ export function DashboardTopNav({
       </nav>
 
       <div className="header-actions">
-        <button
-          type="button"
-          className="theme-toggle-btn"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối'}
-          aria-label="Toggle theme"
-          data-testid="theme-toggle"
-        >
-          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18} />
-        </button>
+        <ThemeSwitch />
         <button
           type="button"
           className="primary"
@@ -260,6 +229,18 @@ export function DashboardTopNav({
                     <span>Quản trị hệ thống (Admin)</span>
                   </button>
                 )}
+              </div>
+
+              <div className="account-dropdown-divider" />
+
+              <div style={{ padding: '8px 14px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>Giao diện</span>
+                  <span style={{ fontSize: '11px', color: 'var(--purple-text)' }}>
+                    {mode === 'system' ? `Hệ thống (${resolved === 'dark' ? 'Tối' : 'Sáng'})` : mode === 'dark' ? 'Tối' : 'Sáng'}
+                  </span>
+                </div>
+                <ThemeSwitch style={{ width: '100%', justifyContent: 'space-between' }} />
               </div>
 
               {onLogout && (

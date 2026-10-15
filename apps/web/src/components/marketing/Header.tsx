@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { productConfig } from '../../config/product';
+import { ThemeSwitch } from '../common/ThemeSwitch';
+import { useTheme } from '../../lib/theme';
 
 interface HeaderProps {
   /** When true, render a translucent floating header (used at top of page). */
@@ -25,6 +27,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const { resolved } = useTheme();
   const location = useLocation();
 
   useEffect(() => {
@@ -103,9 +106,15 @@ export function Header({ floatOnTop = true }: HeaderProps) {
         zIndex: 50,
         backdropFilter: 'saturate(180%) blur(20px)',
         WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-        background: faded ? 'rgba(12, 14, 20, 0.94)' : 'rgba(12, 14, 20, 0.82)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        boxShadow: '0 4px 20px -4px rgba(0, 0, 0, 0.35)',
+        background: resolved === 'light'
+          ? (faded ? 'rgba(248, 247, 244, 0.96)' : 'rgba(248, 247, 244, 0.88)')
+          : (faded ? 'rgba(12, 14, 20, 0.94)' : 'rgba(12, 14, 20, 0.82)'),
+        borderBottom: resolved === 'light'
+          ? '1px solid rgba(0, 0, 0, 0.08)'
+          : '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: resolved === 'light'
+          ? '0 4px 20px -4px rgba(0, 0, 0, 0.05)'
+          : '0 4px 20px -4px rgba(0, 0, 0, 0.35)',
         transition: 'background 0.2s ease, border-color 0.2s ease'
       }}
     >
@@ -129,6 +138,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
             gap: 10,
             fontWeight: 700,
             fontSize: 17,
+            color: 'var(--ink)',
             textDecoration: 'none',
             cursor: 'pointer'
           }}
@@ -141,7 +151,7 @@ export function Header({ floatOnTop = true }: HeaderProps) {
           aria-label="Primary"
           style={{
             display: 'none',
-            gap: 28
+            gap: 20
           }}
           className="mnemonics-header-nav"
         >
@@ -156,6 +166,11 @@ export function Header({ floatOnTop = true }: HeaderProps) {
             </Link>
           ))}
         </nav>
+
+        {/* Vị trí chỗ trống trên thanh điều hướng — Theme Switcher */}
+        <div className="mnemonics-header-theme-slot" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <ThemeSwitch />
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} className="mnemonics-header-actions">
           {authed ? (
@@ -229,6 +244,19 @@ export function Header({ floatOnTop = true }: HeaderProps) {
             >
               {authed ? 'Open Mnemonics' : 'Log in'}
             </Link>
+            <div
+              style={{
+                paddingTop: 14,
+                marginTop: 6,
+                borderTop: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span style={{ fontSize: 14, color: 'var(--ink-soft)', fontWeight: 500 }}>Giao diện</span>
+              <ThemeSwitch />
+            </div>
           </div>
         </div>
       )}
@@ -238,14 +266,17 @@ export function Header({ floatOnTop = true }: HeaderProps) {
           .mnemonics-header-nav { display: inline-flex !important; }
           .mnemonics-header-burger { display: none !important; }
         }
+        @media (max-width: 600px) {
+          .mnemonics-header-theme-slot { display: none !important; }
+        }
         .mnemonics-header-nav a {
           transition: color 0.18s ease, background 0.18s ease;
           padding: 6px 12px;
           border-radius: 8px;
         }
         .mnemonics-header-nav a:hover {
-          color: #ffffff !important;
-          background: rgba(255, 255, 255, 0.06);
+          color: var(--ink) !important;
+          background: var(--surface-hover, rgba(255, 255, 255, 0.06));
         }
       `}</style>
 
