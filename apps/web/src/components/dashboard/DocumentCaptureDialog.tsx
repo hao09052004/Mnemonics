@@ -150,13 +150,33 @@ export function DocumentCaptureDialog({
       data-testid="document-capture-dialog"
     >
       <div
-        className="capture-sheet"
+        className="capture-sheet capture-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Upload a document"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>Upload document</h2>
+        <div className="dialog-header">
+          <div className="dialog-header-left">
+            <div className="dialog-icon-badge dialog-icon-badge--doc">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <line x1="10" y1="9" x2="8" y2="9" />
+              </svg>
+            </div>
+            <div>
+              <h2>Upload document</h2>
+              <p className="dialog-sub">Tải lên tài liệu PDF, DOCX hoặc văn bản để lập chỉ mục.</p>
+            </div>
+          </div>
+          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
         <input
           ref={inputRef}
           type="file"
@@ -165,29 +185,60 @@ export function DocumentCaptureDialog({
           onChange={handleFileChange}
           hidden
         />
+
         {!fileState ? (
-          <button
-            type="button"
-            data-testid="document-pick-file"
-            onClick={pickFile}
-            disabled={phase === 'uploading' || phase === 'finalizing'}
-          >
-            Choose file…
-          </button>
+          <div className="dropzone-area" onClick={pickFile}>
+            <div className="dropzone-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <button
+              type="button"
+              className="dropzone-pick-btn"
+              data-testid="document-pick-file"
+              onClick={(e) => {
+                e.stopPropagation();
+                pickFile();
+              }}
+              disabled={phase === 'uploading' || phase === 'finalizing'}
+            >
+              Choose file…
+            </button>
+            <p className="dropzone-hint">
+              Kéo thả hoặc bấm để chọn tệp tài liệu
+            </p>
+            <p className="dropzone-sub">
+              Hỗ trợ PDF, DOCX, TXT (tối đa 20 MB). Tự động phân tích nội dung văn bản.
+            </p>
+          </div>
         ) : null}
+
         {error && !fileState ? (
           <p className="document-error" data-testid="document-error">
-            {error}
+            <span>⚠️</span> {error}
           </p>
         ) : null}
+
         {fileState ? (
-          <div data-testid="document-summary">
+          <div data-testid="document-summary" className="file-summary-container">
             <div className="document-summary-row">
               <span className="document-filename">{fileState.name}</span>
               <span className="document-filesize">{fmtBytes(fileState.size)}</span>
+              <button
+                type="button"
+                className="file-change-btn"
+                onClick={pickFile}
+                disabled={phase === 'uploading' || phase === 'finalizing'}
+              >
+                Đổi tệp
+              </button>
             </div>
+
             <label className="document-title-label">
-              Title
+              <span>Tiêu đề</span>
               <input
                 type="text"
                 data-testid="document-title-input"
@@ -197,6 +248,7 @@ export function DocumentCaptureDialog({
                 maxLength={200}
               />
             </label>
+
             <div className="document-actions">
               <button
                 type="button"
@@ -209,6 +261,7 @@ export function DocumentCaptureDialog({
               </button>
               <button
                 type="button"
+                className="btn-primary"
                 data-testid="document-save"
                 onClick={handleConfirm}
                 disabled={
@@ -227,24 +280,29 @@ export function DocumentCaptureDialog({
             </div>
             {error ? (
               <p className="document-error" data-testid="document-error">
-                {error}
+                <span>⚠️</span> {error}
               </p>
             ) : null}
             {phase === 'saved' ? (
               <p className="document-status" data-testid="document-status">
-                Saved — processing document…
+                <span>✓</span> Saved — processing document…
               </p>
             ) : null}
           </div>
         ) : null}
-        <button
-          type="button"
-          className="ghost document-close"
-          onClick={handleCancel}
-          disabled={phase === 'uploading' || phase === 'finalizing'}
-        >
-          Close
-        </button>
+
+        {!fileState && (
+          <div className="document-actions" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="ghost document-close"
+              onClick={handleCancel}
+              disabled={phase === 'uploading' || phase === 'finalizing'}
+            >
+              Close
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

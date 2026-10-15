@@ -149,13 +149,31 @@ export function ImageCaptureDialog({
       data-testid="image-capture-dialog"
     >
       <div
-        className="capture-sheet"
+        className="capture-sheet capture-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Upload an image"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>Upload image</h2>
+        <div className="dialog-header">
+          <div className="dialog-header-left">
+            <div className="dialog-icon-badge dialog-icon-badge--image">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+              </svg>
+            </div>
+            <div>
+              <h2>Upload image</h2>
+              <p className="dialog-sub">Tải lên hình ảnh, ảnh chụp màn hình hoặc tài liệu scan.</p>
+            </div>
+          </div>
+          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
         <input
           ref={inputRef}
           type="file"
@@ -164,31 +182,61 @@ export function ImageCaptureDialog({
           onChange={handleFileChange}
           hidden
         />
+
         {!fileState ? (
-          <button
-            type="button"
-            data-testid="image-pick-file"
-            onClick={pickFile}
-            disabled={phase === 'uploading' || phase === 'finalizing'}
-          >
-            Choose image…
-          </button>
+          <div className="dropzone-area" onClick={pickFile}>
+            <div className="dropzone-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <button
+              type="button"
+              className="dropzone-pick-btn"
+              data-testid="image-pick-file"
+              onClick={(e) => {
+                e.stopPropagation();
+                pickFile();
+              }}
+              disabled={phase === 'uploading' || phase === 'finalizing'}
+            >
+              Choose image…
+            </button>
+            <p className="dropzone-hint">
+              Kéo thả hoặc bấm để chọn ảnh từ thiết bị
+            </p>
+            <p className="dropzone-sub">
+              Hỗ trợ JPEG, PNG, WebP (tối đa 10 MB). Hệ thống tự động OCR & trích xuất chữ.
+            </p>
+          </div>
         ) : (
-          <div data-testid="image-summary">
+          <div data-testid="image-summary" className="file-summary-container">
             {preview ? (
-              <img
-                src={preview}
-                alt="preview"
-                className="image-preview"
-                data-testid="image-preview"
-              />
+              <div className="image-preview-wrapper">
+                <img
+                  src={preview}
+                  alt="preview"
+                  className="image-preview"
+                  data-testid="image-preview"
+                />
+              </div>
             ) : null}
             <div className="document-summary-row">
               <span className="document-filename">{fileState.name}</span>
               <span className="document-filesize">{fmtBytes(fileState.size)}</span>
+              <button
+                type="button"
+                className="file-change-btn"
+                onClick={pickFile}
+                disabled={phase === 'uploading' || phase === 'finalizing'}
+              >
+                Đổi ảnh
+              </button>
             </div>
             <label className="document-title-label">
-              Title
+              <span>Tiêu đề</span>
               <input
                 type="text"
                 data-testid="image-title-input"
@@ -199,7 +247,7 @@ export function ImageCaptureDialog({
               />
             </label>
             <label className="document-title-label">
-              Note (optional)
+              <span>Ghi chú (không bắt buộc)</span>
               <textarea
                 data-testid="image-note-input"
                 value={note}
@@ -207,6 +255,7 @@ export function ImageCaptureDialog({
                 disabled={phase === 'uploading' || phase === 'finalizing' || phase === 'saved'}
                 maxLength={2000}
                 rows={3}
+                placeholder="Ghi chú về hình ảnh này..."
               />
             </label>
             <div className="document-actions">
@@ -221,6 +270,7 @@ export function ImageCaptureDialog({
               </button>
               <button
                 type="button"
+                className="btn-primary"
                 data-testid="image-save"
                 onClick={handleConfirm}
                 disabled={
@@ -238,29 +288,33 @@ export function ImageCaptureDialog({
             </div>
             {error ? (
               <p className="document-error" data-testid="image-error">
-                {error}
+                <span>⚠️</span> {error}
               </p>
             ) : null}
             {phase === 'saved' ? (
               <p className="document-status" data-testid="image-status">
-                Saved — running OCR…
+                <span>✓</span> Saved — running OCR…
               </p>
             ) : null}
           </div>
         )}
         {error && !fileState ? (
           <p className="document-error" data-testid="image-error">
-            {error}
+            <span>⚠️</span> {error}
           </p>
         ) : null}
-        <button
-          type="button"
-          className="ghost document-close"
-          onClick={handleCancel}
-          disabled={phase === 'uploading' || phase === 'finalizing'}
-        >
-          Close
-        </button>
+        {!fileState && (
+          <div className="document-actions" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="ghost document-close"
+              onClick={handleCancel}
+              disabled={phase === 'uploading' || phase === 'finalizing'}
+            >
+              Close
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

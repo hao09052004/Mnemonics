@@ -25,7 +25,7 @@ export function CaptureSheet({ open, onClose, onAction }: CaptureSheetProps) {
       data-testid="capture-sheet"
     >
       <div
-        className="capture-sheet"
+        className="capture-sheet capture-sheet--menu"
         role="dialog"
         aria-modal="true"
         aria-label="Capture a memory"

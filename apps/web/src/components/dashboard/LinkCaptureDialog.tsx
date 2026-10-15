@@ -140,15 +140,32 @@ export function LinkCaptureDialog({
       data-testid="link-capture-dialog"
     >
       <div
-        className="capture-sheet"
+        className="capture-sheet capture-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Save a link"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>Save a link</h2>
+        <div className="dialog-header">
+          <div className="dialog-header-left">
+            <div className="dialog-icon-badge dialog-icon-badge--link">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </div>
+            <div>
+              <h2>Save a link</h2>
+              <p className="dialog-sub">Lưu trang web, bài viết hoặc tài liệu trực tuyến.</p>
+            </div>
+          </div>
+          <button type="button" className="dialog-close-btn" onClick={handleCancel} aria-label="Close">
+            ✕
+          </button>
+        </div>
+
         <label className="document-title-label">
-          URL
+          <span>Đường dẫn (URL)</span>
           <input
             type="url"
             data-testid="link-url-input"
@@ -160,7 +177,7 @@ export function LinkCaptureDialog({
           />
         </label>
         <label className="document-title-label">
-          Title (optional)
+          <span>Tiêu đề (không bắt buộc)</span>
           <input
             type="text"
             data-testid="link-title-input"
@@ -168,10 +185,11 @@ export function LinkCaptureDialog({
             onChange={(e) => setTitle(e.target.value)}
             disabled={disabled}
             maxLength={200}
+            placeholder="Tự động trích xuất nếu để trống..."
           />
         </label>
         <label className="document-title-label">
-          Note (optional)
+          <span>Ghi chú thêm (không bắt buộc)</span>
           <textarea
             data-testid="link-note-input"
             value={note}
@@ -179,16 +197,17 @@ export function LinkCaptureDialog({
             disabled={disabled}
             maxLength={2000}
             rows={3}
+            placeholder="Thêm tóm tắt hoặc lý do bạn lưu liên kết này..."
           />
         </label>
         {error ? (
           <p className="document-error" data-testid="link-error">
-            {error}
+            <span>⚠️</span> {error}
           </p>
         ) : null}
         {phase === 'saved' ? (
           <p className="document-status" data-testid="link-status">
-            Saved — processing…
+            <span>✓</span> Saved — processing…
           </p>
         ) : null}
         <div className="document-actions">
