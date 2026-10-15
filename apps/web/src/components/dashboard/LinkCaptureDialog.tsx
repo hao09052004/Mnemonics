@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ApiClient } from '../../lib/api-client';
 import { extractPageMetadata, type ExtractedPage } from '../../lib/page-metadata';
+import { extractSmartTags } from '../../lib/smart-tags';
 
 export interface LinkCaptureDialogProps {
   api: ApiClient;
@@ -70,6 +71,11 @@ export function LinkCaptureDialog({
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useState<string>('')[0] || uuid();
+
+  const smartTags = useMemo(() => {
+    const combined = (title + ' ' + note + ' ' + url).trim();
+    return extractSmartTags(combined, 'link');
+  }, [title, note, url]);
 
   useEffect(() => {
     if (open) {
@@ -200,6 +206,19 @@ export function LinkCaptureDialog({
             placeholder="Thêm tóm tắt hoặc lý do bạn lưu liên kết này..."
           />
         </label>
+
+        <div className="smart-tags-preview" style={{ marginTop: 6, marginBottom: 8, padding: '10px 14px', background: 'var(--purple-soft, rgba(91,63,228,0.08))', borderRadius: 8, border: '1px solid rgba(91,63,228,0.18)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', color: 'var(--purple, #5B3FE4)', textTransform: 'uppercase', marginBottom: 6 }}>
+            ★ Smart Tags (Tự động gợi ý)
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {smartTags.map((tag) => (
+              <span key={tag} style={{ background: 'var(--surface, #1e222b)', color: 'var(--purple-text, #a78bfa)', fontSize: 11, fontWeight: 500, padding: '2px 9px', borderRadius: 14, border: '1px solid rgba(167,139,250,0.25)' }}>
+                #{tag}
+              </span>
+            ))}
+          </div>
+        </div>
         {error ? (
           <p className="document-error" data-testid="link-error">
             <span>⚠️</span> {error}

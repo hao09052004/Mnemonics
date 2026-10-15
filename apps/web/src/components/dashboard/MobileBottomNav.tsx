@@ -9,6 +9,7 @@ interface MobileBottomNavProps {
 
 const ITEMS: Array<{ label: DashboardPage; icon: IconName }> = [
   { label: 'Everything', icon: 'grid' },
+  { label: 'Favorites', icon: 'heart' },
   { label: 'Spaces', icon: 'layers' },
   { label: 'Rediscover', icon: 'sparkle' },
   { label: 'Settings', icon: 'settings' },

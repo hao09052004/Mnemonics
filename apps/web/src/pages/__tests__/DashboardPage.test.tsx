@@ -188,4 +188,44 @@ describe('DashboardPage', () => {
       expect(screen.getByTestId('item-favorite-1').getAttribute('aria-pressed')).toBe('false')
     );
   });
+
+  it('renders the Favorites view with favorite=true query and un-favoriting removes the card', async () => {
+    const user = userEvent.setup();
+    const api = mockApi();
+    const listSpy = vi.spyOn(api, 'listItems').mockResolvedValue({
+      items: [
+        {
+          id: 'fav-1',
+          kind: 'text',
+          title: 'My Favorite Item',
+          snippet: 'Starred text',
+          is_favorite: true,
+          captured_at: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
+    vi.spyOn(api, 'updateItem').mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter initialEntries={['/app/favorites']}>
+        <DashboardPage api={api} isFavoritesRoute />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => screen.getByText('My Favorite Item'));
+    expect(listSpy).toHaveBeenCalledWith('t', expect.objectContaining({ favorite: true }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Favorites' })).toBeTruthy();
+
+    const heart = screen.getByTestId('item-favorite-fav-1');
+    expect(heart.getAttribute('aria-pressed')).toBe('true');
+
+    // Clicking heart removes item from Favorites view immediately
+    await user.click(heart);
+    await waitFor(() => {
+      expect(screen.queryByText('My Favorite Item')).toBeNull();
+    });
+  });
 });

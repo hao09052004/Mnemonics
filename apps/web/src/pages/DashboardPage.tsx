@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
 import { EverythingView } from '../components/dashboard/EverythingView';
 import {
@@ -28,10 +28,13 @@ import type { DashboardPage as DashboardPageName } from '../components/dashboard
 
 interface DashboardPageProps {
   api: ApiClient;
+  isFavoritesRoute?: boolean;
 }
 
-export function DashboardPage({ api }: DashboardPageProps) {
+export function DashboardPage({ api, isFavoritesRoute }: DashboardPageProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isFavorites = Boolean(isFavoritesRoute || location.pathname === '/app/favorites');
   const [session, setSession] = useState<Session | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +46,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
   const [documentCaptureOpen, setDocumentCaptureOpen] = useState(false);
   const [linkCaptureOpen, setLinkCaptureOpen] = useState(false);
   const [noteCaptureOpen, setNoteCaptureOpen] = useState(false);
+  const [noteMode, setNoteMode] = useState<'note' | 'quote'>('note');
   const [imageCaptureOpen, setImageCaptureOpen] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'forgot'>('login');
   const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
@@ -82,7 +86,11 @@ export function DashboardPage({ api }: DashboardPageProps) {
         setError('TOKEN_EXPIRED');
         return;
       }
-      const r = await api.listItems(token, { limit: PAGE_SIZE, offset: 0 });
+      const r = await api.listItems(token, {
+        limit: PAGE_SIZE,
+        offset: 0,
+        ...(isFavorites ? { favorite: true } : {})
+      });
       if (e !== epoch.current) return;
       setItems(r.items);
       setTotalCount(r.total);
@@ -93,7 +101,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
     } finally {
       if (e === epoch.current) setLoading(false);
     }
-  }, [api, session]);
+  }, [api, session, isFavorites]);
 
   /**
    * Fetch the next page of items and append it. No-op when the
@@ -112,7 +120,8 @@ export function DashboardPage({ api }: DashboardPageProps) {
       }
       const r = await api.listItems(token, {
         limit: PAGE_SIZE,
-        offset: items.length
+        offset: items.length,
+        ...(isFavorites ? { favorite: true } : {})
       });
       setItems((prev) => {
         // Dedup by id — defensive against a row being re-indexed
@@ -156,7 +165,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
 
   useEffect(() => {
     if (session && !query) loadList();
-  }, [session, query, loadList]);
+  }, [session, query, loadList, isFavorites]);
 
   /**
    * Delete a memory. Confirms first (destructive + irreversible, so we
@@ -234,6 +243,10 @@ export function DashboardPage({ api }: DashboardPageProps) {
           return;
         }
         await api.updateItem(id, { isFavorite: next }, token);
+        if (isFavorites && !next) {
+          setItems((prev) => prev.filter((it) => String(it.id) !== id));
+          setTotalCount((c) => Math.max(0, c - 1));
+        }
       } catch (err) {
         // Roll the heart back so the UI never lies about the DB.
         setItems((prev) => patch(prev).map((it) => ({ ...it, is_favorite: !next })));
@@ -309,6 +322,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
 
   const handleNavigate = (page: DashboardPageName) => {
     if (page === 'Everything') navigate('/app');
+    else if (page === 'Favorites') navigate('/app/favorites');
     else if (page === 'Spaces') navigate('/app/spaces');
     else if (page === 'Groups') navigate('/app/clusters');
     else if (page === 'Rediscover') navigate('/app/rediscover');
@@ -326,6 +340,12 @@ export function DashboardPage({ api }: DashboardPageProps) {
       return;
     }
     if (a === 'note') {
+      setNoteMode('note');
+      setNoteCaptureOpen(true);
+      return;
+    }
+    if (a === 'quote') {
+      setNoteMode('quote');
       setNoteCaptureOpen(true);
       return;
     }
@@ -360,7 +380,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
   return (
     <DashboardShell
       user={session.user}
-      active="Everything"
+      active={isFavorites ? 'Favorites' : 'Everything'}
       onNavigate={handleNavigate}
       onCapture={() => setCaptureOpen(true)}
       onLogout={() => {
@@ -371,6 +391,20 @@ export function DashboardPage({ api }: DashboardPageProps) {
       demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
     >
       <EverythingView
+        title={isFavorites ? 'Favorites' : 'Everything'}
+        subtitle={
+          isFavorites
+            ? 'Your favorited memories in one place.'
+            : 'Your saved memories in one place.'
+        }
+        emptyState={
+          isFavorites
+            ? {
+                title: 'No favorites yet.',
+                text: 'Click the heart on any memory to save it here.'
+              }
+            : undefined
+        }
         items={visible}
         loading={loading}
         error={error}
@@ -457,6 +491,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
       <NoteCaptureDialog
         api={api}
         open={noteCaptureOpen}
+        mode={noteMode}
         onClose={() => setNoteCaptureOpen(false)}
         onSaved={() => void loadList()}
       />

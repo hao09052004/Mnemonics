@@ -10,6 +10,8 @@ import type { MemoryLabel } from '../../lib/memory-kind';
 import '../spaces/spaces.css';
 
 interface EverythingViewProps {
+  title?: string;
+  subtitle?: string;
   items: MemoryCardItem[];
   loading: boolean;
   error?: string | null;
@@ -78,6 +80,8 @@ interface EverythingViewProps {
  * shared mode would leave the user stuck in a mode they cannot leave.
  */
 export function EverythingView({
+  title,
+  subtitle,
   items,
   loading,
   error,
@@ -141,8 +145,8 @@ export function EverythingView({
     <main className="main everything">
       <header className="dashboard-heading">
         <div>
-          <h1>Everything</h1>
-          <p>Your saved memories in one place.</p>
+          <h1>{title || 'Everything'}</h1>
+          <p>{subtitle || 'Your saved memories in one place.'}</p>
         </div>
         <span className="memory-count">
           {typeof totalCount === 'number' && totalCount > items.length

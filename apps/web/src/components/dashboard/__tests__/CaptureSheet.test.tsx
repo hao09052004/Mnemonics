@@ -6,10 +6,11 @@ import { CaptureSheet } from '../CaptureSheet';
 afterEach(() => cleanup());
 
 describe('CaptureSheet', () => {
-  it('renders 4 actions', () => {
+  it('renders 5 actions', () => {
     render(<CaptureSheet open onClose={() => {}} onAction={() => {}} />);
     expect(screen.getByRole('button', { name: /save link/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /quick note/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /save quote/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /upload image/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /upload document/i })).toBeTruthy();
   });

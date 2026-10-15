@@ -104,7 +104,10 @@ export function SpacesPage({ api }: SpacesPageProps) {
       active="Spaces"
       onNavigate={(p) => {
         if (p === 'Everything') navigate('/app');
+        else if (p === 'Favorites') navigate('/app/favorites');
+        else if (p === 'Groups') navigate('/app/clusters');
         else if (p === 'Rediscover') navigate('/app/rediscover');
+        else if (p === 'Reminders') navigate('/app/reminders');
       }}
       onCapture={() => navigate('/app')}
       onLogout={() => {

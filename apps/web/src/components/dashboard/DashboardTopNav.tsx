@@ -5,6 +5,7 @@ import type { AuthUser } from '../../lib/api-client';
 
 export type DashboardPage =
   | 'Everything'
+  | 'Favorites'
   | 'Groups'
   | 'Spaces'
   | 'Rediscover'
@@ -17,6 +18,7 @@ export type DashboardPage =
 
 const NAV: Array<{ label: DashboardPage }> = [
   { label: 'Everything' },
+  { label: 'Favorites' },
   { label: 'Groups' },
   { label: 'Spaces' },
   { label: 'Rediscover' },

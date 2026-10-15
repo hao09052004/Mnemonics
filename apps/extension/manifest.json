@@ -39,7 +39,8 @@
         "auth-client.js",
         "original-image.html",
         "original-image.js",
-        "styles/*.css"
+        "styles/*.css",
+        "icon*.png"
       ],
       "matches": [
         "<all_urls>"

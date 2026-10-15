@@ -1,6 +1,6 @@
 import { Icon, type IconName } from './Icons';
 
-export type CaptureAction = 'link' | 'note' | 'image' | 'document';
+export type CaptureAction = 'link' | 'note' | 'quote' | 'image' | 'document';
 
 interface CaptureSheetProps {
   open: boolean;
@@ -11,6 +11,7 @@ interface CaptureSheetProps {
 const ACTIONS: Array<{ key: CaptureAction; label: string; icon: IconName }> = [
   { key: 'link', label: 'Save Link', icon: 'link' },
   { key: 'note', label: 'Quick Note', icon: 'plus' },
+  { key: 'quote', label: 'Save Quote', icon: 'file' },
   { key: 'image', label: 'Upload Image', icon: 'image' },
   { key: 'document', label: 'Upload Document', icon: 'upload' },
 ];

@@ -80,6 +80,7 @@ export function AppRouter({ api }: AppRouterProps) {
           }
         />
         <Route path="/app" element={<DashboardPage api={api} />} />
+        <Route path="/app/favorites" element={<DashboardPage api={api} isFavoritesRoute />} />
         <Route path="/app/spaces" element={<SpacesPage api={api} />} />
         <Route path="/app/spaces/:id" element={<SpaceDetailPage api={api} />} />
         <Route path="/app/clusters" element={<ClustersPage api={api} />} />

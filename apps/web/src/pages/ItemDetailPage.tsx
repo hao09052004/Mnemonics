@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
+import { Icon } from '../components/dashboard/Icons';
 import type { ApiClient, ItemDetail } from '../lib/api-client';
 
 interface ItemDetailPageProps {
@@ -13,6 +14,11 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
   const [item, setItem] = useState<ItemDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
 
   const id = params.id;
 
@@ -28,6 +34,7 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
       }
       const r = await api.getItem(id, token);
       setItem(r);
+      setNotes(r.notes || '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load memory');
     } finally {
@@ -39,6 +46,40 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
     if (!id) return;
     void load();
   }, [id, load]);
+
+  const handleToggleFavorite = async () => {
+    if (!item || favoriting) return;
+    const next = !item.is_favorite;
+    setFavoriting(true);
+    setItem((prev) => (prev ? { ...prev, is_favorite: next } : prev));
+    try {
+      const token = await api.getValidAccessToken();
+      if (token) {
+        await api.updateItem(item.id, { isFavorite: next }, token);
+      }
+    } catch {
+      setItem((prev) => (prev ? { ...prev, is_favorite: !next } : prev));
+    } finally {
+      setFavoriting(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!item || notesSaving) return;
+    setNotesSaving(true);
+    setNotesSaved(false);
+    try {
+      const token = await api.getValidAccessToken();
+      if (token) {
+        await api.updateItem(item.id, { notes }, token);
+        setItem((prev) => (prev ? { ...prev, notes } : prev));
+        setNotesSaved(true);
+        setTimeout(() => setNotesSaved(false), 2500);
+      }
+    } finally {
+      setNotesSaving(false);
+    }
+  };
 
   if (!id) {
     return <p>Missing item id.</p>;
@@ -81,22 +122,40 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
       active="Everything"
       onNavigate={(page) => {
         if (page === 'Everything') navigate('/app');
+        else if (page === 'Favorites') navigate('/app/favorites');
         else if (page === 'Spaces') navigate('/app/spaces');
         else if (page === 'Groups') navigate('/app/clusters');
+        else if (page === 'Rediscover') navigate('/app/rediscover');
+        else if (page === 'Reminders') navigate('/app/reminders');
       }}
       onCapture={() => navigate('/app')}
       onLogout={() => navigate('/')}
       demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
     >
       <div className="item-detail-page" data-testid="item-detail-page">
-        <button
-          type="button"
-          className="ghost item-detail-back"
-          onClick={() => navigate(-1)}
-          data-testid="item-detail-back"
-        >
-          ← Back
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="ghost item-detail-back"
+            onClick={() => navigate(-1)}
+            data-testid="item-detail-back"
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            className={`ghost ${item.is_favorite ? 'is-favorite' : ''}`}
+            onClick={handleToggleFavorite}
+            disabled={favoriting}
+            title={item.is_favorite ? 'Bỏ yêu thích' : 'Yêu thích'}
+            aria-label={item.is_favorite ? 'Bỏ yêu thích' : 'Yêu thích'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: item.is_favorite ? 'var(--purple)' : undefined }}
+          >
+            <Icon name="heart" size={16} filled={item.is_favorite === true} />
+            <span>{item.is_favorite ? 'Favorited' : 'Favorite'}</span>
+          </button>
+        </div>
+
         <header className="item-detail-header">
           <span className={`item-kind-pill item-kind-pill--${item.kind}`}>
             {item.kind}
@@ -116,6 +175,30 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
             Saved {captured.toLocaleString()} · status: {item.status}
           </p>
         </header>
+
+        {item.snippet ? (
+          <section className="item-detail-section item-detail-section--tldr" data-testid="item-detail-tldr" style={{ background: 'var(--mn-surface-2, rgba(255,255,255,0.03))', padding: '16px 20px', borderRadius: 12, border: '1px solid var(--mn-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--mn-text-2)', margin: 0 }}>TL;DR · Tóm tắt AI</h2>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  navigator.clipboard.writeText(item.snippet || '');
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                style={{ fontSize: 12, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                <Icon name={copied ? 'check' : 'copy'} size={13} />
+                <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
+              </button>
+            </div>
+            <p style={{ marginTop: 10, marginBottom: 0, lineHeight: 1.6, color: 'var(--mn-text-1)', fontSize: 14 }}>
+              {item.snippet}
+            </p>
+          </section>
+        ) : null}
 
         {item.image_url ? (
           <img
@@ -152,6 +235,30 @@ export function ItemDetailPage({ api }: ItemDetailPageProps) {
             </ul>
           </section>
         ) : null}
+
+        <section className="item-detail-section" data-testid="item-detail-notes">
+          <h2>Ghi chú cá nhân</h2>
+          <textarea
+            className="item-detail-raw"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Thêm ghi chú cá nhân của bạn cho ký ức này..."
+            style={{ width: '100%', resize: 'vertical', marginTop: 8, fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={notesSaving}
+              onClick={handleSaveNotes}
+              style={{ padding: '7px 16px', fontSize: 13, borderRadius: 6, cursor: 'pointer' }}
+            >
+              {notesSaving ? 'Đang lưu…' : 'Lưu ghi chú'}
+            </button>
+            {notesSaved && <span style={{ color: 'var(--accent)', fontSize: 12 }}>✓ Đã lưu</span>}
+          </div>
+        </section>
 
         <div className="item-detail-actions">
           {item.source_url ? (

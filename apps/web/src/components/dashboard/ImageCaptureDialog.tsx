@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ApiClient } from '../../lib/api-client';
+import { extractSmartTags } from '../../lib/smart-tags';
 
 export interface ImageCaptureDialogProps {
   api: ApiClient;
@@ -43,8 +44,14 @@ export function ImageCaptureDialog({
   const [preview, setPreview] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useState<string>('')[0] || uuid();
+
+  const smartTags = useMemo(() => {
+    const combined = (title + ' ' + note).trim();
+    return extractSmartTags(combined, 'ảnh chụp');
+  }, [title, note]);
 
   useEffect(() => {
     if (open) {
@@ -54,6 +61,7 @@ export function ImageCaptureDialog({
       setTitle('');
       setNote('');
       setPreview(null);
+      setIsDragging(false);
     }
   }, [open]);
 
@@ -64,15 +72,11 @@ export function ImageCaptureDialog({
     }
   }, [open, preview]);
 
-  if (!open) return null;
-
   function pickFile() {
     inputRef.current?.click();
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0] ?? null;
-    if (!f) return;
+  function handleImageSelected(f: File, customTitle?: string) {
     if (f.size > MAX_BYTES) {
       setPhase('error');
       setError('Image is too large. The maximum is 10 MB.');
@@ -89,12 +93,71 @@ export function ImageCaptureDialog({
     }
     setError(null);
     setFileState(f);
-    setTitle(defaultTitleFor(f.name));
+    setTitle(customTitle || defaultTitleFor(f.name));
     setPhase('idle');
-    // Build a local preview URL.
     const url = URL.createObjectURL(f);
     setPreview(url);
     if (inputRef.current) inputRef.current.value = '';
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (!f) return;
+    handleImageSelected(f);
+  }
+
+  // Listen for clipboard paste (Ctrl+V) when dialog is open
+  useEffect(() => {
+    if (!open) return;
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            handleImageSelected(
+              file,
+              `Ảnh chụp màn hình · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            );
+            break;
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [open]);
+
+  async function captureScreen() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setError('Trình duyệt chưa hỗ trợ chụp màn hình trực tiếp. Bạn có thể nhấn PrintScreen hoặc Win+Shift+S rồi nhấn Ctrl+V để dán.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      await video.play();
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0);
+      stream.getTracks().forEach((t) => t.stop());
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `screenshot-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          handleImageSelected(
+            file,
+            `Ảnh chụp màn hình · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+          );
+        }
+      }, 'image/jpeg', 0.9);
+    } catch {
+      // User cancelled picker
+    }
   }
 
   async function handleConfirm() {
@@ -141,6 +204,8 @@ export function ImageCaptureDialog({
     onClose();
   }
 
+  if (!open) return null;
+
   return (
     <div
       className="sheet-backdrop"
@@ -184,7 +249,21 @@ export function ImageCaptureDialog({
         />
 
         {!fileState ? (
-          <div className="dropzone-area" onClick={pickFile}>
+          <div
+            className={`dropzone-area ${isDragging ? 'is-dragging' : ''}`}
+            onClick={pickFile}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleImageSelected(f);
+            }}
+          >
             <div className="dropzone-icon">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -192,20 +271,34 @@ export function ImageCaptureDialog({
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
             </div>
-            <button
-              type="button"
-              className="dropzone-pick-btn"
-              data-testid="image-pick-file"
-              onClick={(e) => {
-                e.stopPropagation();
-                pickFile();
-              }}
-              disabled={phase === 'uploading' || phase === 'finalizing'}
-            >
-              Choose image…
-            </button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="dropzone-pick-btn"
+                data-testid="image-pick-file"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  pickFile();
+                }}
+                disabled={phase === 'uploading' || phase === 'finalizing'}
+              >
+                Choose image…
+              </button>
+              <button
+                type="button"
+                className="dropzone-pick-btn"
+                style={{ background: 'var(--purple-soft, rgba(91,63,228,0.12))', color: 'var(--purple-text, #a78bfa)', border: '1px solid var(--purple)' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  captureScreen();
+                }}
+                disabled={phase === 'uploading' || phase === 'finalizing'}
+              >
+                📸 Chụp màn hình
+              </button>
+            </div>
             <p className="dropzone-hint">
-              Kéo thả hoặc bấm để chọn ảnh từ thiết bị
+              Kéo thả, dán ảnh chụp (Ctrl+V) hoặc bấm để chọn ảnh
             </p>
             <p className="dropzone-sub">
               Hỗ trợ JPEG, PNG, WebP (tối đa 10 MB). Hệ thống tự động OCR & trích xuất chữ.
@@ -258,6 +351,18 @@ export function ImageCaptureDialog({
                 placeholder="Ghi chú về hình ảnh này..."
               />
             </label>
+            <div className="smart-tags-preview" style={{ marginTop: 6, marginBottom: 8, padding: '10px 14px', background: 'var(--purple-soft, rgba(91,63,228,0.08))', borderRadius: 8, border: '1px solid rgba(91,63,228,0.18)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.8px', color: 'var(--purple, #5B3FE4)', textTransform: 'uppercase', marginBottom: 6 }}>
+                ★ Smart Tags (Tự động gợi ý)
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {smartTags.map((tag) => (
+                  <span key={tag} style={{ background: 'var(--surface, #1e222b)', color: 'var(--purple-text, #a78bfa)', fontSize: 11, fontWeight: 500, padding: '2px 9px', borderRadius: 14, border: '1px solid rgba(167,139,250,0.25)' }}>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            </div>
             <div className="document-actions">
               <button
                 type="button"

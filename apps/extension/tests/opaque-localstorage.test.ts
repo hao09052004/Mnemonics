@@ -15,7 +15,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ROOT = process.cwd();
+const ROOT = join(__dirname, '..');
 
 describe('opaque-origin localStorage handling', () => {
   it('loadSession falls back to chrome.storage.local without throwing', async () => {
