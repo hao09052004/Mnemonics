@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { InstallExtensionButton } from '../extension/InstallExtensionButton';
+import { productConfig } from '../../config/product';
 
 /**
  * Hero section.
@@ -15,6 +16,10 @@ import { InstallExtensionButton } from '../extension/InstallExtensionButton';
 export function Hero() {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [drift, setDrift] = useState({ x: 0, y: 0 });
+
+  const chromeStoreUrl =
+    productConfig.chromeExtensionUrl ||
+    'https://chromewebstore.google.com/detail/mnemonics-%E2%80%94-ai-smart-book/mhbnjgijpnhjopffmpaoncddgijfghog';
 
   useEffect(() => {
     const reduce =
@@ -46,11 +51,62 @@ export function Hero() {
     <section
       id="product"
       className="section"
-      style={{ position: 'relative', paddingTop: 80, paddingBottom: 100 }}
+      style={{ position: 'relative', paddingTop: 80, paddingBottom: 100, overflow: 'hidden' }}
     >
+      {/* Ambient background glow & fine grid texture */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          overflow: 'hidden',
+          zIndex: 0
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '-20%',
+            right: '0%',
+            width: 720,
+            height: 560,
+            background: 'radial-gradient(circle, rgba(124, 92, 252, 0.18) 0%, rgba(124, 92, 252, 0.04) 55%, transparent 75%)',
+            filter: 'blur(50px)',
+            borderRadius: '50%'
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-15%',
+            left: '-10%',
+            width: 600,
+            height: 480,
+            background: 'radial-gradient(circle, rgba(245, 158, 11, 0.10) 0%, rgba(245, 158, 11, 0.02) 50%, transparent 70%)',
+            filter: 'blur(60px)',
+            borderRadius: '50%'
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage:
+              'radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+            maskImage: 'radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 80%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 80%)',
+            opacity: 0.55
+          }}
+        />
+      </div>
+
       <div
         className="container"
         style={{
+          position: 'relative',
+          zIndex: 1,
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 0.95fr)',
           gap: 56,
@@ -58,9 +114,22 @@ export function Hero() {
         }}
       >
         <div className="mnemonics-hero-copy">
-          <div className="eyebrow">Your second brain</div>
-          <h1 className="display h1" style={{ marginTop: 14 }}>
-            Remember everything,
+          <div style={{ marginBottom: 18 }}>
+            <a
+              href={chromeStoreUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mn-hero-pill"
+              aria-label="Mnemonics is live on the Chrome Web Store"
+            >
+              <span className="mn-hero-pill-badge">CHROME STORE</span>
+              <span className="mn-hero-pill-text">Official extension is now live</span>
+              <span className="mn-hero-pill-arrow">→</span>
+            </a>
+          </div>
+
+          <h1 className="display h1 mn-hero-headline" style={{ marginTop: 0 }}>
+            <span className="mn-hero-gradient-text">Remember everything,</span>
             <br />
             without organising everything.
           </h1>
@@ -150,18 +219,32 @@ function cardStyle(x: number, y: number, rot: number, tx: number, ty: number): R
 function ArticleCard() {
   return (
     <div
+      className="mn-hero-card"
       style={{
         width: 220,
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
+        background: 'rgba(22, 25, 35, 0.78)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: 16,
         padding: 14,
-        boxShadow: 'var(--shadow-md)'
+        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
       }}
     >
-      <div style={{ height: 96, background: 'linear-gradient(135deg, rgba(139, 111, 248, 0.25), rgba(245, 158, 11, 0.2))', borderRadius: 10, border: '1px solid var(--border)' }} />
-      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>The quiet rise of personal AI</div>
-      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>theverge.com · 6 min read</div>
+      <div
+        style={{
+          height: 96,
+          background: 'linear-gradient(135deg, rgba(139, 111, 248, 0.35), rgba(245, 158, 11, 0.25))',
+          borderRadius: 10,
+          border: '1px solid rgba(255, 255, 255, 0.1)'
+        }}
+      />
+      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+        The quiet rise of personal AI
+      </div>
+      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
+        theverge.com · 6 min read
+      </div>
     </div>
   );
 }
@@ -169,20 +252,26 @@ function ArticleCard() {
 function QuoteCard() {
   return (
     <div
+      className="mn-hero-card"
       style={{
         width: 240,
-        background: 'var(--surface-hover)',
-        border: '1px solid var(--border-strong)',
+        background: 'rgba(25, 28, 38, 0.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(139, 111, 248, 0.35)',
         color: 'var(--ink)',
         borderRadius: 16,
         padding: 16,
-        boxShadow: 'var(--shadow-md)'
+        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
       }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brand)', fontWeight: 700 }}>
-        Highlight
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brand)', fontWeight: 700 }}>
+          Highlight
+        </span>
+        <span style={{ fontSize: 18, color: 'var(--brand)', opacity: 0.85, lineHeight: 1 }}>“</span>
       </div>
-      <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-display)', color: 'var(--ink)' }}>
+      <div style={{ marginTop: 6, fontSize: 14, lineHeight: 1.5, fontFamily: 'var(--font-serif, serif)', fontStyle: 'italic', color: 'var(--ink)' }}>
         “The best interface is the one that disappears.”
       </div>
       <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>— Naoto Fukasawa</div>
@@ -193,17 +282,30 @@ function QuoteCard() {
 function ScreenshotCard() {
   return (
     <div
+      className="mn-hero-card"
       style={{
         width: 200,
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
+        background: 'rgba(22, 25, 35, 0.78)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: 16,
         padding: 12,
-        boxShadow: 'var(--shadow-md)'
+        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
       }}
     >
-      <div style={{ height: 70, background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(139, 111, 248, 0.2))', borderRadius: 8, border: '1px solid var(--border)' }} />
-      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>Screenshot · cropped</div>
+      <div
+        style={{
+          height: 70,
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(139, 111, 248, 0.25))',
+          borderRadius: 8,
+          border: '1px solid rgba(255, 255, 255, 0.1)'
+        }}
+      />
+      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399' }} />
+        Screenshot · OCR indexed
+      </div>
     </div>
   );
 }
@@ -212,14 +314,18 @@ function TagBubble() {
   const tags = ['design', 'long-form', 'AI', 'craft'];
   return (
     <div
+      className="mn-hero-card"
       style={{
         display: 'inline-flex',
         flexWrap: 'wrap',
         gap: 6,
-        padding: 12,
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
-        borderRadius: 999
+        padding: '10px 14px',
+        background: 'rgba(22, 25, 35, 0.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
+        borderRadius: 999,
+        boxShadow: '0 10px 28px -4px rgba(0, 0, 0, 0.5)'
       }}
     >
       {tags.map((t) => (
@@ -227,11 +333,12 @@ function TagBubble() {
           key={t}
           style={{
             fontSize: 12,
-            padding: '6px 10px',
+            padding: '5px 10px',
             borderRadius: 999,
-            background: 'var(--brand-tint)',
-            color: 'var(--brand)',
-            fontWeight: 600
+            background: 'rgba(139, 111, 248, 0.14)',
+            color: '#c4b5fd',
+            fontWeight: 600,
+            border: '1px solid rgba(139, 111, 248, 0.25)'
           }}
         >
           #{t}
@@ -244,22 +351,28 @@ function TagBubble() {
 function SearchResultCard() {
   return (
     <div
+      className="mn-hero-card"
       style={{
         width: 280,
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
+        background: 'rgba(22, 25, 35, 0.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
         borderRadius: 16,
         padding: 14,
-        boxShadow: 'var(--shadow-md)'
+        boxShadow: '0 16px 36px -6px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
       }}
     >
-      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Semantic match</div>
-      <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+        <span>Semantic match</span>
+        <span style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>AI Recall</span>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: '#f3e8ff' }}>
         “the article about safe reinforcement learning”
       </div>
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <Result title="Concrete Problems in AI Safety" score="0.92" />
-        <Result title="Reward Hacking in Deep RL" score="0.81" />
+        <Result title="Concrete Problems in AI Safety" score="98%" />
+        <Result title="Reward Hacking in Deep RL" score="91%" />
       </div>
     </div>
   );
@@ -274,13 +387,14 @@ function Result({ title, score }: { title: string; score: string }) {
         justifyContent: 'space-between',
         fontSize: 12,
         color: 'var(--ink-soft)',
-        padding: '6px 8px',
-        background: 'var(--bg-elevated)',
+        padding: '6px 10px',
+        background: 'rgba(255, 255, 255, 0.04)',
+        border: '1px solid rgba(255, 255, 255, 0.06)',
         borderRadius: 8
       }}
     >
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-      <span style={{ color: 'var(--brand)', fontWeight: 700 }}>{score}</span>
+      <span style={{ color: '#c084fc', fontWeight: 700, marginLeft: 8 }}>{score}</span>
     </div>
   );
 }

@@ -118,14 +118,15 @@ export function MemoryMasonry() {
           {CARDS.map((card, i) => (
             <article
               key={i}
-              className="card"
+              className="card mn-masonry-card"
               style={{
                 breakInside: 'avoid',
                 marginBottom: 22,
-                padding: 20,
+                padding: 24,
                 background: card.tone,
                 color: 'var(--ink)',
                 border: '1px solid var(--border)',
+                borderRadius: 20,
                 minHeight: SIZE_TO_HEIGHT[card.size]
               }}
             >
