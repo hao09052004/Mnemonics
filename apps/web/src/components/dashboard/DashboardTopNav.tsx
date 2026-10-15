@@ -91,7 +91,9 @@ export function DashboardTopNav({
         aria-label="Mnemonics home"
         data-testid="brand"
       >
-        <span className="brand-symbol">m</span>
+        <span className="brand-symbol" style={{ padding: 0, overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>
+          <img src="/logo.png" alt="m" width={36} height={36} style={{ borderRadius: '50%', display: 'block', objectFit: 'contain' }} />
+        </span>
         <span>
           mnemonics
           <span className="brand-tagline">Save once — Find anytime.</span>

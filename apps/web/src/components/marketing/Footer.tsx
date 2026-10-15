@@ -19,11 +19,13 @@ export function Footer() {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, color: 'var(--ink)' }}>
-            <svg width="22" height="22" viewBox="0 0 28 28" aria-hidden>
-              <circle cx="14" cy="14" r="14" fill="#7457e8" />
-              <path d="M9 7 H19 V22 L14 18 L9 22 Z" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
-              <text x="14" y="17" fontFamily="system-ui" fontSize="8" fontWeight={800} fill="#fff" textAnchor="middle">M</text>
-            </svg>
+            <img
+              src="/logo.png"
+              alt="Mnemonics"
+              width={24}
+              height={24}
+              style={{ borderRadius: '50%', display: 'block', objectFit: 'contain' }}
+            />
             Mnemonics
           </div>
           <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 14, maxWidth: 36 + 'ch', lineHeight: 1.55 }}>

@@ -881,7 +881,9 @@
 <!-- Top nav (hidden until logged in) -->
 <header class="mnx-topnav" data-when="authed" hidden>
   <button class="mnx-brand" data-action="go-home" aria-label="Mnemonics home">
-    <span class="mnx-brand__mark">m</span>
+    <span class="mnx-brand__mark" style="background:transparent;overflow:hidden;padding:0;">
+      <img src="icon48.png" alt="m" width="34" height="34" style="border-radius:50%;display:block;object-fit:contain;" />
+    </span>
     <span>
       mnemonics
       <span class="mnx-brand__tagline">Save once — Find anytime.</span>
