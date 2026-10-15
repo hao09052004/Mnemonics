@@ -50,4 +50,38 @@ describe('DashboardTopNav', () => {
     await userEvent.click(screen.getByRole('button', { name: /capture/i }));
     expect(onCapture).toHaveBeenCalledOnce();
   });
+
+  it('toggles account dropdown and displays user email when avatar is clicked', async () => {
+    const onLogout = vi.fn();
+    renderInRouter(
+      <DashboardTopNav
+        active="Everything"
+        onNavigate={() => {}}
+        onCapture={() => {}}
+        initials="HN"
+        user={{
+          id: 'u1',
+          email: 'hao.nguyen@example.com',
+          name: 'Hao Nguyen',
+          role: 'user',
+          createdAt: new Date().toISOString(),
+        } as any}
+        onLogout={onLogout}
+      />
+    );
+
+    // Initial state: dropdown is closed
+    expect(screen.queryByTestId('account-dropdown')).toBeNull();
+
+    // Click avatar
+    await userEvent.click(screen.getByTestId('avatar-btn'));
+    expect(screen.getByTestId('account-dropdown')).toBeInTheDocument();
+    expect(screen.getByText('hao.nguyen@example.com')).toBeInTheDocument();
+    expect(screen.getByText('Hao Nguyen')).toBeInTheDocument();
+
+    // Click logout
+    await userEvent.click(screen.getByTestId('dropdown-logout'));
+    expect(onLogout).toHaveBeenCalledOnce();
+  });
 });
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icons';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../../lib/api-client';
@@ -9,7 +9,11 @@ export type DashboardPage =
   | 'Spaces'
   | 'Rediscover'
   | 'Reminders'
-  | 'Settings';
+  | 'Settings'
+  | 'Phân tích'
+  | 'Tài khoản'
+  | 'Billing'
+  | 'Analytics';
 
 const NAV: Array<{ label: DashboardPage }> = [
   { label: 'Everything' },
@@ -26,6 +30,7 @@ interface DashboardTopNavProps {
   initials: string;
   user?: AuthUser;
   isAdmin?: boolean;
+  onLogout?: () => void;
 }
 
 export function DashboardTopNav({
@@ -33,9 +38,14 @@ export function DashboardTopNav({
   onNavigate,
   onCapture,
   initials,
+  user,
   isAdmin,
+  onLogout,
 }: DashboardTopNavProps) {
   const navigate = useNavigate();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('mnemonics_theme');
@@ -50,6 +60,17 @@ export function DashboardTopNav({
       document.body.setAttribute('data-theme', theme);
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [accountMenuOpen]);
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -92,7 +113,11 @@ export function DashboardTopNav({
         ))}
         <button
           type="button"
-          className="header-link"
+          className={
+            active === 'Phân tích' || active === 'Analytics'
+              ? 'header-link active'
+              : 'header-link'
+          }
           onClick={() => navigate('/app/analytics')}
           data-testid="nav-analytics"
         >
@@ -100,7 +125,11 @@ export function DashboardTopNav({
         </button>
         <button
           type="button"
-          className="header-link"
+          className={
+            active === 'Tài khoản' || active === 'Billing' || active === 'Settings'
+              ? 'header-link active'
+              : 'header-link'
+          }
           onClick={() => navigate('/app/billing')}
           data-testid="nav-billing"
         >
@@ -124,7 +153,7 @@ export function DashboardTopNav({
           type="button"
           className="theme-toggle-btn"
           onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to Warm Paper theme' : 'Switch to Deep Obsidian theme'}
+          title={theme === 'dark' ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối'}
           aria-label="Toggle theme"
           data-testid="theme-toggle"
         >
@@ -139,17 +168,110 @@ export function DashboardTopNav({
           <Icon name="plus" size={16} />
           Capture
         </button>
-        <button
-          type="button"
-          className="avatar"
-          title={`Tài khoản · ${initials}`}
-          aria-label="Account settings"
-          onClick={() => navigate('/app/billing')}
-          data-testid="avatar-btn"
-        >
-          {initials}
-        </button>
+        <div className="header-account-wrapper" ref={menuRef}>
+          <button
+            type="button"
+            className={accountMenuOpen ? 'avatar active' : 'avatar'}
+            title={
+              user?.email
+                ? `${user.email} (Bấm để xem menu tài khoản)`
+                : `Tài khoản · ${initials}`
+            }
+            aria-label="Account menu"
+            aria-expanded={accountMenuOpen}
+            aria-haspopup="menu"
+            onClick={() => setAccountMenuOpen((prev) => !prev)}
+            data-testid="avatar-btn"
+          >
+            {initials}
+          </button>
+
+          {accountMenuOpen && (
+            <div className="account-dropdown-menu" role="menu" data-testid="account-dropdown">
+              <div className="account-dropdown-header">
+                <div className="account-dropdown-avatar">{initials}</div>
+                <div className="account-dropdown-info">
+                  <div className="account-dropdown-name">
+                    {user?.name || user?.email?.split('@')[0] || 'Tài khoản'}
+                  </div>
+                  <div className="account-dropdown-email" title={user?.email}>
+                    {user?.email || 'Chưa xác định'}
+                  </div>
+                  <div className="account-dropdown-badge">
+                    {isAdmin ? (
+                      <span className="admin-badge">Admin</span>
+                    ) : (
+                      <span className="user-badge">Đang hoạt động</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="account-dropdown-divider" />
+
+              <div className="account-dropdown-items">
+                <button
+                  type="button"
+                  className="account-dropdown-item"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    navigate('/app/billing');
+                  }}
+                  data-testid="dropdown-nav-billing"
+                >
+                  <Icon name="settings" size={15} />
+                  <span>Tài khoản & Gói cước</span>
+                </button>
+                <button
+                  type="button"
+                  className="account-dropdown-item"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    navigate('/app/analytics');
+                  }}
+                  data-testid="dropdown-nav-analytics"
+                >
+                  <Icon name="sliders" size={15} />
+                  <span>Thống kê phân tích</span>
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="account-dropdown-item"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      navigate('/admin');
+                    }}
+                    data-testid="dropdown-nav-admin"
+                  >
+                    <Icon name="layers" size={15} />
+                    <span>Quản trị hệ thống (Admin)</span>
+                  </button>
+                )}
+              </div>
+
+              {onLogout && (
+                <>
+                  <div className="account-dropdown-divider" />
+                  <button
+                    type="button"
+                    className="account-dropdown-item account-dropdown-logout"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      onLogout();
+                    }}
+                    data-testid="dropdown-logout"
+                  >
+                    <Icon name="x" size={15} />
+                    <span>Đăng xuất</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
 }
+

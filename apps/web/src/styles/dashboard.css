@@ -221,6 +221,12 @@ button { cursor: pointer; border: 0; background: transparent; padding: 0; }
   border-color: var(--border-strong);
 }
 
+.header-account-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .avatar {
   height: 36px;
   width: 36px;
@@ -233,11 +239,154 @@ button { cursor: pointer; border: 0; background: transparent; padding: 0; }
   place-items: center;
   font-weight: 600;
   transition: transform 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
 }
-.avatar:hover {
+.avatar:hover,
+.avatar.active {
   transform: scale(1.05);
   border-color: var(--purple);
 }
+
+.account-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 290px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border);
+  padding: 10px;
+  z-index: 1000;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: dropdownFadeIn 0.16s var(--ease);
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.account-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 12px;
+}
+
+.account-dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple-button) 0%, #4f33cf 100%);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(108, 71, 255, 0.3);
+}
+
+.account-dropdown-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-dropdown-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-dropdown-email {
+  font-size: 12px;
+  color: var(--secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.account-dropdown-badge {
+  margin-top: 4px;
+}
+
+.account-dropdown-badge .admin-badge {
+  display: inline-block;
+  background: #fef08a;
+  color: #854d0e;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.account-dropdown-badge .user-badge {
+  display: inline-block;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.account-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+.account-dropdown-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--secondary);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+
+.account-dropdown-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.account-dropdown-item.account-dropdown-logout {
+  color: #ef4444;
+}
+
+.account-dropdown-item.account-dropdown-logout:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
 
 /* ---------------------------------------------------------------- buttons */
 .primary {

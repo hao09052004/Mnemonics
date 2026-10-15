@@ -16,15 +16,6 @@ import { ApiClient, type Session, type OrderRecord } from '../lib/api-client';
 
 interface Props { api: ApiClient }
 
-function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem('mnemonics:session');
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
-}
-
 function formatVnd(n: number): string {
   return new Intl.NumberFormat('vi-VN').format(n) + ' VND';
 }
@@ -33,7 +24,7 @@ export function BillingCheckoutPage({ api }: Props) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const planId = params.get('plan') === 'mastery-yearly' ? 'mastery-yearly' : 'mastery-monthly';
-  const session = loadSession();
+  const session = api.loadStoredSession();
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [recipient, setRecipient] = useState<{ bank: string; bin: string; account: string } | null>(null);

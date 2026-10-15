@@ -43,15 +43,6 @@ function formatVnd(amountVnd: number): string {
   return new Intl.NumberFormat('vi-VN').format(amountVnd) + ' VND';
 }
 
-function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem('mnemonics:session');
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function PricingPage({ api }: PricingPageProps) {
   const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanView[]>([]);
@@ -61,7 +52,7 @@ export function PricingPage({ api }: PricingPageProps) {
 
   useEffect(() => {
     document.title = 'Bảng giá — Mnemonics';
-    const session = loadSession();
+    const session = api.loadStoredSession();
     (async () => {
       try {
         const r = await api.listPlans();

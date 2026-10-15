@@ -538,7 +538,22 @@ export class ApiError extends Error {
 }
 
 const SESSION_STORAGE_KEY = 'mnemonics_session';
+const LEGACY_SESSION_STORAGE_KEY = 'mnemonics:session';
 const REFRESH_LEEWAY_MS = 60_000;
+
+export function loadStoredSession(): Session | null {
+  try {
+    const raw =
+      localStorage.getItem(SESSION_STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Session;
+    if (!parsed || !parsed.accessToken || !parsed.user) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 export class ApiClient {
   private baseUrl: string;
@@ -1355,22 +1370,26 @@ export class ApiClient {
   }
 
   loadStoredSession(): Session | null {
-    try {
-      const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Session;
-      if (!parsed || !parsed.accessToken || !parsed.user) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
+    return loadStoredSession();
   }
 
   saveSession(session: Session | null): void {
     if (!session) {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
+      try {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
       return;
     }
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    try {
+      const serialized = JSON.stringify(session);
+      localStorage.setItem(SESSION_STORAGE_KEY, serialized);
+      localStorage.setItem(LEGACY_SESSION_STORAGE_KEY, serialized);
+    } catch {
+      // ignore
+    }
   }
 }
+

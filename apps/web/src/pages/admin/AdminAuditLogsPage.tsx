@@ -5,17 +5,12 @@
  * action: role changes, manual reconciliations, suspensions.
  */
 import { useEffect, useState } from 'react';
-import { ApiClient, type Session, type AuditLogEntry } from '../../lib/api-client';
+import { ApiClient, type Session, type AuditLogEntry, loadStoredSession } from '../../lib/api-client';
 
 interface Props { api: ApiClient }
 
 function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem('mnemonics:session');
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
+  return loadStoredSession();
 }
 
 function formatDate(iso: string): string {

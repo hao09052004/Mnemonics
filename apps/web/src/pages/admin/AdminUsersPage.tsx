@@ -5,17 +5,12 @@
  * a search box, suspend toggle, and pagination.
  */
 import { useEffect, useState } from 'react';
-import { ApiClient, type Session, type AdminUsersResponse, type AdminUserRow } from '../../lib/api-client';
+import { ApiClient, type Session, type AdminUsersResponse, type AdminUserRow, loadStoredSession } from '../../lib/api-client';
 
 interface Props { api: ApiClient }
 
 function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem('mnemonics:session');
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
+  return loadStoredSession();
 }
 
 function formatDate(iso: string | null): string {

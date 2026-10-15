@@ -13,15 +13,6 @@ import { ApiClient, type Session, type AdminOverviewResponse } from '../../lib/a
 
 interface Props { api: ApiClient }
 
-function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem('mnemonics:session');
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
-}
-
 function formatVnd(n: number): string {
   return new Intl.NumberFormat('vi-VN').format(n) + ' VND';
 }
@@ -35,7 +26,7 @@ export function AdminOverviewPage({ api }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const session = loadSession();
+    const session = api.loadStoredSession();
     if (!session?.accessToken) return;
     (async () => {
       try {

@@ -60,7 +60,6 @@ export function DashboardShell({
 
   // onLogout / demoMode are read by pages that pass them down; keeping
   // them on the shell contract for now prevents breaking callers.
-  void onLogout;
   void demoMode;
   const initials = computeInitials(user.email);
   const perms: string[] = (user as any).permissions ?? [];
@@ -76,9 +75,11 @@ export function DashboardShell({
           initials={initials}
           user={user}
           isAdmin={isAdmin}
+          onLogout={onLogout}
         />
         {children}
       </div>
+
       <MobileBottomNav active={active} onNavigate={onNavigate} onCapture={onCapture} />
     </div>
   );

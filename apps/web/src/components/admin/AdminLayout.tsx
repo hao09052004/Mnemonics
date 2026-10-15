@@ -24,15 +24,6 @@ const SECTIONS: Array<{ to: string; label: string; perm: string }> = [
   { to: '/admin/audit-logs', label: 'Nhật ký', perm: 'admin.audit.read' }
 ];
 
-function loadSession(): Session | null {
-  try {
-    const raw = localStorage.getItem('mnemonics:session');
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function AdminLayout({ api, children }: AdminLayoutProps) {
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
@@ -40,7 +31,7 @@ export function AdminLayout({ api, children }: AdminLayoutProps) {
 
   useEffect(() => {
     document.title = 'Quản trị — Mnemonics';
-    const session = loadSession();
+    const session = api.loadStoredSession();
     if (!session?.accessToken) {
       navigate('/login?next=/admin');
       return;
