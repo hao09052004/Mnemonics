@@ -226,10 +226,14 @@ function EmailPanel({
 
   return (
     <section className="mnemonics-auth-panel" aria-labelledby="auth-heading">
-      <div className="eyebrow">{mode === 'signup' ? 'Create account' : 'Sign in with email'}</div>
-      <h1 id="auth-heading" className="display h2" style={{ marginBottom: 24 }}>
-        {mode === 'signup' ? 'Just a few details.' : 'Welcome back.'}
-      </h1>
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div className="eyebrow" style={{ color: '#a78bfa', letterSpacing: '1.2px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+          {mode === 'signup' ? 'Create account' : 'Sign in with email'}
+        </div>
+        <h1 id="auth-heading" className="display h2 mnemonics-auth-heading" style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 750, letterSpacing: '-0.5px', color: '#ffffff' }}>
+          {mode === 'signup' ? 'Just a few details.' : 'Welcome back.'}
+        </h1>
+      </div>
 
       <div className="mnemonics-auth-form-shell">
         <LoginForm
@@ -241,26 +245,28 @@ function EmailPanel({
         />
       </div>
 
-      <div className="mnemonics-auth-foot" style={{ marginTop: 24, textAlign: 'center' }}>
+      <div className="mnemonics-auth-foot" style={{ marginTop: 22, textAlign: 'center', fontSize: 13.5 }}>
         {mode === 'signup' ? (
           <>
-            Already have an account? <Link to="/login">Log in</Link>
+            Already have an account? <Link to="/login" style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 4 }}>Log in</Link>
           </>
         ) : (
           <>
-            New here? <Link to="/signup">Create an account</Link>
+            New here? <Link to="/signup" style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 4 }}>Create an account</Link>
           </>
         )}
       </div>
 
-      <button
-        type="button"
-        className="mnemonics-auth-secondary"
-        onClick={onBack}
-        style={{ marginTop: 8 }}
-      >
-        ← Back to the extension option
-      </button>
+      <div style={{ textAlign: 'center', marginTop: 10 }}>
+        <button
+          type="button"
+          className="mnemonics-auth-secondary"
+          onClick={onBack}
+          style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.45)', padding: '6px 12px' }}
+        >
+          ← Back to the extension option
+        </button>
+      </div>
     </section>
   );
 }
@@ -300,16 +306,20 @@ function hasSession(): boolean {
 function AuthStyles() {
   // Scoped styles for the auth page. Kept here rather than in
   // global.css so the auth surface can be redesigned independently
-  // from the marketing site. The whole block is small enough to ship
-  // as a single <style> tag with no measurable bundle cost.
+  // from the marketing site.
   return (
     <style>{`
       .mnemonics-auth-page {
         min-height: 100vh;
         display: flex;
         flex-direction: column;
-        background: var(--bg);
-        color: var(--ink);
+        background:
+          radial-gradient(circle 800px at 50% -100px, rgba(116, 87, 232, 0.18) 0%, rgba(91, 63, 228, 0.05) 50%, transparent 80%),
+          radial-gradient(circle 500px at 85% 85%, rgba(116, 87, 232, 0.07) 0%, transparent 70%),
+          #0b0d14;
+        color: #ffffff;
+        position: relative;
+        overflow-x: hidden;
       }
       .mnemonics-auth-header {
         display: flex;
@@ -319,6 +329,7 @@ function AuthStyles() {
         max-width: 1200px;
         margin: 0 auto;
         width: 100%;
+        box-sizing: border-box;
       }
       .mnemonics-auth-brand {
         display: inline-flex;
@@ -326,82 +337,127 @@ function AuthStyles() {
         gap: 10px;
         font-weight: 700;
         font-size: 17px;
-        color: var(--ink);
+        color: #ffffff;
+        text-decoration: none;
+        transition: opacity 0.15s ease;
       }
+      .mnemonics-auth-brand:hover { opacity: 0.88; }
       .mnemonics-auth-back {
-        font-size: 14px;
-        color: var(--muted);
+        font-size: 13.5px;
+        color: rgba(255, 255, 255, 0.55);
         font-weight: 500;
+        text-decoration: none;
+        transition: color 0.15s ease;
       }
-      .mnemonics-auth-back:hover { color: var(--ink); }
+      .mnemonics-auth-back:hover { color: #ffffff; }
       .mnemonics-auth-main {
         flex: 1;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 32px;
+        padding: 32px 20px;
       }
       .mnemonics-auth-panel {
         width: 100%;
-        max-width: 540px;
+        max-width: 460px;
         text-align: left;
+        animation: authFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      @keyframes authFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
       }
       .mnemonics-auth-heading {
-        margin-top: 18px;
-        margin-bottom: 22px;
+        margin-top: 14px;
+        margin-bottom: 18px;
         white-space: pre-line;
       }
       .mnemonics-auth-lead {
-        margin-bottom: 40px;
+        margin-bottom: 32px;
         max-width: 44ch;
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 15px;
+        line-height: 1.55;
       }
       .mnemonics-auth-cta {
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        gap: 18px;
+        gap: 16px;
       }
       .mnemonics-auth-cta .btn--primary,
       .mnemonics-auth-cta a.btn--primary {
         width: 100%;
-        padding: 22px 28px;
-        font-size: 18px;
+        box-sizing: border-box;
+        padding: 16px 24px;
+        font-size: 16px;
+        font-weight: 600;
         justify-content: center;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #7457e8 0%, #5b3fe4 100%);
+        color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 20px rgba(116, 87, 232, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+      }
+      .mnemonics-auth-cta .btn--primary:hover,
+      .mnemonics-auth-cta a.btn--primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 28px rgba(116, 87, 232, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        filter: brightness(1.06);
       }
       .btn--xl {
-        padding: 22px 28px !important;
-        font-size: 18px !important;
+        padding: 16px 24px !important;
+        font-size: 16px !important;
       }
       .mnemonics-auth-secondary {
         background: transparent;
         border: none;
-        color: var(--muted);
-        font-size: 15px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
         font-weight: 500;
         cursor: pointer;
-        padding: 12px 0;
+        padding: 10px 0;
         text-align: center;
         transition: color 0.15s ease;
       }
-      .mnemonics-auth-secondary:hover { color: var(--ink); }
+      .mnemonics-auth-secondary:hover { color: #ffffff; }
       .mnemonics-auth-foot {
-        margin-top: 32px;
+        margin-top: 24px;
         font-size: 13px;
-        color: var(--muted);
+        color: rgba(255, 255, 255, 0.5);
         line-height: 1.55;
       }
       .mnemonics-auth-foot a {
-        color: var(--ink);
+        color: #a78bfa;
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+      .mnemonics-auth-foot a:hover {
+        color: #c4b5fd;
         text-decoration: underline;
-        text-decoration-color: var(--border-strong);
-        text-underline-offset: 3px;
       }
       .mnemonics-auth-form-shell {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        padding: 28px 24px;
-        box-shadow: var(--shadow-sm);
+        background: linear-gradient(180deg, rgba(22, 25, 38, 0.78) 0%, rgba(14, 16, 26, 0.88) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 22px;
+        padding: 32px 28px;
+        box-shadow:
+          0 24px 50px -12px rgba(0, 0, 0, 0.75),
+          0 0 0 1px rgba(255, 255, 255, 0.04),
+          0 0 45px -8px rgba(116, 87, 232, 0.2);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        position: relative;
+      }
+      .mnemonics-auth-form-shell::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 20%;
+        right: 20%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.6), transparent);
       }
       .mnemonics-auth-footer {
         padding: 24px 32px 32px;
@@ -409,16 +465,20 @@ function AuthStyles() {
         gap: 24px;
         justify-content: center;
         font-size: 13px;
-        color: var(--muted);
+        color: rgba(255, 255, 255, 0.4);
         flex-wrap: wrap;
       }
-      .mnemonics-auth-foot-link { color: var(--muted); }
-      .mnemonics-auth-foot-link:hover { color: var(--ink); }
+      .mnemonics-auth-foot-link {
+        color: rgba(255, 255, 255, 0.45);
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+      .mnemonics-auth-foot-link:hover { color: #ffffff; }
       @media (max-width: 640px) {
         .mnemonics-auth-header { padding: 18px 20px; }
-        .mnemonics-auth-main { padding: 20px; align-items: flex-start; padding-top: 32px; }
-        .mnemonics-auth-heading { font-size: 40px !important; }
-        .mnemonics-auth-cta .btn--xl { padding: 18px 22px; font-size: 16px; }
+        .mnemonics-auth-main { padding: 20px; align-items: flex-start; padding-top: 24px; }
+        .mnemonics-auth-heading { font-size: 32px !important; }
+        .mnemonics-auth-form-shell { padding: 24px 20px; }
       }
     `}</style>
   );
