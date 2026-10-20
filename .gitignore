@@ -81,3 +81,6 @@ benchmark-results.json
 # declares pnpm 9, so `pnpm` errors out under mise.
 /.gitattributes
 /.mise.toml
+/backups/
+/mnemonics-newextension/
+

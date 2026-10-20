@@ -25,6 +25,7 @@ import { createGraphRouter } from './routes/graph.js';
 import { createAiService } from '@mnemonics/ai';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(currentDirectory, '../.env') });
 dotenv.config({ path: resolve(currentDirectory, '../../../.env') });
 
 const port = Number(process.env.PORT || 4000);

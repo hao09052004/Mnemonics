@@ -1,34 +1,259 @@
+var MNEMONICS_API_URL = 'https://mnemonics-api.onrender.com';
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get('mnemonics_api_url', function(r) {
+    if (r && r.mnemonics_api_url) MNEMONICS_API_URL = r.mnemonics_api_url;
+  });
+}
+
 var currentType = 'article';
 var currentTags = [];
+var savedItems = [];
 var tagTimer = null;
 var currentPageUrl = '';
 var currentPageTitle = '';
-var currentSourceMetadata = null;
 var pendingScreenshotData = '';
 var pendingScreenshotTitle = '';
-var pendingScreenshotRequestId = null;
 var originalScreenshotData = '';
 var screenshotImage = null;
 var cropRect = null;
 var cropMode = null;
 var cropStart = null;
 var cropOffset = null;
+var extensionCurrentUser = null;
 
-// Dev default: empty so popup falls back to the bundled offline
-// dashboard (`mnemonics-dashboard.html`). The packager
-// (scripts/package-extension.mjs) replaces this with MNEMONICS_WEB_URL
-// when building a production bundle. See SOURCE-DEFAULTS.md.
-var MNEMONICS_WEB_URL = '';
+function normalizeAccountEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function setAccountError(message) {
+  var error = document.getElementById('account-error');
+  if (!error) return;
+  error.textContent = message || '';
+  error.classList.toggle('show', Boolean(message));
+}
+
+function renderAccountState() {
+  var name = document.getElementById('account-name');
+  var email = document.getElementById('account-email');
+  var open = document.getElementById('account-open');
+  var logout = document.getElementById('account-logout');
+  var signedIn = Boolean(extensionCurrentUser && extensionCurrentUser.email);
+
+  if (name) name.textContent = signedIn ? (extensionCurrentUser.name || extensionCurrentUser.email) : 'Khách';
+  if (email) email.textContent = signedIn ? extensionCurrentUser.email : 'Đăng nhập để đồng bộ với Web Dashboard';
+  if (open) open.hidden = signedIn;
+  if (logout) logout.hidden = !signedIn;
+  if (signedIn) {
+    var panel = document.getElementById('account-panel');
+    if (panel) panel.hidden = true;
+  }
+}
+
+function notifyAccountChanged() {
+  try {
+    var pending = chrome.runtime.sendMessage({ type: 'ACCOUNT_CHANGED' });
+    if (pending && typeof pending.catch === 'function') pending.catch(function() {});
+  } catch (e) {}
+}
+
+function setAccountView(view) {
+  var login = view === 'login';
+  document.getElementById('account-login-view').hidden = !login;
+  document.getElementById('account-signup-view').hidden = login;
+  document.getElementById('account-tab-login').classList.toggle('active', login);
+  document.getElementById('account-tab-signup').classList.toggle('active', !login);
+  document.getElementById('account-tab-login').setAttribute('aria-selected', String(login));
+  document.getElementById('account-tab-signup').setAttribute('aria-selected', String(!login));
+  setAccountError('');
+}
+
+// Read current valid session access token
+function getValidToken() {
+  return new Promise(function(resolve) {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+      var raw = localStorage.getItem('mnemonics_session');
+      try {
+        var parsed = raw ? JSON.parse(raw) : null;
+        resolve(parsed ? parsed.accessToken : null);
+      } catch (e) { resolve(null); }
+      return;
+    }
+    chrome.storage.local.get('mnemonics_session', function(r) {
+      var session = r && r.mnemonics_session;
+      if (session && session.accessToken) {
+        resolve(session.accessToken);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function handleExtensionLogin(event) {
+  event.preventDefault();
+  var email = normalizeAccountEmail(document.getElementById('account-login-email').value);
+  var password = document.getElementById('account-login-password').value;
+  var submit = document.getElementById('account-login-submit');
+  setAccountError('');
+  if (!email || !password) { setAccountError('Vui lòng nhập email và mật khẩu.'); return; }
+  submit.disabled = true;
+
+  fetch(MNEMONICS_API_URL + '/api/v1/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password })
+  })
+  .then(function(res) {
+    return res.json().then(function(body) {
+      if (!res.ok) {
+        throw new Error((body.error && body.error.message) || 'Email hoặc mật khẩu không chính xác.');
+      }
+      return body.data;
+    });
+  })
+  .then(function(data) {
+    var user = data.user || {};
+    var session = data.session || {};
+    var storedSession = {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name || user.email,
+        avatar: user.avatar || null,
+        plan: user.plan || 'Mastery'
+      }
+    };
+    chrome.storage.local.set({
+      mnemonics_session: storedSession,
+      mnemonics_current_user: storedSession.user
+    }, function() {
+      extensionCurrentUser = storedSession.user;
+      document.getElementById('account-login-password').value = '';
+      document.getElementById('account-panel').hidden = true;
+      renderAccountState();
+      notifyAccountChanged();
+      loadRecent();
+    });
+  })
+  .catch(function(err) {
+    setAccountError(err.message || 'Không thể đăng nhập lúc này.');
+  })
+  .finally(function() {
+    submit.disabled = false;
+  });
+}
+
+function handleExtensionSignup(event) {
+  event.preventDefault();
+  var name = document.getElementById('account-signup-name').value.trim();
+  var email = normalizeAccountEmail(document.getElementById('account-signup-email').value);
+  var password = document.getElementById('account-signup-password').value;
+  var confirm = document.getElementById('account-signup-confirm').value;
+  var submit = document.getElementById('account-signup-submit');
+  setAccountError('');
+  if (!name || !email || !password || !confirm) { setAccountError('Vui lòng nhập đầy đủ thông tin.'); return; }
+  if (password.length < 6) { setAccountError('Mật khẩu cần tối thiểu 6 ký tự.'); return; }
+  if (password !== confirm) { setAccountError('Mật khẩu nhập lại chưa khớp.'); return; }
+  submit.disabled = true;
+
+  fetch(MNEMONICS_API_URL + '/api/v1/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password, name: name })
+  })
+  .then(function(res) {
+    return res.json().then(function(body) {
+      if (!res.ok) {
+        throw new Error((body.error && body.error.message) || 'Không thể tạo tài khoản.');
+      }
+      return body.data;
+    });
+  })
+  .then(function(data) {
+    if (data && data.session && data.session.accessToken) {
+      var user = data.user || {};
+      var session = data.session;
+      var storedSession = {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        expiresAt: session.expiresAt,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: name || user.name || user.email,
+          avatar: null,
+          plan: 'Mastery'
+        }
+      };
+      chrome.storage.local.set({
+        mnemonics_session: storedSession,
+        mnemonics_current_user: storedSession.user
+      }, function() {
+        extensionCurrentUser = storedSession.user;
+        document.getElementById('account-panel').hidden = true;
+        renderAccountState();
+        notifyAccountChanged();
+        loadRecent();
+      });
+    } else {
+      setAccountView('login');
+      document.getElementById('account-login-email').value = email;
+      setAccountError('Tạo tài khoản thành công! Hãy đăng nhập.');
+    }
+  })
+  .catch(function(err) {
+    setAccountError(err.message || 'Không thể tạo tài khoản lúc này.');
+  })
+  .finally(function() {
+    submit.disabled = false;
+  });
+}
+
+function handleExtensionLogout() {
+  chrome.storage.local.remove(['mnemonics_session', 'mnemonics_current_user'], function() {
+    extensionCurrentUser = null;
+    renderAccountState();
+    notifyAccountChanged();
+    loadRecent();
+  });
+}
+
+function loadAuthState(cb) {
+  chrome.storage.local.get(['mnemonics_session', 'mnemonics_current_user'], function(r) {
+    if (r.mnemonics_session && r.mnemonics_session.user) {
+      extensionCurrentUser = r.mnemonics_session.user;
+    } else if (r.mnemonics_current_user && r.mnemonics_current_user.email) {
+      extensionCurrentUser = r.mnemonics_current_user;
+    } else {
+      extensionCurrentUser = null;
+    }
+    renderAccountState();
+    if (cb) cb();
+  });
+}
 
 document.addEventListener('DOMContentLoaded', function() {
+  var accountPanel = document.getElementById('account-panel');
+  document.getElementById('account-open').addEventListener('click', function() {
+    accountPanel.hidden = !accountPanel.hidden;
+    if (!accountPanel.hidden) {
+      setAccountView('login');
+      document.getElementById('account-login-email').focus();
+    }
+  });
+  document.getElementById('account-tab-login').addEventListener('click', function() { setAccountView('login'); });
+  document.getElementById('account-tab-signup').addEventListener('click', function() { setAccountView('signup'); });
+  document.getElementById('account-login-view').addEventListener('submit', handleExtensionLogin);
+  document.getElementById('account-signup-view').addEventListener('submit', handleExtensionSignup);
+  document.getElementById('account-logout').addEventListener('click', handleExtensionLogout);
+
+  loadAuthState();
+
   document.getElementById('open-dashboard').addEventListener('click', function() {
-    // When a production web URL has been baked in at packaging time,
-    // open the live dashboard in a new tab. Otherwise fall back to
-    // the bundled offline dashboard so the popup still works in
-    // dev / unpacked-load mode.
-    var url = (typeof MNEMONICS_WEB_URL === 'string' && MNEMONICS_WEB_URL.length > 0)
-      ? MNEMONICS_WEB_URL.replace(/\/$/, '') + '/app'
-      : chrome.runtime.getURL('mnemonics-dashboard.html');
+    var url = chrome.runtime.getURL('mnemonics-dashboard.html');
     chrome.tabs.create({ url: url });
   });
 
@@ -54,15 +279,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('tab-url').textContent = url.replace(/^https?:\/\//, '').slice(0, 55);
         document.getElementById('cap-title').value = title.slice(0, 80);
         if (title) autoTagsFromContent(title);
-        // M1: extract structured page metadata so the M2 classifier
-        // has the JSON-LD + Open Graph + Readability data without
-        // a second round-trip to the source URL.
-        extractAndStoreSourceMetadata(tabs[0].id);
       }
     });
   }
 
-  renderRecent();
+  loadRecent();
 });
 
 function selectType(el, type) {
@@ -82,9 +303,9 @@ function autoTagsFromContent(content) {
   if (!content || content.length < 3) return;
   var row = document.getElementById('tags-row');
   var stopwords = ['the','a','an','of','in','on','for','to','and','or','is','are','was','were',
-    'this','that','with','from','have','will','your','page','home'];
-  var words = content.toLowerCase().replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/)
-    .filter(function(w) { return w.length > 3 && stopwords.indexOf(w) === -1; });
+    'this','that','with','from','have','will','your','page','home','và','của','các','được','trong','cho'];
+  var words = content.toLowerCase().replace(/[^a-zA-Z0-9\sàáảãạăắặẳẵằâấậẩẫầèéẻẽẹêếệểễềìíỉĩịòóỏõọôốộổỗồơớợởỡờùúủũụưứựửữừỳýỷỹỵđ]/g, ' ').split(/\s+/)
+    .filter(function(w) { return w.length > 2 && stopwords.indexOf(w) === -1; });
   var freq = {};
   words.forEach(function(w) { freq[w] = (freq[w] || 0) + 1; });
   var tags = Object.keys(freq).sort(function(a,b){ return freq[b]-freq[a]; }).slice(0, 4);
@@ -101,41 +322,23 @@ function clearScreenshotPreview() {
   cropMode = null;
   cropStart = null;
   cropOffset = null;
-
-  var preview = document.getElementById('screenshot-preview');
-  var canvas = document.getElementById('screenshot-canvas');
-  var selection = document.getElementById('crop-selection');
-  var meta = document.getElementById('screenshot-crop-meta');
-
-  if (canvas) {
-    var ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    canvas.width = 0;
-    canvas.height = 0;
-  }
-  if (selection) selection.style.display = 'none';
-  if (meta) meta.textContent = 'Kéo trên ảnh để chọn vùng cần lưu.';
-  if (preview) preview.classList.remove('show');
 }
 
 function captureScreenshot() {
   var btn = document.getElementById('capture-screenshot-btn');
-
   if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.captureVisibleTab) {
-    alert('Trình duyệt hiện tại chưa hỗ trợ chụp màn hình từ extension.');
+    alert('Trình duyệt chưa hỗ trợ chụp màn hình từ popup.');
     return;
   }
-
   if (btn) { btn.disabled = true; btn.textContent = 'Đang chụp màn hình...'; }
 
-  chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 82 }, function(dataUrl) {
+  chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 85 }, function(dataUrl) {
     function resetButton() {
       if (btn) { btn.disabled = false; btn.textContent = '📸 CHỤP & CẮT MÀN HÌNH'; }
     }
-
     if (chrome.runtime && chrome.runtime.lastError) {
       resetButton();
-      alert('Không chụp được màn hình trang này: ' + chrome.runtime.lastError.message);
+      alert('Không chụp được màn hình: ' + chrome.runtime.lastError.message);
       return;
     }
     if (!dataUrl || !/^data:image\//.test(dataUrl)) {
@@ -147,12 +350,6 @@ function captureScreenshot() {
     var titleEl = document.getElementById('cap-title');
     var noteEl = document.getElementById('cap-note');
     var payload = {
-      // type is the capture kind the API needs to dispatch the right
-      // pipeline. Screenshots go through OCR + visual similarity;
-      // regular images share the same path. Putting it on the payload
-      // explicitly avoids server-side inference from filename or
-      // data-URL prefix.
-      type: 'screenshot',
       imageUrl: dataUrl,
       title: ((titleEl && titleEl.value.trim()) || currentPageTitle || 'Ảnh chụp màn hình').slice(0, 80),
       note: noteEl ? noteEl.value.trim() : '',
@@ -162,18 +359,8 @@ function captureScreenshot() {
       capturedAt: new Date().toISOString()
     };
 
-    var backgroundOk = false;
     chrome.runtime.sendMessage({ type: 'SET_PENDING_SCREENSHOT', payload: payload }, function(response) {
-      backgroundOk = !(chrome.runtime && chrome.runtime.lastError) && response && response.ok;
-
-      // Storage chỉ là fallback. Nếu storage fail nhưng background còn giữ ảnh thì cropper vẫn mở được.
       chrome.storage.local.set({ mnemonics_pending_screenshot: payload }, function() {
-        var storageError = chrome.runtime && chrome.runtime.lastError ? chrome.runtime.lastError.message : '';
-        if (!backgroundOk && storageError) {
-          resetButton();
-          alert('Không truyền được ảnh sang trang cropper: ' + storageError);
-          return;
-        }
         var url = chrome.runtime.getURL('screenshot-cropper.html') + '?t=' + Date.now();
         chrome.tabs.create({ url: url }, function() {
           resetButton();
@@ -183,223 +370,6 @@ function captureScreenshot() {
     });
   });
 }
-
-function renderScreenshotCropper(dataUrl) {
-  var preview = document.getElementById('screenshot-preview');
-  var canvas = document.getElementById('screenshot-canvas');
-  var selection = document.getElementById('crop-selection');
-  var meta = document.getElementById('screenshot-crop-meta');
-  if (!preview || !canvas || !selection) return;
-
-  preview.classList.add('show');
-  if (meta) meta.textContent = 'Đang tải ảnh chụp...';
-
-  screenshotImage = new Image();
-  screenshotImage.onload = function() {
-    var cropper = document.getElementById('screenshot-cropper');
-    var boxWidth = (cropper && cropper.clientWidth) ? cropper.clientWidth : 320;
-    var maxHeight = 280;
-    var ratio = Math.min(boxWidth / screenshotImage.naturalWidth, maxHeight / screenshotImage.naturalHeight, 1);
-    var w = Math.max(1, Math.round(screenshotImage.naturalWidth * ratio));
-    var h = Math.max(1, Math.round(screenshotImage.naturalHeight * ratio));
-
-    canvas.width = w;
-    canvas.height = h;
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-
-    var ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(screenshotImage, 0, 0, w, h);
-
-    // Mặc định chọn vùng trung tâm để user thấy ngay đây là crop tool.
-    cropRect = {
-      x: Math.round(w * 0.10),
-      y: Math.round(h * 0.12),
-      w: Math.round(w * 0.80),
-      h: Math.round(h * 0.70)
-    };
-    updateCropSelection();
-    if (meta) meta.textContent = 'Kéo để tạo vùng cắt mới. Kéo trong khung tím để di chuyển vùng cắt.';
-  };
-  screenshotImage.src = dataUrl;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function getCropPoint(e) {
-  var canvas = document.getElementById('screenshot-canvas');
-  if (!canvas || !canvas.width || !canvas.height) return { x: 0, y: 0 };
-  var rect = canvas.getBoundingClientRect();
-  var x = (e.clientX - rect.left) * (canvas.width / rect.width);
-  var y = (e.clientY - rect.top) * (canvas.height / rect.height);
-  return {
-    x: clamp(x, 0, canvas.width),
-    y: clamp(y, 0, canvas.height)
-  };
-}
-
-function isInsideCrop(point) {
-  return cropRect &&
-    point.x >= cropRect.x && point.x <= cropRect.x + cropRect.w &&
-    point.y >= cropRect.y && point.y <= cropRect.y + cropRect.h;
-}
-
-function startCropPointer(e) {
-  if (!screenshotImage) return;
-  var cropper = document.getElementById('screenshot-cropper');
-  var point = getCropPoint(e);
-
-  if (isInsideCrop(point)) {
-    cropMode = 'move';
-    cropOffset = { x: point.x - cropRect.x, y: point.y - cropRect.y };
-  } else {
-    cropMode = 'draw';
-    cropStart = point;
-    cropRect = { x: point.x, y: point.y, w: 0, h: 0 };
-  }
-
-  if (cropper && cropper.setPointerCapture) cropper.setPointerCapture(e.pointerId);
-  e.preventDefault();
-  updateCropSelection();
-}
-
-function moveCropPointer(e) {
-  if (!screenshotImage || !cropMode) return;
-  var canvas = document.getElementById('screenshot-canvas');
-  var point = getCropPoint(e);
-
-  if (cropMode === 'move' && cropRect && cropOffset) {
-    cropRect.x = clamp(point.x - cropOffset.x, 0, canvas.width - cropRect.w);
-    cropRect.y = clamp(point.y - cropOffset.y, 0, canvas.height - cropRect.h);
-  }
-
-  if (cropMode === 'draw' && cropStart) {
-    cropRect = {
-      x: Math.min(cropStart.x, point.x),
-      y: Math.min(cropStart.y, point.y),
-      w: Math.abs(point.x - cropStart.x),
-      h: Math.abs(point.y - cropStart.y)
-    };
-  }
-
-  e.preventDefault();
-  updateCropSelection();
-}
-
-function endCropPointer(e) {
-  if (!cropMode) return;
-  if (cropRect && (cropRect.w < 8 || cropRect.h < 8)) {
-    var canvas = document.getElementById('screenshot-canvas');
-    cropRect = {
-      x: Math.round(canvas.width * 0.10),
-      y: Math.round(canvas.height * 0.12),
-      w: Math.round(canvas.width * 0.80),
-      h: Math.round(canvas.height * 0.70)
-    };
-  }
-  cropMode = null;
-  cropStart = null;
-  cropOffset = null;
-  updateCropSelection();
-}
-
-function updateCropSelection() {
-  var canvas = document.getElementById('screenshot-canvas');
-  var cropper = document.getElementById('screenshot-cropper');
-  var selection = document.getElementById('crop-selection');
-  var meta = document.getElementById('screenshot-crop-meta');
-  if (!canvas || !cropper || !selection || !cropRect) return;
-
-  var cropperRect = cropper.getBoundingClientRect();
-  var canvasRect = canvas.getBoundingClientRect();
-  var scaleX = canvasRect.width / canvas.width;
-  var scaleY = canvasRect.height / canvas.height;
-  var left = (canvasRect.left - cropperRect.left) + cropRect.x * scaleX;
-  var top = (canvasRect.top - cropperRect.top) + cropRect.y * scaleY;
-
-  selection.style.display = 'block';
-  selection.style.left = left + 'px';
-  selection.style.top = top + 'px';
-  selection.style.width = Math.max(1, cropRect.w * scaleX) + 'px';
-  selection.style.height = Math.max(1, cropRect.h * scaleY) + 'px';
-
-  if (meta && screenshotImage && canvas.width && canvas.height) {
-    var naturalW = Math.round(cropRect.w * screenshotImage.naturalWidth / canvas.width);
-    var naturalH = Math.round(cropRect.h * screenshotImage.naturalHeight / canvas.height);
-    meta.textContent = 'Vùng cắt: ' + naturalW + ' × ' + naturalH + ' px. Kéo để chọn lại vùng khác.';
-  }
-}
-
-function getScreenshotDataForSave(useCrop) {
-  if (!originalScreenshotData || !screenshotImage) return pendingScreenshotData;
-  if (!useCrop || !cropRect || cropRect.w < 8 || cropRect.h < 8) return originalScreenshotData;
-
-  var canvas = document.getElementById('screenshot-canvas');
-  var sx = cropRect.x * screenshotImage.naturalWidth / canvas.width;
-  var sy = cropRect.y * screenshotImage.naturalHeight / canvas.height;
-  var sw = cropRect.w * screenshotImage.naturalWidth / canvas.width;
-  var sh = cropRect.h * screenshotImage.naturalHeight / canvas.height;
-
-  var out = document.createElement('canvas');
-  out.width = Math.max(1, Math.round(sw));
-  out.height = Math.max(1, Math.round(sh));
-  var ctx = out.getContext('2d');
-  ctx.drawImage(screenshotImage, sx, sy, sw, sh, 0, 0, out.width, out.height);
-  return out.toDataURL('image/jpeg', 0.9);
-}
-
-async function savePendingScreenshot(useCrop) {
-  if (!pendingScreenshotData) return;
-
-  var note = document.getElementById('cap-note').value.trim();
-  var title = pendingScreenshotTitle || (currentPageTitle || 'Ảnh chụp màn hình');
-  var tags = currentTags && currentTags.length ? currentTags.slice(0, 4) : ['ảnh chụp', 'screenshot'];
-  var displayUrl = (currentPageUrl || '').replace(/^https?:\/\//, '').slice(0, 80);
-  var finalImage = getScreenshotDataForSave(useCrop !== false);
-  var item = {
-    id: Date.now(),
-    title: useCrop === false ? title : (title + ' · vùng cắt'),
-    note: note,
-    excerpt: note,
-    imageUrl: finalImage,
-    sourceUrl: currentPageUrl,
-    url: displayUrl,
-    type: 'screenshot',
-    tags: tags,
-    savedAt: new Date().toISOString(),
-    date: 'Vừa xong',
-    space: 'Mới lưu',
-    clientRequestId: pendingScreenshotRequestId || crypto.randomUUID()
-  };
-  pendingScreenshotRequestId = item.clientRequestId;
-
-  try {
-    var token = await getAccessToken();
-    if (!token) throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
-    await uploadImageCapture(item.imageUrl, {
-      type: 'screenshot',
-      title: item.title,
-      note: item.note,
-      sourceUrl: item.sourceUrl,
-      capturedAt: item.savedAt,
-      clientRequestId: item.clientRequestId
-    }, token);
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
-    }
-    document.getElementById('success-tags').innerHTML = tags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');
-    document.getElementById('success-overlay').classList.add('show');
-    pendingScreenshotRequestId = null;
-    clearScreenshotPreview();
-  } catch (error) {
-    alert(error && error.message ? error.message : 'Không lưu được ảnh vào database.');
-  }
-}
-
-var pendingCaptureRequestId = null;
 
 async function saveCapture() {
   var title = document.getElementById('cap-title').value.trim();
@@ -411,49 +381,87 @@ async function saveCapture() {
     setTimeout(function(){ el.style.borderColor = ''; }, 1500);
     return;
   }
-  if (currentTags.length === 0) autoTagsFromContent(title + ' ' + note);
 
-  var item = {
-    id: Date.now(),
-    title: title,
-    note: note,
-    url: url,
-    sourceUrl: currentPageUrl,
-    type: currentType,
-    tags: currentTags.slice(0),
-    clientRequestId: pendingCaptureRequestId || crypto.randomUUID(),
-    savedAt: new Date().toISOString(),
-    date: 'Vừa xong',
-    serverSynced: true,
-    // M1: attach the parsed page metadata, when available. The
-    // background script forwards it; the API persists it on
-    // `items.source_metadata` for M2 to read.
-    sourceMetadata: currentSourceMetadata || null
-  };
-
-  if (currentType === 'link') {
-    item.sourceUrl = currentPageUrl || note;
-    item.url = (currentPageUrl || note || '').replace(/^https?:\/\//, '').slice(0, 80);
-    item.excerpt = note;
-    if (!item.tags || item.tags.length === 0) item.tags = ['link'];
+  var token = await getValidToken();
+  if (!token) {
+    // Prompt to log in so everything goes directly to database
+    var panel = document.getElementById('account-panel');
+    if (panel) panel.hidden = false;
+    setAccountView('login');
+    setAccountError('Vui lòng đăng nhập bằng Gmail để lưu vào Database.');
+    return;
   }
 
-  pendingCaptureRequestId = item.clientRequestId;
+  doSaveCapture(title, note, url, token);
+}
+
+async function doSaveCapture(title, note, url, token) {
+  if (currentTags.length === 0) autoTagsFromContent(title + ' ' + note);
+  var saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Đang lưu vào Cloud...';
+
+  var itemType = currentType === 'link' ? 'link' : (currentType === 'quote' ? 'quote' : 'text');
+  var payload = {
+    type: itemType === 'link' ? 'link' : 'text',
+    title: title,
+    sourceUrl: currentPageUrl || url,
+    selectedText: note || undefined,
+    capturedAt: new Date().toISOString(),
+    clientRequestId: crypto.randomUUID()
+  };
+
   try {
-    var accessToken = await getAccessToken();
-    if (!accessToken) throw new Error('Bạn cần đăng nhập trước khi lưu dữ liệu.');
-    await sendCaptureToApi(Object.assign({}, item, { capturedAt: item.savedAt }), accessToken);
-    pendingCaptureRequestId = null;
-    if (typeof chrome !== 'undefined' && chrome.runtime) chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
+    var response = await fetch(MNEMONICS_API_URL + '/api/v1/captures', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+
+    var resBody = await response.json().catch(function() { return {}; });
+    if (!response.ok) {
+      throw new Error((resBody && resBody.error && resBody.error.message) || 'Lỗi HTTP ' + response.status);
+    }
+    var itemId = resBody && resBody.data && resBody.data.id;
+    if (itemId) {
+      var tagsToSave = (currentTags && currentTags.length) ? currentTags.slice() : [];
+      if (currentType === 'quote' && !tagsToSave.includes('trích dẫn')) tagsToSave.unshift('trích dẫn');
+      if (currentType === 'link' && !tagsToSave.includes('link')) tagsToSave.unshift('link');
+      if (currentType === 'note' && !tagsToSave.includes('ghi chú')) tagsToSave.unshift('ghi chú');
+      if (currentType === 'article' && !tagsToSave.includes('bài viết')) tagsToSave.unshift('bài viết');
+
+      if (tagsToSave.length > 0) {
+        fetch(MNEMONICS_API_URL + '/api/v1/items/' + itemId, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + token
+          },
+          body: JSON.stringify({ tags: tagsToSave })
+        }).catch(function(e) { console.warn('Patch tags failed:', e); });
+      }
+    }
+
+    // Success! Notify dashboard
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.sendMessage({ type: 'ITEM_SAVED' });
+    }
+
     document.getElementById('success-tags').innerHTML = currentTags.map(function(t){ return '<span class="ai-tag">'+t+'</span>'; }).join('');
     document.getElementById('success-overlay').classList.add('show');
-  } catch (error) {
-    alert(error && error.message ? error.message : 'Không lưu được dữ liệu vào database.');
+    loadRecent();
+  } catch (err) {
+    alert('Không thể lưu vào Database: ' + err.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '★ LƯU KÝ ỨC';
   }
 }
 
 function resetForm() {
-  pendingCaptureRequestId = null;
   document.getElementById('success-overlay').classList.remove('show');
   document.getElementById('cap-title').value = '';
   document.getElementById('cap-note').value = '';
@@ -462,42 +470,40 @@ function resetForm() {
   document.getElementById('save-btn').disabled = false;
   document.getElementById('save-btn').textContent = '★ LƯU KÝ ỨC';
   clearScreenshotPreview();
-  renderRecent();
+  loadRecent();
 }
 
-function renderRecent() {
+async function loadRecent() {
   var container = document.getElementById('recent-list');
-  if (container) {
-    container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Mở dashboard để xem dữ liệu từ server</div>';
-  }
-}
-
-/**
- * M1: pull parsed page metadata out of the active tab and
- * store it on `currentSourceMetadata` so the next save includes
- * it. The extraction itself happens in the service worker
- * (where @mozilla/readability is loaded) to keep the popup
- * snappy and to dodge page-context CORS on the JSDOM.
- *
- * The work is fire-and-forget; failure leaves
- * `currentSourceMetadata` null and the save still succeeds.
- */
-function extractAndStoreSourceMetadata(tabId) {
-  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+  var token = await getValidToken();
+  if (!token) {
+    container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Đăng nhập để xem ký ức gần đây</div>';
     return;
   }
-  try {
-    chrome.runtime.sendMessage(
-      { type: 'EXTRACT_SOURCE_METADATA', url: currentPageUrl },
-      function(response) {
-        if (!response || !response.ok || !response.data) {
-          currentSourceMetadata = null;
-          return;
-        }
-        currentSourceMetadata = response.data;
-      }
-    );
-  } catch (_) {
-    currentSourceMetadata = null;
-  }
+
+  fetch(MNEMONICS_API_URL + '/api/v1/items?limit=3', {
+    headers: { Authorization: 'Bearer ' + token }
+  })
+  .then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  })
+  .then(function(body) {
+    var items = (body.data && body.data.items) || [];
+    if (items.length === 0) {
+      container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Chưa có ký ức nào được lưu</div>';
+      return;
+    }
+    container.innerHTML = items.map(function(item) {
+      var tagsHtml = (item.tags || []).slice(0, 3).map(function(t){ return '<span class="recent-tag">' + t + '</span>'; }).join('');
+      var dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString('vi-VN') : 'Vừa xong';
+      return '<div class="recent-item"><div class="recent-dot"></div><div style="flex:1">'
+        + '<div class="recent-title">' + (item.title || 'Không có tiêu đề') + '</div>'
+        + '<div class="recent-meta">' + dateStr + ' · ' + (item.kind || 'ký ức') + '</div>'
+        + '<div class="recent-tags">' + tagsHtml + '</div></div></div>';
+    }).join('');
+  })
+  .catch(function() {
+    container.innerHTML = '<div style="font-size:12px;color:#bbb;text-align:center;padding:8px 0">Chưa có ký ức nào được lưu</div>';
+  });
 }

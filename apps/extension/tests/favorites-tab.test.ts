@@ -207,4 +207,33 @@ describe('Favorites tab must ask the server for favorites', () => {
       'the tab must reconcile with the server after un-favoriting'
     ).toBe(true);
   });
+
+  it('ensures shared grid section has mnx-route-favorites so favorites route is visible', async () => {
+    const { dom } = loadDashboard({
+      fav: [{ id: 'fav-visual', kind: 'text', title: 'Thích hiển thị', is_favorite: true, raw_text: '', captured_at: '2026-01-01T00:00:00Z', tags: [] }],
+      all: []
+    });
+    await settle();
+
+    clickTab(dom, 'favorites');
+    await settle();
+
+    const doc = dom.window.document;
+    expect(doc.body.dataset.route).toBe('favorites');
+
+    const section = doc.querySelector('section[data-route-section="everything"]');
+    expect(section, 'grid section must exist').toBeTruthy();
+    expect(section?.classList.contains('mnx-route-favorites'), 'grid section must have mnx-route-favorites class').toBe(true);
+
+    const themeLightBtn = doc.querySelector('[data-theme-btn="light"]') as HTMLElement;
+    expect(themeLightBtn, 'theme switch light button must exist').toBeTruthy();
+    themeLightBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(doc.documentElement.getAttribute('data-theme')).toBe('light');
+
+    const langViBtn = doc.querySelector('[data-lang-btn="vi"]') as HTMLElement;
+    expect(langViBtn, 'language switch VI button must exist').toBeTruthy();
+    langViBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(doc.documentElement.getAttribute('data-locale')).toBe('vi');
+    expect(doc.getElementById('route-title')?.textContent).toBe('Yêu thích');
+  });
 });

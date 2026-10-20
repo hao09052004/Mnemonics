@@ -12,70 +12,114 @@
    everywhere.
    ============================================================ */
 
-:root {
-  /* ===== Surfaces (Figma dark palette) ===== */
-  --bg:               #15171C;   /* page background */
-  --surface:          #20232B;   /* card */
-  --elevated:         #1B1E24;   /* nav / sticky header / modal media */
-  --hover:            #272B35;   /* card hover, dense row */
-  --overlay:          rgba(5, 7, 12, 0.68);
+:root,
+[data-theme='dark'] {
+  /* ===== Surfaces (Figma dark palette / Obsidian Dark) ===== */
+  --bg:               #0c0e14;   /* page background */
+  --bg-elevated:      #131620;
+  --surface:          #161923;   /* card */
+  --elevated:         #1b1f2b;   /* nav / sticky header / modal media */
+  --hover:            #212636;   /* card hover, dense row */
+  --overlay:          rgba(5, 7, 12, 0.72);
 
   /* ===== Borders / dividers ===== */
-  --border:           #303541;
-  --border-strong:    rgba(255, 255, 255, 0.12);
+  --border:           rgba(255, 255, 255, 0.07);
+  --border-strong:    rgba(255, 255, 255, 0.14);
 
   /* ===== Text ===== */
-  --text:             #E8EAF0;
-  --secondary:        #A5ACB8;
-  --muted:            #8D95A3;
+  --text:             #f4f5f8;
+  --secondary:        #9da5b5;
+  --muted:            #6b7385;
 
   /* ===== Brand / accent ===== */
-  --purple:           #7567E8;
-  --purple-soft:      #2A2648;
-  --purple-button:    #6557D6;
-  --purple-button-hover: #6B5DDA;
-  --purple-pressed:   #5B4CC6;
-  --purple-hover:     #887BF0;
-  --purple-text:      #9B90F5;
-  --on-primary:       #F4F5F7;
-  --selected-tag-text: #B8AEFA;
-  --focus-ring:       rgba(117, 103, 232, 0.35);
+  --purple:           #7c5cfc;
+  --purple-soft:      rgba(124, 92, 252, 0.14);
+  --purple-button:    #7c5cfc;
+  --purple-button-hover: #8d70fd;
+  --purple-pressed:   #6948f2;
+  --purple-hover:     #9c83fd;
+  --purple-text:      #a894fe;
+  --on-primary:       #ffffff;
+  --selected-tag-text: #b8aefa;
+  --focus-ring:       rgba(124, 92, 252, 0.35);
 
   /* ===== Status ===== */
-  --success:          #73A58C;
-  --warning:          #C6A15B;
-  --error:            #C96C6C;
+  --success:          #34d399;
+  --warning:          #fbbf24;
+  --error:            #f87171;
 
   /* ===== Shape ===== */
-  --radius:           12px;
+  --radius:           16px;
   --radius-sm:        8px;
   --radius-lg:        14px;
   --radius-xl:        18px;
 
   /* ===== Motion ===== */
-  --ease:             cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease:             cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-pop:         cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ===== Shadows ===== */
   --shadow-1:         0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2:         0 8px 24px rgba(0, 0, 0, 0.4);
   --shadow-3:         0 18px 50px rgba(0, 0, 0, 0.5);
+  --shadow-card:      0 4px 20px -2px rgba(0, 0, 0, 0.45);
+  --shadow-card-hover: 0 16px 36px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(124, 92, 252, 0.35);
+  --shadow-pill:      0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --toplight:         radial-gradient(1100px 520px at 50% 0%, rgba(124, 92, 252, 0.10), transparent 70%);
 
   /* ===== Type ===== */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Inter",
-    "Segoe UI", "Segoe UI Variable", "Helvetica Neue", system-ui,
-    Roboto, "Noto Sans", "Liberation Sans", sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Segoe UI Variable", "Helvetica Neue", system-ui, Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono",
     Menlo, Consolas, monospace;
 
-  /* Apply default body style so extension pages that include this
-     stylesheet pick up the dark palette without extra CSS. */
   color-scheme: dark;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-optical-sizing: auto;
+}
+
+[data-theme='light'] {
+  --bg:               #f8f7f4;
+  --bg-elevated:      #ffffff;
+  --surface:          #ffffff;
+  --elevated:         #f4f2ec;
+  --hover:            #edeae1;
+  --overlay:          rgba(20, 22, 28, 0.45);
+
+  --border:           rgba(0, 0, 0, 0.07);
+  --border-strong:    rgba(0, 0, 0, 0.15);
+
+  --text:             #191b20;
+  --secondary:        #5a606e;
+  --muted:            #8890a0;
+
+  --purple:           #6a49e6;
+  --purple-soft:      rgba(106, 73, 230, 0.10);
+  --purple-button:    #6a49e6;
+  --purple-button-hover: #7b5ce8;
+  --purple-pressed:   #5837d0;
+  --purple-hover:     #866bf0;
+  --purple-text:      #6a49e6;
+  --on-primary:       #ffffff;
+  --selected-tag-text: #6a49e6;
+  --focus-ring:       rgba(106, 73, 230, 0.25);
+
+  --success:          #059669;
+  --warning:          #d97706;
+  --error:            #dc2626;
+
+  --shadow-1:         0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-2:         0 6px 18px rgba(0, 0, 0, 0.08);
+  --shadow-3:         0 14px 36px rgba(0, 0, 0, 0.12);
+  --shadow-card:      0 2px 14px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 14px 30px -6px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(106, 73, 230, 0.35);
+  --shadow-pill:      0 8px 26px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --toplight:         radial-gradient(1100px 520px at 50% 0%, rgba(106, 73, 230, 0.05), transparent 70%);
+
+  color-scheme: light;
 }
 
 /* ============================================================

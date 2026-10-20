@@ -47,6 +47,8 @@ const STORE_EDGE = 'edge';
 const EXCLUDE_DIRS = new Set(['tests', 'node_modules', '.git', 'coverage']);
 const EXCLUDE_FILES = new Set([
   'README.md',
+  'SOURCE-DEFAULTS.md',
+  'clustering-smoke.cjs',
   'vitest.config.ts',
   'package.json',
   'package-lock.json',

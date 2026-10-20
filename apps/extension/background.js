@@ -1,7 +1,12 @@
 // Background service worker
 
 let mnemonicsPendingScreenshot = null;
-const MNEMONICS_API_URL = 'http://localhost:4000';
+let MNEMONICS_API_URL = 'https://mnemonics-api.onrender.com';
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get('mnemonics_api_url', function(r) {
+    if (r && r.mnemonics_api_url) MNEMONICS_API_URL = r.mnemonics_api_url;
+  });
+}
 
 // Return a still-valid access token, refreshing proactively if the stored
 // one is expired or close to expiring. Required because the cropper and
@@ -565,6 +570,10 @@ async function uploadTextCapture(payload) {
   if (!payload || !payload.type) throw new Error('Thiếu loại capture.');
   if (!payload.clientRequestId) payload.clientRequestId = crypto.randomUUID();
   if (!payload.capturedAt) payload.capturedAt = new Date().toISOString();
+  if (!payload.sourceUrl) delete payload.sourceUrl;
+  if (payload.type === 'text' && !payload.selectedText) {
+    payload.selectedText = payload.note || payload.rawText || payload.title || 'Note';
+  }
 
   let response;
   try {
@@ -783,7 +792,18 @@ chrome.contextMenus.onClicked.addListener(function (info, tab) {
           clientRequestId: crypto.randomUUID()
         });
       })
-      .then(function () {
+      .then(async function (body) {
+        var itemId = body && body.data && body.data.id;
+        if (itemId) {
+          var token = await getValidAccessToken().catch(function() { return null; });
+          if (token) {
+            fetch(MNEMONICS_API_URL + '/api/v1/items/' + itemId, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+              body: JSON.stringify({ tags: ['link'] })
+            }).catch(function() {});
+          }
+        }
         notifyDashboards('ITEM_SAVED');
         chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics', message: '🔗 Đã lưu link lên database!' });
       })
@@ -833,7 +853,18 @@ chrome.contextMenus.onClicked.addListener(function (info, tab) {
       selectedText: selectedText || undefined,
       capturedAt: new Date().toISOString(),
       clientRequestId: crypto.randomUUID()
-    }).then(function() {
+    }).then(async function(body) {
+      var itemId = body && body.data && body.data.id;
+      if (itemId) {
+        var token = await getValidAccessToken().catch(function() { return null; });
+        if (token) {
+          fetch(MNEMONICS_API_URL + '/api/v1/items/' + itemId, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify({ tags: ['trích dẫn'] })
+          }).catch(function() {});
+        }
+      }
       notifyDashboards('ITEM_SAVED');
       chrome.notifications.create({ type: 'basic', iconUrl: 'icon48.png', title: 'Mnemonics', message: '★ Đã lưu trích dẫn lên database!' });
     }).catch(function(error) {

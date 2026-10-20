@@ -18,16 +18,6 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
-function notifyScreenshot(title, message) {
-  if (typeof chrome !== 'undefined' && chrome.notifications) {
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: 'icon48.png',
-      title: title,
-      message: message
-    });
-  }
-}
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function escapeHtml(value) {
   return String(value || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
@@ -149,59 +139,13 @@ function getOutputData(useCrop) {
   out.width = Math.max(1, Math.round(sw));
   out.height = Math.max(1, Math.round(sh));
   var ctx = out.getContext('2d');
-  try {
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, out.width, out.height);
-    return out.toDataURL('image/jpeg', 0.92);
-  } catch (canvasError) {
-    // Cross-origin image with no CORS header → canvas is tainted.
-    // Fall back to the original image URL so the user can still save
-    // something. The capture pipeline accepts both data: and http(s)
-    // URLs (background fetches with credentials: 'omit').
-    console.warn('Canvas tainted, saving original image instead:', canvasError);
-    return pending.imageUrl;
-  }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', 0.92);
 }
 function notifyDashboard() {
-  if (chrome && chrome.tabs) {
-    chrome.tabs.query({}, function(tabs) {
-      tabs.forEach(function(tab) {
-        if (tab.url && tab.url.includes('mnemonics-dashboard.html')) {
-          chrome.tabs.sendMessage(tab.id, { type: 'RELOAD_ITEMS' }).catch(function(){});
-        }
-      });
-    });
+  if (chrome && chrome.runtime) {
+    chrome.runtime.sendMessage({ type: 'RELOAD_ITEMS' }).catch(function(){});
   }
-}
-
-// Wrap a chrome.runtime.sendMessage call in a promise that survives
-// background-worker idle. MV3 service workers get killed after ~30s of
-// inactivity; the first message after that throws "Could not establish
-// connection" because the worker hasn't woken up yet. Retrying once after
-// a short delay lets the worker spin back up so the second attempt
-// succeeds — this is the same trick the official Chrome samples use.
-function sendMessageWithRetry(payload, maxAttempts) {
-  maxAttempts = maxAttempts || 3;
-  return new Promise(function(resolve, reject) {
-    var attempt = 0;
-    var lastError = null;
-    function tryOnce() {
-      attempt += 1;
-      chrome.runtime.sendMessage(payload, function(response) {
-        if (chrome.runtime.lastError) {
-          lastError = chrome.runtime.lastError.message || 'connection error';
-          console.warn('[mnemonics] sendMessage attempt', attempt, 'failed:', lastError);
-          if (attempt < maxAttempts) {
-            setTimeout(tryOnce, 250);
-            return;
-          }
-          reject(new Error(lastError));
-          return;
-        }
-        resolve(response);
-      });
-    }
-    tryOnce();
-  });
 }
 
 function showLoadError(message) {
@@ -213,7 +157,7 @@ function showLoadError(message) {
 
 function setPendingPayload(payload) {
   pending = payload;
-  if (!pending || !pending.imageUrl) {
+  if (!pending || !pending.imageUrl || !/^data:image\//.test(pending.imageUrl)) {
     showLoadError('Ảnh chụp bị rỗng hoặc sai định dạng. Hãy chụp lại một lần nữa.');
     return;
   }
@@ -231,7 +175,7 @@ function setPendingPayload(payload) {
     updateMeta();
   };
   img.onerror = function() {
-    showLoadError('Trình duyệt không tải được ảnh. Ảnh có thể đã bị xóa hoặc URL không hợp lệ.');
+    showLoadError('Ảnh chụp đã được tạo nhưng trình duyệt đang chặn/không đọc được data ảnh. Bản này đã thêm cơ chế truyền ảnh mới, hãy reload extension rồi chụp lại.');
   };
 
   if (screenshotObjectUrl) {
@@ -239,190 +183,78 @@ function setPendingPayload(payload) {
     screenshotObjectUrl = null;
   }
 
-  // Load the image. data: / blob: URLs are same-origin to the extension
-  // so canvas stays untainted (required for cropping). Remote https:// URLs
-  // from legacy URL-param flow are shown directly (cropping may fail with
-  // a tainted-canvas error — acceptable fallback).
-  var sourceUrl = pending.imageUrl;
-  if (/^data:/i.test(sourceUrl) || /^(blob:|chrome-extension:)/i.test(sourceUrl)) {
-    img.src = sourceUrl;
-  } else if (/^https?:\/\//i.test(sourceUrl)) {
-    // Legacy path: direct URL from ?src= param. Display-only; crop may taint canvas.
-    img.src = sourceUrl;
-  } else {
-    showLoadError('Định dạng ảnh không nhận diện được: ' + sourceUrl.slice(0, 50));
+  // Dùng blob URL để ảnh lớn load ổn hơn dataURL trực tiếp.
+  try {
+    fetch(pending.imageUrl)
+      .then(function(res) { return res.blob(); })
+      .then(function(blob) {
+        screenshotObjectUrl = URL.createObjectURL(blob);
+        img.src = screenshotObjectUrl;
+      })
+      .catch(function() { img.src = pending.imageUrl; });
+  } catch (e) {
+    img.src = pending.imageUrl;
   }
 }
 
-async function saveScreenshot(useCrop) {
+function saveScreenshot(useCrop) {
   if (!pending || !pending.imageUrl) return;
+  mnemonicsCheckQuota(function(quota) {
+    if (!quota.allowed) { showToast(MNEMONICS_QUOTA_MESSAGE); return; }
+    doSaveScreenshot(useCrop);
+  });
+}
+
+function doSaveScreenshot(useCrop) {
   var title = document.getElementById('title-input').value.trim() || pending.title || 'Ảnh chụp màn hình';
   var note = document.getElementById('note-input').value.trim();
-  var tags = Array.isArray(pending.tags) && pending.tags.length ? pending.tags : ['ảnh chụp', 'screenshot'];
-  var item = {
-    id: crypto.randomUUID(),
-    title: useCrop ? (title + ' · vùng cắt') : title,
-    note: note,
-    excerpt: note,
-    imageUrl: getOutputData(useCrop),
-    sourceUrl: pending.sourceUrl || '',
-    url: pending.displayUrl || (pending.sourceUrl || '').replace(/^https?:\/\//, '').slice(0, 80),
-    type: 'screenshot',
-    tags: tags,
-    savedAt: new Date().toISOString(),
-    date: 'Vừa xong',
-    space: 'Mới lưu',
-    clientRequestId: pending.clientRequestId || crypto.randomUUID()
-  };
-  pending.clientRequestId = item.clientRequestId;
-  var saveButtons = [document.getElementById('save-crop-btn'), document.getElementById('save-full-btn')];
-  saveButtons.forEach(function(button) { if (button) button.disabled = true; });
+  var finalTitle = useCrop ? (title + ' · vùng cắt') : title;
+  var outputData = getOutputData(useCrop);
 
-  var session = await new Promise(function(resolve) {
-    chrome.storage.local.get('mnemonics_session', function(result) { resolve(result.mnemonics_session || null); });
+  showToast('Đang tải ảnh lên Database...');
+  chrome.runtime.sendMessage({
+    type: 'UPLOAD_IMAGE_FROM_CROPPER',
+    imageUrl: outputData,
+    payload: {
+      title: finalTitle,
+      note: note,
+      sourceUrl: pending.sourceUrl || '',
+      capturedAt: new Date().toISOString()
+    }
+  }, function(res) {
+    chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_SCREENSHOT' }, function(){});
+    chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function() {
+      if (res && res.ok) {
+        showToast('Đã lưu ảnh vào Database thành công!');
+      } else {
+        showToast(res && res.error ? ('Lỗi: ' + res.error) : 'Đã hoàn tất');
+      }
+      setTimeout(function(){ window.close(); }, 700);
+    });
   });
-
-  try {
-    var imageUrl = item.imageUrl || '';
-    var isDataUrl = /^data:image\//.test(imageUrl);
-    // Try server-side upload (requires login AND either a data: URL OR a
-    // remote http(s) URL we can re-fetch through the local proxy).
-    if (session && session.accessToken && (isDataUrl || /^https?:\/\//.test(imageUrl))) {
-      // Forward the upload to the background worker so it can use
-      // `fetchImageViaLocalProxy` (which handles the proxy + direct
-      // fallback the same way context-menu saves do), then POST the
-      // resulting Blob to /captures/image. If `chrome.runtime` is not
-      // available (e.g. the page is open outside the extension context),
-      // fall back to a direct fetch from the page.
-      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        throw new Error('Không liên lạc được với background script (chrome.runtime không khả dụng). Hãy mở cropper từ extension context.');
-      }
-      var uploadResult;
-      try {
-        uploadResult = await sendMessageWithRetry({
-          type: 'UPLOAD_IMAGE_FROM_CROPPER',
-          imageUrl: imageUrl,
-          captureType: 'screenshot',
-          payload: {
-            title: item.title,
-            note: item.note,
-            sourceUrl: item.sourceUrl,
-            capturedAt: item.savedAt,
-            clientRequestId: item.clientRequestId
-          }
-        });
-        if (!uploadResult || !uploadResult.ok) {
-          throw new Error((uploadResult && uploadResult.error) || 'Không upload được ảnh lên server.');
-        }
-      } catch (msgErr) {
-        throw new Error(msgErr && msgErr.message ? msgErr.message : 'Không liên lạc được với background script.');
-      }
-      console.log('[mnemonics] cropper upload ok:', uploadResult && uploadResult.data && uploadResult.data.id);
-    } else {
-      throw new Error('Bạn cần đăng nhập trước khi lưu ảnh.');
-    }
-
-    // Notify the dashboard so it reloads without waiting for the next poll.
-    var safeSend = function(type) {
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        try { chrome.runtime.sendMessage({ type: type }, function() { void chrome.runtime.lastError; }); } catch (_) {}
-      }
-    };
-    safeSend('CLEAR_PENDING_SCREENSHOT');
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      try { chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function() { void chrome.runtime.lastError; }); } catch (_) {}
-    }
-    safeSend('ITEM_SAVED');
-
-    showToast('Đã lưu ảnh vào database');
-    notifyScreenshot('Mnemonics', 'Đã lưu ảnh vào database.');
-    setTimeout(function(){ window.close(); }, 650);
-
-  } catch (error) {
-    saveButtons.forEach(function(button) { if (button) button.disabled = false; });
-    var message = error && error.message ? error.message : 'Không lưu được ảnh vào database.';
-    showToast(message);
-    notifyScreenshot('Mnemonics - Lỗi lưu ảnh', message);
-  }
 }
 function cancelCropper() {
   chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_SCREENSHOT' }, function(){});
   chrome.storage.local.set({ mnemonics_pending_screenshot: null }, function(){ window.close(); });
 }
 function loadPending() {
-  // 1. If the page was opened via context-menu fallback, the background
-  // passes the image URL through `?src=`. Prefer that because the cropper
-  // needs the URL to fetch directly.
-  var params = new URLSearchParams(window.location.search);
-  var srcParam = params.get('src');
-  if (srcParam) {
-    // For remote https:// URLs (e.g. from FB/IG), convert to data: URL
-    // through the background worker so canvas stays untainted.
-    if (/^https?:\/\//i.test(srcParam)) {
-      sendMessageWithRetry({ type: 'FETCH_IMAGE_AS_DATA_URL', url: srcParam })
-        .then(function(response) {
-          var payload;
-          if (response && response.ok && response.data && response.data.dataUrl) {
-            payload = {
-              imageUrl: response.data.dataUrl,
-              sourceUrl: params.get('sourceUrl') || '',
-              displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
-              title: params.get('title') || 'Ảnh đã lưu',
-              tags: ['ảnh', 'context-menu']
-            };
-          } else {
-            // Conversion failed — still open the cropper with the raw URL
-            // (display may work, cropping may taint canvas)
-            payload = {
-              imageUrl: srcParam,
-              sourceUrl: params.get('sourceUrl') || '',
-              displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
-              title: params.get('title') || 'Ảnh đã lưu',
-              tags: ['ảnh', 'context-menu']
-            };
-          }
-          setPendingPayload(payload);
-        })
-        .catch(function(err) {
-          console.warn('[mnemonics] FETCH_IMAGE_AS_DATA_URL via cropper failed:', err);
-          setPendingPayload({
-            imageUrl: srcParam,
-            sourceUrl: params.get('sourceUrl') || '',
-            displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
-            title: params.get('title') || 'Ảnh đã lưu',
-            tags: ['ảnh', 'context-menu']
-          });
-        });
-    } else {
-      setPendingPayload({
-        imageUrl: srcParam,
-        sourceUrl: params.get('sourceUrl') || '',
-        displayUrl: (params.get('sourceUrl') || srcParam).replace(/^https?:\/\//, '').slice(0, 80),
-        title: params.get('title') || 'Ảnh đã lưu',
-        tags: ['ảnh', 'context-menu']
-      });
-    }
-    return;
-  }
-
   function fallbackToStorage() {
     chrome.storage.local.get('mnemonics_pending_screenshot', function(r) {
       setPendingPayload(r.mnemonics_pending_screenshot);
     });
   }
 
-  sendMessageWithRetry({ type: 'GET_PENDING_SCREENSHOT' })
-    .then(function(response) {
-      if (response && response.ok && response.payload && response.payload.imageUrl) {
-        setPendingPayload(response.payload);
-        return;
-      }
+  chrome.runtime.sendMessage({ type: 'GET_PENDING_SCREENSHOT' }, function(response) {
+    if (chrome.runtime && chrome.runtime.lastError) {
       fallbackToStorage();
-    })
-    .catch(function(err) {
-      console.warn('[mnemonics] GET_PENDING_SCREENSHOT failed:', err);
-      fallbackToStorage();
-    });
+      return;
+    }
+    if (response && response.ok && response.payload && response.payload.imageUrl) {
+      setPendingPayload(response.payload);
+      return;
+    }
+    fallbackToStorage();
+  });
 }
 stage.addEventListener('pointerdown', drawStart);
 stage.addEventListener('pointermove', drawMove);

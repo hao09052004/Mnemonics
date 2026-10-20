@@ -471,7 +471,7 @@ async function main() {
       assertEqual(res.body?.data?.source, 'manual', 'the space reports source=manual');
     }
     {
-      const res = await req(`/spaces/${spaceId}/items`, { method: 'POST', body: JSON.stringify({ itemId: textItemId }) }, account.session.accessToken);
+      const res = await req(`/spaces/${spaceId}/items`, { method: 'POST', body: JSON.stringify({ itemIds: [textItemId] }) }, account.session.accessToken);
       assert(res.status === 200 || res.status === 201 || res.status === 409, 'POST /spaces/:id/items attaches an item', `status ${res.status}`);
       const back = await req(`/spaces/${spaceId}/items`, {}, account.session.accessToken);
       assert((back.body?.data?.ids ?? []).includes(textItemId), 'the attached item appears in the space item list');

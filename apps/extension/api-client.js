@@ -1,4 +1,9 @@
-var MNEMONICS_API_URL = 'http://localhost:4000';
+var MNEMONICS_API_URL = typeof MNEMONICS_API_URL !== 'undefined' ? MNEMONICS_API_URL : 'https://mnemonics-api.onrender.com';
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get('mnemonics_api_url', function(r) {
+    if (r && r.mnemonics_api_url) MNEMONICS_API_URL = r.mnemonics_api_url;
+  });
+}
 
 // Read the access token from chrome.storage.local (preferred) or localStorage
 // (when running outside the extension for tests). Returns null if no

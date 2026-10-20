@@ -9,17 +9,37 @@
     --purple: #5B3FE4; --purple-dark: #4A32C0; --purple-light: #EEE9FF;
     --black: #0A0A0A; --white: #FFFFFF; --gray-bg: #F7F7F7;
     --gray-border: #E8E8E8; --gray-text: #666666;
-    --font: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: var(--font); width: 390px; max-height: 620px; background: var(--white); color: var(--black); border-radius: 12px; overflow-x: hidden; overflow-y: auto; position: relative; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Be Vietnam Pro', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif; width: 390px; max-height: 620px; background: var(--white); color: var(--black); border-radius: 12px; overflow-x: hidden; overflow-y: auto; position: relative; -webkit-font-smoothing: antialiased; }
   input, textarea, button { font-family: inherit; }
   .ext-header { background: var(--black); padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; }
-  .ext-logo { color: white; font-size: 16px; font-weight: 700; }
+  .ext-logo { color: white; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .ext-logo .brand-mark { width: 22px; height: 28px; object-fit: contain; }
   .ext-logo span { color: var(--purple); }
   .ext-badge { background: var(--purple); color: white; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
   .tab-info { padding: 14px 18px; background: var(--gray-bg); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; gap: 10px; }
   .tab-url { font-size: 11px; color: var(--gray-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .account-section { padding: 10px 18px; border-bottom: 1px solid var(--gray-border); }
+  .account-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .account-identity { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .account-name { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account-email { font-size: 10px; color: var(--gray-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .account-btn { border: 1px solid var(--gray-border); color: var(--black); background: white; border-radius: 7px; padding: 6px 9px; font-size: 10px; font-weight: 700; cursor: pointer; }
+  .account-btn.primary { color: white; background: var(--purple); border-color: var(--purple); }
+  .account-panel { margin-top: 10px; padding: 12px; border: 1px solid var(--gray-border); border-radius: 9px; background: var(--gray-bg); }
+  .account-panel[hidden], .account-view[hidden] { display: none; }
+  .account-switch { display: flex; gap: 14px; margin-bottom: 10px; font-size: 11px; }
+  .account-switch button { border: 0; background: transparent; color: var(--gray-text); cursor: pointer; font: inherit; padding: 0 0 4px; }
+  .account-switch button.active { color: var(--purple); font-weight: 800; border-bottom: 2px solid var(--purple); }
+  .account-fields { display: grid; gap: 8px; }
+  .account-field { width: 100%; border: 1px solid var(--gray-border); border-radius: 7px; padding: 8px 9px; font-size: 12px; background: white; outline: none; }
+  .account-field:focus { border-color: var(--purple); }
+  .account-submit { width: 100%; margin-top: 9px; border: 0; border-radius: 7px; padding: 9px; color: white; background: var(--purple); font-size: 11px; font-weight: 800; cursor: pointer; }
+  .account-submit:disabled { opacity: .6; cursor: wait; }
+  .account-error { display: none; color: #b91c1c; background: #fff5f5; border: 1px solid #fecaca; border-radius: 7px; padding: 8px; font-size: 10px; line-height: 1.4; margin-bottom: 8px; }
+  .account-error.show { display: block; }
   .capture-section { padding: 16px 18px; border-bottom: 1px solid var(--gray-border); }
   .field-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--gray-text); margin-bottom: 6px; }
   .field-input { width: 100%; border: 1.5px solid var(--gray-border); border-radius: 8px; padding: 9px 11px; font-size: 13px; color: var(--black); outline: none; background: white; transition: border-color 0.2s; font-family: inherit; resize: none; }
@@ -62,35 +82,12 @@
   .success-sub { font-size: 13px; color: var(--gray-text); line-height: 1.5; }
   .success-tags { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
   .btn-more { margin-top: 4px; background: var(--purple); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn-done { margin-top: 4px; background: white; color: var(--black); border: 1.5px solid var(--gray-border); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 0.15s; }
-  .btn-done:hover { border-color: var(--black); }
-
-  /* Polish pass — applied by skills/product/redesign-existing-projects */
-  .btn-save:focus-visible,
-  .btn-screenshot:focus-visible,
-  .btn-more:focus-visible,
-  .btn-done:focus-visible,
-  .type-chip:focus-visible {
-    outline: 2px solid var(--purple);
-    outline-offset: 2px;
-  }
-  .btn-save:active,
-  .btn-screenshot:active,
-  .btn-more:active,
-  .btn-done:active {
-    transform: scale(0.97);
-    transition-duration: 80ms;
-  }
-  .field-input:focus { box-shadow: 0 0 0 3px rgba(91, 63, 228, 0.08); border-color: var(--purple); }
-  .screenshot-capture-box { transition: border-color 0.15s, background 0.15s; }
-  .screenshot-capture-box:hover { border-color: var(--purple); background: rgba(91, 63, 228, 0.04); }
-  .success-overlay.show .success-icon { animation: success-pop 320ms cubic-bezier(.34,1.56,.64,1); }
-  @keyframes success-pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+  .btn-done { margin-top: 4px; background: white; color: var(--black); border: 1.5px solid var(--gray-border); padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 </style>
 </head>
 <body>
 <div class="ext-header">
-  <div class="ext-logo">Mne<span>monics</span></div>
+  <div class="ext-logo"><img class="brand-mark" src="logo-mark.png" alt="" aria-hidden="true">Mne<span>monics</span></div>
   <div style="display:flex;gap:8px;align-items:center">
     <div id="open-dashboard" style="background:rgba(255,255,255,0.15);color:white;font-size:10px;font-weight:600;padding:4px 10px;border-radius:12px;cursor:pointer;letter-spacing:0.5px">📊 DASHBOARD</div>
     <div class="ext-badge">QUICK CAPTURE</div>
@@ -99,6 +96,41 @@
 <div class="tab-info">
   <div class="tab-url" id="tab-url">Trang hiện tại của bạn</div>
 </div>
+<section class="account-section" aria-label="Tài khoản Mnemonics">
+  <div class="account-bar">
+    <div class="account-identity">
+      <span class="account-name" id="account-name">Khách</span>
+      <span class="account-email" id="account-email">Đăng nhập để dùng tài khoản Mnemonics</span>
+    </div>
+    <div class="account-actions">
+      <button class="account-btn primary" id="account-open" type="button">Đăng nhập / Đăng ký</button>
+      <button class="account-btn" id="account-logout" type="button" hidden>Đăng xuất</button>
+    </div>
+  </div>
+  <div class="account-panel" id="account-panel" hidden>
+    <div class="account-switch" role="tablist" aria-label="Chọn đăng nhập hoặc đăng ký">
+      <button class="active" id="account-tab-login" type="button" role="tab" aria-selected="true">Đăng nhập</button>
+      <button id="account-tab-signup" type="button" role="tab" aria-selected="false">Tạo tài khoản</button>
+    </div>
+    <div class="account-error" id="account-error" role="alert"></div>
+    <form class="account-view" id="account-login-view" autocomplete="on">
+      <div class="account-fields">
+        <input class="account-field" id="account-login-email" type="email" placeholder="Email" autocomplete="email" required>
+        <input class="account-field" id="account-login-password" type="password" placeholder="Mật khẩu" autocomplete="current-password" required>
+      </div>
+      <button class="account-submit" id="account-login-submit" type="submit">ĐĂNG NHẬP</button>
+    </form>
+    <form class="account-view" id="account-signup-view" autocomplete="on" hidden>
+      <div class="account-fields">
+        <input class="account-field" id="account-signup-name" type="text" placeholder="Tên hiển thị" autocomplete="name" required>
+        <input class="account-field" id="account-signup-email" type="email" placeholder="Email" autocomplete="email" required>
+        <input class="account-field" id="account-signup-password" type="password" placeholder="Mật khẩu (ít nhất 6 ký tự)" autocomplete="new-password" minlength="6" required>
+        <input class="account-field" id="account-signup-confirm" type="password" placeholder="Nhập lại mật khẩu" autocomplete="new-password" minlength="6" required>
+      </div>
+      <button class="account-submit" id="account-signup-submit" type="submit">TẠO TÀI KHOẢN</button>
+    </form>
+  </div>
+</section>
 <div class="capture-section">
   <div class="field-label">Tiêu đề</div>
   <input class="field-input" id="cap-title" type="text" placeholder="Tên tài liệu, bài viết...">
@@ -134,12 +166,13 @@
 </div>
 <div class="success-overlay" id="success-overlay">
   <div class="success-icon">✓</div>
-  <div class="success-title">Đã lưu thành công</div>
+  <div class="success-title">Đã lưu thành công! ✦</div>
   <p class="success-sub">Tags đã được tạo tự động.</p>
   <div class="success-tags" id="success-tags"></div>
   <button class="btn-more" id="btn-more">+ Lưu thêm</button>
   <button class="btn-done" id="btn-done">Xong</button>
 </div>
+<script src="limits.js"></script>
 <script src="api-client.js"></script>
 <script src="extension.js"></script>
 </body>
