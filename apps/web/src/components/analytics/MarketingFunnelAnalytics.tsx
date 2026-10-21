@@ -6,10 +6,11 @@ export function MarketingFunnelAnalytics() {
       {/* Top Header Card */}
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(116, 87, 232, 0.12), rgba(30, 27, 75, 0.4))',
-          border: '1px solid rgba(116, 87, 232, 0.25)',
+          background: 'linear-gradient(135deg, rgba(124, 92, 252, 0.22) 0%, rgba(22, 25, 35, 0.98) 100%)',
+          border: '1px solid rgba(124, 92, 252, 0.45)',
           borderRadius: 16,
           padding: '24px 28px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
@@ -21,27 +22,27 @@ export function MarketingFunnelAnalytics() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <span
               style={{
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.8px',
-                background: 'rgba(116, 87, 232, 0.25)',
-                color: '#c4b5fd',
+                background: 'rgba(124, 92, 252, 0.35)',
+                color: '#e0d7fe',
                 padding: '4px 10px',
                 borderRadius: 20,
-                border: '1px solid rgba(116, 87, 232, 0.4)'
+                border: '1px solid rgba(124, 92, 252, 0.6)'
               }}
             >
               Báo cáo hiệu suất
             </span>
-            <span style={{ fontSize: 13, color: 'var(--mn-text-2, #a2a9b8)' }}>
+            <span style={{ fontSize: 13, color: '#9da5b5', fontWeight: 500 }}>
               Phạm vi: 11-18/10
             </span>
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px 0', color: '#ffffff', letterSpacing: '-0.3px' }}>
+          <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 6px 0', color: '#ffffff', letterSpacing: '-0.02em' }}>
             Chỉ số Funnel & Hoạt động Marketing
           </h2>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--mn-text-2, #a2a9b8)', lineHeight: 1.5, maxWidth: 640 }}>
+          <p style={{ margin: 0, fontSize: 14, color: '#9da5b5', lineHeight: 1.55, maxWidth: 640 }}>
             Phân tích hành vi từ nhóm 38 người truy cập website làm mốc gốc: tỷ lệ chuyển đổi, điểm rơi
             trong phễu trải nghiệm học tập trung và bảng đối chiếu KPI mục tiêu.
           </p>
@@ -53,17 +54,18 @@ export function MarketingFunnelAnalytics() {
             flexDirection: 'column',
             alignItems: 'flex-end',
             justifyContent: 'center',
-            padding: '12px 18px',
-            background: 'rgba(0, 0, 0, 0.3)',
+            padding: '14px 22px',
+            background: 'rgba(10, 12, 18, 0.75)',
             borderRadius: 12,
-            border: '1px solid rgba(255, 255, 255, 0.08)'
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)'
           }}
         >
-          <span style={{ fontSize: 12, color: 'var(--mn-text-3, #707888)' }}>Toàn bộ phễu</span>
-          <span style={{ fontSize: 26, fontWeight: 800, color: '#34d399', letterSpacing: '-0.5px' }}>
+          <span style={{ fontSize: 12, color: '#9da5b5', fontWeight: 500 }}>Toàn bộ phễu</span>
+          <span style={{ fontSize: 28, fontWeight: 800, color: '#34d399', letterSpacing: '-0.5px' }}>
             15,79%
           </span>
-          <span style={{ fontSize: 11, color: 'var(--mn-text-2, #a2a9b8)' }}>
+          <span style={{ fontSize: 11.5, color: '#9da5b5' }}>
             Truy cập → Hoàn thành
           </span>
         </div>
@@ -699,34 +701,37 @@ function MetricCard({
   return (
     <div
       style={{
-        background: 'var(--mn-surface, #191c25)',
-        border: '1px solid var(--mn-border, rgba(255, 255, 255, 0.06))',
+        background: '#161923',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
         borderRadius: 14,
-        padding: '16px 18px',
+        padding: '18px 20px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        gap: 8
+        gap: 10,
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+        transition: 'all 120ms ease'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: 'var(--mn-text-2, #a2a9b8)', fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 13, color: '#9da5b5', fontWeight: 600 }}>{label}</span>
         <span
           style={{
             fontSize: 11,
             fontWeight: 700,
             background: `${badgeColor}22`,
             color: badgeColor,
-            padding: '2px 7px',
-            borderRadius: 6
+            padding: '3px 8px',
+            borderRadius: 6,
+            border: `1px solid ${badgeColor}44`
           }}
         >
           {badge}
         </span>
       </div>
       <div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.5px' }}>{value}</div>
-        <div style={{ fontSize: 11.5, color: 'var(--mn-text-3, #707888)', marginTop: 2 }}>{sub}</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>{value}</div>
+        <div style={{ fontSize: 11.5, color: '#6b7385', marginTop: 4 }}>{sub}</div>
       </div>
     </div>
   );

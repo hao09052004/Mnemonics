@@ -17,12 +17,12 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-const SECTIONS: Array<{ to: string; label: string; perm: string }> = [
-  { to: '/admin', label: 'Tổng quan', perm: 'admin.analytics.read' },
-  { to: '/admin/funnel', label: 'Chỉ số Marketing', perm: 'admin.analytics.read' },
-  { to: '/admin/users', label: 'Người dùng & Duyệt gói', perm: 'admin.users.read' },
-  { to: '/admin/payments', label: 'Đơn hàng', perm: 'admin.payments.read' },
-  { to: '/admin/audit-logs', label: 'Nhật ký', perm: 'admin.audit.read' }
+const SECTIONS: Array<{ to: string; label: string; icon: string; perm: string }> = [
+  { to: '/admin', label: 'Tổng quan', icon: '📊', perm: 'admin.analytics.read' },
+  { to: '/admin/funnel', label: 'Chỉ số Marketing', icon: '📈', perm: 'admin.analytics.read' },
+  { to: '/admin/users', label: 'Người dùng & Duyệt gói', icon: '👥', perm: 'admin.users.read' },
+  { to: '/admin/payments', label: 'Đơn hàng', icon: '💳', perm: 'admin.payments.read' },
+  { to: '/admin/audit-logs', label: 'Nhật ký', icon: '📜', perm: 'admin.audit.read' }
 ];
 
 export function AdminLayout({ api, children }: AdminLayoutProps) {
@@ -77,19 +77,43 @@ export function AdminLayout({ api, children }: AdminLayoutProps) {
   return (
     <div className="admin-shell">
       <nav className="admin-sidebar">
-        <h1 className="admin-sidebar-title">Admin</h1>
-        {SECTIONS.map((s) => (
-          <NavLink
-            key={s.to}
-            to={s.to}
-            end={s.to === '/admin'}
-            className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'linear-gradient(135deg, #7c5cfc, #6366f1)',
+              display: 'grid',
+              placeItems: 'center',
+              fontWeight: 800,
+              fontSize: '1rem',
+              color: '#ffffff'
+            }}
           >
-            {s.label}
-          </NavLink>
-        ))}
-        <NavLink to="/app" className="admin-button--secondary" style={{ marginTop: '1rem' }}>
-          ← Về dashboard
+            M
+          </div>
+          <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+            Mnemonics Admin
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: 1 }}>
+          {SECTIONS.map((s) => (
+            <NavLink
+              key={s.to}
+              to={s.to}
+              end={s.to === '/admin'}
+              className={({ isActive }) => (isActive ? 'is-active' : undefined)}
+            >
+              <span style={{ fontSize: '1.05rem' }}>{s.icon}</span>
+              <span>{s.label}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        <NavLink to="/app" className="admin-button--secondary" style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center' }}>
+          ← Về Dashboard
         </NavLink>
       </nav>
       <main className="admin-main">{children}</main>

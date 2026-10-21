@@ -108,11 +108,7 @@ export function AppRouter({ api }: AppRouterProps) {
           path="/admin/funnel"
           element={
             <AdminLayout api={api}>
-              <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-                <h1 className="admin-page-title">Chỉ số Marketing & Phễu chuyển đổi</h1>
-                <p className="admin-page-subtitle">
-                  Theo dõi hoạt động marketing, chiến dịch Facebook Ads, tỷ lệ kích hoạt và mức độ hoàn thành nhiệm vụ.
-                </p>
+              <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
                 <MarketingFunnelAnalytics />
               </div>
             </AdminLayout>
