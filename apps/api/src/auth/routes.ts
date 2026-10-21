@@ -218,12 +218,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         return;
       }
       const { email } = parsed.data;
-      const baseUrl = process.env.NODE_ENV === 'production' && process.env.MNEMONICS_WEB_URL
-        ? process.env.MNEMONICS_WEB_URL
-        : (process.env.PASSWORD_RESET_REDIRECT_URL ? undefined : (process.env.WEB_URL || 'http://localhost:3000'));
-      const redirectTo = process.env.PASSWORD_RESET_REDIRECT_URL && process.env.NODE_ENV !== 'production'
-        ? process.env.PASSWORD_RESET_REDIRECT_URL
-        : (baseUrl ? `${baseUrl.replace(/\/$/, '')}/reset-password` : undefined);
+      const redirectTo = process.env.PASSWORD_RESET_REDIRECT_URL ||
+        (process.env.MNEMONICS_WEB_URL ? `${process.env.MNEMONICS_WEB_URL.replace(/\/$/, '')}/reset-password` : undefined) ||
+        (process.env.WEB_URL ? `${process.env.WEB_URL.replace(/\/$/, '')}/reset-password` : undefined);
 
       if (users.sendResetPasswordEmail) {
         await users.sendResetPasswordEmail(email, redirectTo).catch((err) => {
