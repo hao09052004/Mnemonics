@@ -160,6 +160,9 @@ export function createFakeUsers(options: FakeAuthOptions = {}): {
         error: null
       };
     },
+    async sendResetPasswordEmail(_email: string, _redirectTo?: string): Promise<{ error: { message: string } | null }> {
+      return { error: null };
+    },
     async exchangeRecoverySession(accessToken: string, _refreshToken: string): Promise<AuthResponseLike> {
       if (accessToken.startsWith('bad')) {
         return toLike({ data: { session: null, user: null }, error: { message: 'invalid' } });

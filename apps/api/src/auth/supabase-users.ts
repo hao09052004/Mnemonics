@@ -56,6 +56,8 @@ export interface SupabaseUsersFacade {
   confirmAndSignIn?(email: string, password: string, name?: string): Promise<AuthResponseLike>;
   /** Service-role only. Used by forgot-password to generate a recovery link. */
   generateRecoveryLink?(email: string): Promise<LinkResponseLike>;
+  /** Triggers Supabase to send a reset password email directly to the user's inbox. */
+  sendResetPasswordEmail?(email: string, redirectTo?: string): Promise<{ error: { message: string } | null }>;
   /** Service-role only. Exchanges recovery tokens for a usable session. */
   exchangeRecoverySession?(accessToken: string, refreshToken: string): Promise<AuthResponseLike>;
   /**
@@ -162,6 +164,11 @@ export function createSupabaseUsers(client: SupabaseClient, serviceClient?: Supa
           };
         }
       : undefined,
+    sendResetPasswordEmail: async (email, redirectTo) => {
+      const targetClient = client;
+      const result = await targetClient.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined);
+      return { error: result.error ? { message: result.error.message } : null };
+    },
     exchangeRecoverySession: serviceClient
       ? async (accessToken, refreshToken) => {
           const result = await serviceClient.auth.setSession({

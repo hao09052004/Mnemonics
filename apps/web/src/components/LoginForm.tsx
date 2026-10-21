@@ -66,10 +66,44 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
     }
   };
 
+  const reqLength = password.length >= 10;
+  const reqLower = /[a-z]/.test(password);
+  const reqUpper = /[A-Z]/.test(password);
+  const reqDigit = /\d/.test(password);
+  const reqSymbol = /[^A-Za-z0-9]/.test(password);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     reset();
+
+    if (mode === 'register') {
+      if (!reqLength) {
+        setError('Mật khẩu phải có ít nhất 10 ký tự');
+        setLoading(false);
+        return;
+      }
+      if (!reqLower) {
+        setError('Mật khẩu phải chứa ít nhất một chữ thường (a-z)');
+        setLoading(false);
+        return;
+      }
+      if (!reqUpper) {
+        setError('Mật khẩu phải chứa ít nhất một chữ in hoa (A-Z)');
+        setLoading(false);
+        return;
+      }
+      if (!reqDigit) {
+        setError('Mật khẩu phải chứa ít nhất một chữ số (0-9)');
+        setLoading(false);
+        return;
+      }
+      if (!reqSymbol) {
+        setError('Mật khẩu phải chứa ít nhất một ký tự đặc biệt (!@#$%...)');
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       const result = mode === 'login'
@@ -269,6 +303,42 @@ export function LoginForm({ api, onLogin, onForgotPassword, hideModeSwitch, init
               )}
             </button>
           </div>
+          {mode === 'register' && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                background: 'rgba(255, 255, 255, 0.035)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                fontSize: 12,
+                marginTop: 2
+              }}
+            >
+              <span style={{ fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', marginBottom: 2 }}>
+                Yêu cầu mật khẩu an toàn:
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+                <span style={{ color: reqLength ? '#34d399' : 'rgba(255, 255, 255, 0.45)', display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.2s' }}>
+                  <span style={{ fontWeight: 700 }}>{reqLength ? '✓' : '○'}</span> Tối thiểu 10 ký tự
+                </span>
+                <span style={{ color: reqLower ? '#34d399' : 'rgba(255, 255, 255, 0.45)', display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.2s' }}>
+                  <span style={{ fontWeight: 700 }}>{reqLower ? '✓' : '○'}</span> Chữ thường (a-z)
+                </span>
+                <span style={{ color: reqUpper ? '#34d399' : 'rgba(255, 255, 255, 0.45)', display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.2s' }}>
+                  <span style={{ fontWeight: 700 }}>{reqUpper ? '✓' : '○'}</span> Chữ in hoa (A-Z)
+                </span>
+                <span style={{ color: reqDigit ? '#34d399' : 'rgba(255, 255, 255, 0.45)', display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.2s' }}>
+                  <span style={{ fontWeight: 700 }}>{reqDigit ? '✓' : '○'}</span> Chữ số (0-9)
+                </span>
+                <span style={{ color: reqSymbol ? '#34d399' : 'rgba(255, 255, 255, 0.45)', display: 'flex', alignItems: 'center', gap: 6, gridColumn: 'span 2', transition: 'color 0.2s' }}>
+                  <span style={{ fontWeight: 700 }}>{reqSymbol ? '✓' : '○'}</span> Ký tự đặc biệt (ví dụ: !@#$%^&*)
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {info && (

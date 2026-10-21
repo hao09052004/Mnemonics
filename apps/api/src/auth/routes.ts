@@ -77,7 +77,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     try {
       const parsed = registerInputSchema.safeParse(request.body);
       if (!parsed.success) {
-        response.status(400).json({ error: { code: 'INVALID_AUTH_PAYLOAD', message: 'Thông tin đăng ký không hợp lệ', requestId: request.id } });
+        const issueMessage = parsed.error.issues[0]?.message;
+        const message = issueMessage || 'Thông tin đăng ký không hợp lệ';
+        response.status(400).json({ error: { code: 'INVALID_AUTH_PAYLOAD', message, requestId: request.id } });
         return;
       }
       const { email, password, name } = parsed.data;
@@ -216,7 +218,20 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         return;
       }
       const { email } = parsed.data;
-      await users.generateRecoveryLink?.(email).catch(() => undefined);
+      const baseUrl = process.env.NODE_ENV === 'production' && process.env.MNEMONICS_WEB_URL
+        ? process.env.MNEMONICS_WEB_URL
+        : (process.env.PASSWORD_RESET_REDIRECT_URL ? undefined : (process.env.WEB_URL || 'http://localhost:3000'));
+      const redirectTo = process.env.PASSWORD_RESET_REDIRECT_URL && process.env.NODE_ENV !== 'production'
+        ? process.env.PASSWORD_RESET_REDIRECT_URL
+        : (baseUrl ? `${baseUrl.replace(/\/$/, '')}/reset-password` : undefined);
+
+      if (users.sendResetPasswordEmail) {
+        await users.sendResetPasswordEmail(email, redirectTo).catch((err) => {
+          console.warn('[auth] sendResetPasswordEmail failed', err);
+        });
+      } else if (users.generateRecoveryLink) {
+        await users.generateRecoveryLink(email).catch(() => undefined);
+      }
       await logEvent(audit, 'forgot_password', email, request);
       response.status(200).json(envelopeOrNull(null, null));
     } catch (error) { next(error); }

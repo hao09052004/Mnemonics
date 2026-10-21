@@ -4,26 +4,26 @@ const emailSchema = z
   .string()
   .trim()
   .toLowerCase()
-  .email()
-  .max(254);
+  .email('Email không đúng định dạng')
+  .max(254, 'Email tối đa 254 ký tự');
 
 // Strong password rule: at least 10 chars, with at least one lowercase, one
 // uppercase, one digit, one symbol (any non-alphanumeric Unicode).
 const passwordSchema = z
   .string()
-  .min(10, 'Password must be at least 10 characters')
-  .max(128)
-  .refine((v) => /[a-z]/.test(v), 'Password must include a lowercase letter')
-  .refine((v) => /[A-Z]/.test(v), 'Password must include an uppercase letter')
-  .refine((v) => /\d/.test(v),    'Password must include a digit')
-  .refine((v) => /[^A-Za-z0-9]/.test(v), 'Password must include a symbol');
+  .min(10, 'Mật khẩu phải có ít nhất 10 ký tự')
+  .max(128, 'Mật khẩu tối đa 128 ký tự')
+  .refine((v) => /[a-z]/.test(v), 'Mật khẩu phải chứa ít nhất một chữ thường (a-z)')
+  .refine((v) => /[A-Z]/.test(v), 'Mật khẩu phải chứa ít nhất một chữ in hoa (A-Z)')
+  .refine((v) => /\d/.test(v),    'Mật khẩu phải chứa ít nhất một chữ số (0-9)')
+  .refine((v) => /[^A-Za-z0-9]/.test(v), 'Mật khẩu phải chứa ít nhất một ký tự đặc biệt (!@#$%...)');
 
 const nameSchema = z
   .string()
   .trim()
-  .min(1)
-  .max(80)
-  .refine((v) => !/[\u0000-\u001f\u007f]/.test(v), 'Name must not contain control characters')
+  .min(1, 'Tên không được để trống')
+  .max(80, 'Tên tối đa 80 ký tự')
+  .refine((v) => !/[\u0000-\u001f\u007f]/.test(v), 'Tên không được chứa ký tự điều khiển')
   .optional();
 
 export const registerInputSchema = z

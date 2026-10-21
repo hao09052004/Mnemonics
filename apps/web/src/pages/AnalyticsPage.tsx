@@ -9,7 +9,7 @@
  * - Spaces + distinct tags
  */
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ApiClient,
   type Session,
@@ -18,6 +18,7 @@ import {
 } from '../lib/api-client';
 import { DashboardShell } from '../components/dashboard/DashboardShell';
 import type { DashboardPage } from '../components/dashboard/DashboardTopNav';
+import { MarketingFunnelAnalytics } from '../components/analytics/MarketingFunnelAnalytics';
 
 interface Props {
   api: ApiClient;
@@ -31,6 +32,9 @@ function formatDate(iso: string | null): string {
 
 export function AnalyticsPage({ api }: Props) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') === 'funnel' ? 'funnel' : 'overview';
+
   const [session, setSession] = useState<Session | null>(() => api.loadStoredSession());
   const [overview, setOverview] = useState<AnalyticsOverviewResponse['data'] | null>(null);
   const [series, setSeries] = useState<AnalyticsCapturesResponse['data']['series']>([]);
@@ -38,7 +42,7 @@ export function AnalyticsPage({ api }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = 'Phân tích — Mnemonics';
+    document.title = currentTab === 'funnel' ? 'Chỉ số Funnel & Marketing — Mnemonics' : 'Phân tích — Mnemonics';
     const s = api.loadStoredSession();
     setSession(s);
     if (!s?.accessToken) {
@@ -61,7 +65,7 @@ export function AnalyticsPage({ api }: Props) {
         setLoading(false);
       }
     })();
-  }, [api]);
+  }, [api, currentTab]);
 
   const handleLogout = () => {
     api.saveSession(null);
@@ -80,29 +84,100 @@ export function AnalyticsPage({ api }: Props) {
 
   if (!session) {
     return (
-      <div className="analytics-page" style={{ maxWidth: 520, margin: '5rem auto', padding: '2rem 1.5rem', textAlign: 'center' }}>
-        <div className="admin-card" style={{ padding: '3rem 2rem', borderRadius: 16 }}>
-          <h1 style={{ fontSize: '1.6rem', marginBottom: '0.75rem' }}>Chưa đăng nhập</h1>
-          <p style={{ color: 'var(--secondary)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
-            Vui lòng đăng nhập để xem phân tích và thống kê bộ nhớ của bạn.
-          </p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+      <div
+        className="analytics-page"
+        style={{
+          maxWidth: currentTab === 'funnel' ? 1040 : 520,
+          margin: '3rem auto',
+          padding: '1.5rem',
+          transition: 'max-width 0.2s'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'rgba(255, 255, 255, 0.05)',
+              padding: 4,
+              borderRadius: 12,
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+          >
             <button
               type="button"
-              className="admin-button"
-              onClick={() => navigate('/login?next=/app/analytics')}
+              data-testid="unauth-tab-funnel"
+              onClick={() => setSearchParams({ tab: 'funnel' })}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: currentTab === 'funnel' ? '#7457e8' : 'transparent',
+                color: currentTab === 'funnel' ? '#ffffff' : 'var(--mn-text-2, #a2a9b8)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
             >
-              Đăng nhập ngay
+              Chỉ số Funnel & Marketing
             </button>
             <button
               type="button"
-              className="admin-button admin-button--secondary"
-              onClick={() => navigate('/')}
+              data-testid="unauth-tab-overview"
+              onClick={() => setSearchParams({ tab: 'overview' })}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: currentTab === 'overview' ? '#7457e8' : 'transparent',
+                color: currentTab === 'overview' ? '#ffffff' : 'var(--mn-text-2, #a2a9b8)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
             >
-              Về trang chủ
+              Tổng quan bộ nhớ
             </button>
           </div>
         </div>
+
+        {currentTab === 'funnel' ? (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+              <button
+                type="button"
+                className="admin-button admin-button--secondary"
+                onClick={() => navigate('/login?next=/app/analytics?tab=funnel')}
+                style={{ fontSize: 13, padding: '6px 14px' }}
+              >
+                Đăng nhập tài khoản →
+              </button>
+            </div>
+            <MarketingFunnelAnalytics />
+          </div>
+        ) : (
+          <div className="admin-card" style={{ padding: '3rem 2rem', borderRadius: 16, textAlign: 'center' }}>
+            <h1 style={{ fontSize: '1.6rem', marginBottom: '0.75rem' }}>Chưa đăng nhập</h1>
+            <p style={{ color: 'var(--secondary)', marginBottom: '1.75rem', lineHeight: 1.5 }}>
+              Vui lòng đăng nhập để xem phân tích và thống kê bộ nhớ của bạn.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="admin-button"
+                onClick={() => navigate('/login?next=/app/analytics')}
+              >
+                Đăng nhập ngay
+              </button>
+              <button
+                type="button"
+                className="admin-button admin-button--secondary"
+                onClick={() => navigate('/')}
+              >
+                Về trang chủ
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -119,12 +194,82 @@ export function AnalyticsPage({ api }: Props) {
       demoMode={false}
     >
       <main className="analytics-page">
-        <h1>Phân tích của bạn</h1>
-        <p className="analytics-page-subtitle">
-          Tổng quan 30 ngày gần nhất. Số liệu từ cơ sở dữ liệu của tài khoản {session.user.email}.
-        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
+          <div>
+            <h1 style={{ margin: '0 0 6px 0' }}>Phân tích & Thống kê</h1>
+            <p className="analytics-page-subtitle" style={{ margin: 0 }}>
+              {currentTab === 'funnel'
+                ? 'Báo cáo phễu chuyển đổi marketing, tỷ lệ dùng thử và đối chiếu KPI thực tế.'
+                : `Tổng quan 30 ngày gần nhất. Số liệu từ cơ sở dữ liệu của tài khoản ${session.user.email}.`}
+            </p>
+          </div>
 
-        {loading ? (
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'rgba(255, 255, 255, 0.05)',
+              padding: 4,
+              borderRadius: 12,
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+          >
+            <button
+              type="button"
+              data-testid="tab-overview"
+              onClick={() => setSearchParams({ tab: 'overview' })}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: currentTab === 'overview' ? '#7457e8' : 'transparent',
+                color: currentTab === 'overview' ? '#ffffff' : 'var(--mn-text-2, #a2a9b8)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Tổng quan bộ nhớ
+            </button>
+            <button
+              type="button"
+              data-testid="tab-funnel"
+              onClick={() => setSearchParams({ tab: 'funnel' })}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: currentTab === 'funnel' ? '#7457e8' : 'transparent',
+                color: currentTab === 'funnel' ? '#ffffff' : 'var(--mn-text-2, #a2a9b8)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>Chỉ số Funnel & Marketing</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  background: currentTab === 'funnel' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(116, 87, 232, 0.3)',
+                  color: '#ffffff',
+                  padding: '1px 6px',
+                  borderRadius: 10
+                }}
+              >
+                Mới
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {currentTab === 'funnel' ? (
+          <MarketingFunnelAnalytics />
+        ) : loading ? (
           <p className="admin-empty">Đang tải phân tích…</p>
         ) : error ? (
           <p className="admin-empty">{error}</p>
