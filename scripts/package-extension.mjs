@@ -28,7 +28,7 @@
  *      marketplace hints.json) — placeholder for future use.
  *   4. Zips the resulting directory.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile, readdir, copyFile, stat } from 'node:fs/promises';
 import { join, relative, sep, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,12 +62,27 @@ const EXCLUDE_FILES = new Set([
  */
 const TEST_SUFFIX = /\.test\.(js|ts|mjs|cjs)$/;
 
+let envApiUrl = '';
+let envWebUrl = '';
+const envPath = join(repoRoot, '.env');
+if (existsSync(envPath)) {
+  try {
+    const raw = readFileSync(envPath, 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const matchApi = line.match(/^MNEMONICS_API_URL=["']?(.*?)["']?$/);
+      if (matchApi) envApiUrl = matchApi[1].trim();
+      const matchWeb = line.match(/^MNEMONICS_WEB_URL=["']?(.*?)["']?$/);
+      if (matchWeb) envWebUrl = matchWeb[1].trim();
+    }
+  } catch (_) {}
+}
+
 function apiUrl() {
-  return process.env.MNEMONICS_API_URL || 'https://mnemonics-api.onrender.com';
+  return process.env.MNEMONICS_API_URL || envApiUrl || 'http://localhost:4000';
 }
 
 function webUrl() {
-  return process.env.MNEMONICS_WEB_URL || 'https://mnemonics-one.vercel.app';
+  return process.env.MNEMONICS_WEB_URL || envWebUrl || '';
 }
 
 /**

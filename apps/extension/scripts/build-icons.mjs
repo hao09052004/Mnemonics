@@ -173,7 +173,7 @@ function hex(h) {
 }
 function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
 
-for (const size of [16, 48, 128]) {
+for (const size of [16, 32, 48, 128]) {
   const buf = renderIcon(size);
   const dest = join(outDir, `icon${size}.png`);
   writeFileSync(dest, buf);
