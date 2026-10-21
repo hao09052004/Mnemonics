@@ -15,7 +15,8 @@ describe('pending sync retry policy', () => {
 
     expect(policy.nextDelayMs(0)).toBe(30 * 1000);
     expect(policy.nextDelayMs(1)).toBe(60 * 1000);
-    expect(policy.nextDelayMs(5)).toBe(32 * 60 * 1000);
+    expect(policy.nextDelayMs(5)).toBe(16 * 60 * 1000);
+    expect(policy.nextDelayMs(6)).toBe(32 * 60 * 1000);
     expect(policy.nextDelayMs(8)).toBe(60 * 60 * 1000);
   });
 
