@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mnemonics — AI Smart Bookmark",
-  "version": "1.0.1",
+  "version": "1.2.2",
   "description": "Lưu ký ức tức thì từ bất kỳ trang web nào.",
   "action": {
     "default_popup": "mnemonics-extension.html",
