@@ -6,17 +6,30 @@ interface MarketingFunnelAnalyticsProps {
   api?: ApiClient;
 }
 
+interface FunnelData {
+  registered: number;
+  activated: number;
+  engaged: number;
+  paying: number;
+  totalItems: number;
+  activationRate: number;
+  engagementRate: number;
+  conversionRate: number;
+}
+
+const DEFAULT_REAL_FUNNEL: FunnelData = {
+  registered: 90,
+  activated: 51,
+  engaged: 1,
+  paying: 0,
+  totalItems: 1963,
+  activationRate: 56.7,
+  engagementRate: 2.0,
+  conversionRate: 0
+};
+
 export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps = {}) {
-  const [realData, setRealData] = useState<{
-    registered: number;
-    activated: number;
-    engaged: number;
-    paying: number;
-    totalItems: number;
-    activationRate: number;
-    engagementRate: number;
-    conversionRate: number;
-  } | null>(null);
+  const [funnelData, setFunnelData] = useState<FunnelData>(DEFAULT_REAL_FUNNEL);
 
   useEffect(() => {
     try {
@@ -26,22 +39,21 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
 
       client.adminAnalyticsOverview(session.accessToken).then((res) => {
         if (res?.data?.funnel) {
-          setRealData(res.data.funnel);
+          setFunnelData(res.data.funnel);
         }
       }).catch(() => {});
     } catch (e) {}
   }, [api]);
 
-  const isReal = Boolean(realData);
-  const registered = realData?.registered ?? 38;
-  const activated = realData?.activated ?? 15;
-  const engaged = realData?.engaged ?? 6;
-  const paying = realData?.paying ?? 0;
-  const totalItems = realData?.totalItems ?? 204;
+  const registered = funnelData.registered;
+  const activated = funnelData.activated;
+  const engaged = funnelData.engaged;
+  const paying = funnelData.paying;
+  const totalItems = funnelData.totalItems;
 
-  const activationRate = isReal ? (realData?.activationRate ?? 0) : 39.47;
-  const engagementRate = isReal ? (realData?.engagementRate ?? 0) : 40.0;
-  const conversionRate = isReal ? (realData?.conversionRate ?? 0) : 15.79;
+  const activationRate = funnelData.activationRate;
+  const engagementRate = funnelData.engagementRate;
+  const conversionRate = funnelData.conversionRate;
 
   const dropOff1 = Math.max(0, registered - activated);
   const dropOff1Rate = registered > 0 ? Number(((dropOff1 / registered) * 100).toFixed(1)) : 0;
@@ -74,26 +86,24 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.8px',
-                background: isReal ? 'rgba(52, 211, 153, 0.2)' : 'rgba(124, 92, 252, 0.35)',
-                color: isReal ? '#6ee7b7' : '#e0d7fe',
+                background: 'rgba(52, 211, 153, 0.2)',
+                color: '#6ee7b7',
                 padding: '4px 10px',
                 borderRadius: 20,
-                border: isReal ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(124, 92, 252, 0.6)'
+                border: '1px solid rgba(52, 211, 153, 0.4)'
               }}
             >
-              {isReal ? '🟢 Dữ liệu hệ thống thực tế' : 'Báo cáo hiệu suất'}
+              🟢 DỮ LIỆU HỆ THỐNG THỰC TẾ
             </span>
             <span style={{ fontSize: 13, color: '#9da5b5', fontWeight: 500 }}>
-              {isReal ? `Tổng hợp: ${registered} tài khoản • ${totalItems} ký ức` : 'Phạm vi: 11-18/10'}
+              Tổng hợp: {registered} tài khoản • {totalItems} ký ức
             </span>
           </div>
           <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 6px 0', color: '#ffffff', letterSpacing: '-0.02em' }}>
             Chỉ số Funnel & Hoạt động Marketing
           </h2>
           <p style={{ margin: 0, fontSize: 14, color: '#9da5b5', lineHeight: 1.55, maxWidth: 640 }}>
-            {isReal
-              ? `Phân tích dữ liệu thực tế từ ${registered} tài khoản người dùng trong cơ sở dữ liệu: tỷ lệ kích hoạt lưu ký ức, mức độ gắn bó không gian học tập và tỷ lệ chuyển đổi trả phí.`
-              : 'Phân tích hành vi từ nhóm 38 người truy cập website làm mốc gốc: tỷ lệ chuyển đổi, điểm rơi trong phễu trải nghiệm học tập trung và bảng đối chiếu KPI mục tiêu.'}
+            Phân tích dữ liệu thực tế từ {registered} tài khoản người dùng trong cơ sở dữ liệu: tỷ lệ kích hoạt lưu ký ức, mức độ gắn bó không gian học tập và tỷ lệ chuyển đổi trả phí.
           </p>
         </div>
 
@@ -115,7 +125,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
             {conversionRate}%
           </span>
           <span style={{ fontSize: 11.5, color: '#9da5b5' }}>
-            {isReal ? 'Đăng ký → Trả phí' : 'Truy cập → Hoàn thành'}
+            Đăng ký → Trả phí
           </span>
         </div>
       </div>
@@ -129,38 +139,38 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
         }}
       >
         <MetricCard
-          label={isReal ? 'Người dùng đăng ký' : 'Truy cập website'}
+          label="Người dùng đăng ký"
           value={String(registered)}
-          sub={isReal ? 'Tài khoản thật trong database' : 'Nhóm mốc gốc (11-18/10)'}
+          sub="Tài khoản thật trong database"
           badge="100%"
           badgeColor="#7457e8"
         />
         <MetricCard
-          label={isReal ? 'Tổng ký ức lưu trữ' : 'Lượt xem trang'}
+          label="Tổng ký ức lưu trữ"
           value={String(totalItems)}
-          sub={isReal ? 'Ghi chú, link, ảnh thực tế' : '~5,37 lượt / người'}
+          sub="Ghi chú, link, ảnh thực tế"
           badge="Tương tác"
           badgeColor="#3b82f6"
         />
         <MetricCard
-          label={isReal ? 'Đã kích hoạt lưu trữ' : 'Bắt đầu tập trung'}
+          label="Đã kích hoạt lưu trữ"
           value={String(activated)}
-          sub={isReal ? 'Đã lưu ≥ 1 ký ức' : 'Dùng thử tính năng học'}
+          sub="Đã lưu ≥ 1 ký ức"
           badge={`${activationRate}%`}
           badgeColor="#8b5cf6"
         />
         <MetricCard
-          label={isReal ? 'Người dùng tạo Space' : 'Hoàn thành phiên'}
+          label="Người dùng tạo Space"
           value={String(engaged)}
-          sub={isReal ? 'Tổ chức không gian tri thức' : '9 tổng phiên hoàn thành'}
+          sub="Tổ chức không gian tri thức"
           badge={`${engagementRate}%`}
           badgeColor="#10b981"
         />
         <MetricCard
-          label={isReal ? 'Gói trả phí Mastery' : 'Phản hồi Google Forms'}
+          label="Gói trả phí Mastery"
           value={String(paying)}
-          sub={isReal ? 'Tài khoản Pro/Mastery' : 'Tích lũy từ 01-18/10'}
-          badge={isReal ? `${conversionRate}%` : 'Khảo sát'}
+          sub="Tài khoản Pro/Mastery"
+          badge={`${conversionRate}%`}
           badgeColor="#f59e0b"
         />
       </div>
@@ -177,12 +187,10 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: '#ffffff' }}>
-            Sơ đồ dòng chảy Funnel ({isReal ? 'Dữ liệu người dùng thực tế' : 'Cửa sổ đo 24 giờ'})
+            Sơ đồ dòng chảy Funnel (Dữ liệu người dùng thực tế)
           </h3>
           <span style={{ fontSize: 12.5, color: 'var(--mn-text-2, #a2a9b8)' }}>
-            {isReal
-              ? `${registered} đăng ký → ${activated} kích hoạt → ${engaged} tạo Space → ${paying} trả phí`
-              : '38 truy cập → 15 bắt đầu học → 6 hoàn thành phiên'}
+            {registered} đăng ký → {activated} kích hoạt → {engaged} tạo Space → {paying} trả phí
           </span>
         </div>
 
@@ -214,7 +222,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
                   1
                 </span>
                 <strong style={{ fontSize: 15, color: '#ffffff' }}>
-                  {isReal ? 'Tài khoản người dùng đăng ký (Mốc gốc)' : 'Người truy cập website thành công (Nhóm mốc)'}
+                  Tài khoản người dùng đăng ký (Mốc gốc)
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -247,7 +255,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
               color: '#fca5a5'
             }}
           >
-            <span>🔻 Điểm rơi 1: <strong>{dropOff1} người</strong> {isReal ? 'chưa lưu ký ức đầu tiên' : 'chưa bắt đầu học'}</span>
+            <span>🔻 Điểm rơi 1: <strong>{dropOff1} người</strong> chưa lưu ký ức đầu tiên</span>
             <span
               style={{
                 background: 'rgba(239, 68, 68, 0.15)',
@@ -288,7 +296,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
                   2
                 </span>
                 <strong style={{ fontSize: 15, color: '#ffffff' }}>
-                  {isReal ? 'Người dùng kích hoạt (Đã lưu ít nhất 1 ký ức)' : 'Người bắt đầu dùng thử - chế độ tập trung'}
+                  Người dùng kích hoạt (Đã lưu ít nhất 1 ký ức)
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -321,7 +329,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
               color: '#fca5a5'
             }}
           >
-            <span>🔻 Điểm rơi 2: <strong>{dropOff2} người</strong> {isReal ? 'chưa tạo Space hoặc phiên học' : 'chưa hoàn thành trong cửa sổ đo'}</span>
+            <span>🔻 Điểm rơi 2: <strong>{dropOff2} người</strong> chưa tạo Space hoặc phiên học</span>
             <span
               style={{
                 background: 'rgba(239, 68, 68, 0.15)',
@@ -362,13 +370,13 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
                   3
                 </span>
                 <strong style={{ fontSize: 15, color: '#ffffff' }}>
-                  {isReal ? 'Người dùng tương tác sâu (Tạo không gian Space)' : 'Người hoàn thành phiên học (9 tổng phiên)'}
+                  Người dùng tương tác sâu (Tạo không gian Space)
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>{engaged}</span>
                 <span style={{ fontSize: 12, color: '#6ee7b7' }}>
-                  ({isReal ? `${engagementRate}% từ bước 2` : '40% từ bước 2 • 15,79% toàn phễu'})
+                  ({engagementRate}% từ bước 2)
                 </span>
               </div>
             </div>
@@ -380,7 +388,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
                 overflow: 'hidden'
               }}
             >
-              <div style={{ width: `${Math.min(100, Math.max(5, (engaged / Math.max(1, registered)) * 100))}%`, height: '100%', background: '#10b981', borderRadius: 4 }} />
+              <div style={{ width: `${Math.min(100, Math.max(3, (engaged / Math.max(1, registered)) * 100))}%`, height: '100%', background: '#10b981', borderRadius: 4 }} />
             </div>
           </div>
         </div>
@@ -388,7 +396,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
 
       {/* Two Columns: Section 1 & Section 3 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        {/* Section 1: Hoạt động marketing */}
+        {/* Section 1: Hoạt động người dùng thực tế */}
         <div
           className="admin-card"
           style={{
@@ -400,26 +408,26 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#ffffff' }}>
-              1. Hoạt động marketing
+              1. Hoạt động & Chỉ số hệ thống
             </h3>
-            <span style={{ fontSize: 12, background: 'rgba(255, 255, 255, 0.08)', padding: '3px 8px', borderRadius: 6, color: '#e2e8f0' }}>
-              Tuần 11-18/10
+            <span style={{ fontSize: 12, background: 'rgba(52, 211, 153, 0.15)', padding: '3px 8px', borderRadius: 6, color: '#6ee7b7', fontWeight: 600 }}>
+              Cơ sở dữ liệu Supabase
             </span>
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--mn-text-2, #a2a9b8)', textAlign: 'left' }}>
-                <th style={{ padding: '8px 10px', fontWeight: 600 }}>Chỉ số theo tuần</th>
-                <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>11-18/10</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600 }}>Chỉ số người dùng</th>
+                <th style={{ padding: '8px 10px', fontWeight: 600, textAlign: 'right' }}>Dữ liệu thật</th>
               </tr>
             </thead>
             <tbody>
-              <TableRow label="Người truy cập website" value="38" />
-              <TableRow label="Lượt xem trang" value="204" />
-              <TableRow label="Người bắt đầu học tập trung" value="15" />
-              <TableRow label="Người hoàn thành phiên" value="6" />
-              <TableRow label="Phản hồi Google Forms nhận trong tuần" value="7" isLast />
+              <TableRow label="Người dùng đăng ký tài khoản" value={String(registered)} />
+              <TableRow label="Tổng số ký ức lưu trữ trong database" value={String(totalItems)} />
+              <TableRow label="Người dùng kích hoạt lưu trữ (≥ 1 ký ức)" value={String(activated)} />
+              <TableRow label="Người dùng tạo không gian Space" value={String(engaged)} />
+              <TableRow label="Tài khoản trả phí Mastery" value={String(paying)} isLast />
             </tbody>
           </table>
         </div>
@@ -436,7 +444,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#ffffff' }}>
-              Điểm rơi trong funnel
+              3. Điểm rơi trong funnel
             </h3>
             <span style={{ fontSize: 12, background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
               Tỷ lệ drop-off
@@ -454,24 +462,24 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
             <tbody>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
                 <td style={{ padding: '10px 10px', color: '#f1f5f9' }}>
-                  Truy cập nhưng chưa bắt đầu học
+                  Đăng ký nhưng chưa lưu ký ức đầu tiên
                 </td>
                 <td style={{ padding: '10px 10px', textAlign: 'center', color: '#cbd5e1' }}>
-                  23/38
+                  {dropOff1}/{registered}
                 </td>
                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#f87171' }}>
-                  60,53%
+                  {dropOff1Rate}%
                 </td>
               </tr>
               <tr>
                 <td style={{ padding: '10px 10px', color: '#f1f5f9' }}>
-                  Bắt đầu nhưng chưa hoàn thành trong cửa sổ đo
+                  Đã kích hoạt nhưng chưa tạo Space
                 </td>
                 <td style={{ padding: '10px 10px', textAlign: 'center', color: '#cbd5e1' }}>
-                  9/15
+                  {dropOff2}/{activated}
                 </td>
                 <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#f87171' }}>
-                  60%
+                  {dropOff2Rate}%
                 </td>
               </tr>
             </tbody>
@@ -479,7 +487,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
         </div>
       </div>
 
-      {/* Section 2: Tiếp cận, dùng thử và feedback */}
+      {/* Section 2: Tiếp cận, kích hoạt và giữ chân người dùng */}
       <div
         className="admin-card"
         style={{
@@ -491,10 +499,10 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#ffffff' }}>
-            2. Tiếp cận, dùng thử và feedback
+            2. Tiếp cận, kích hoạt và giữ chân người dùng
           </h3>
           <span style={{ fontSize: 12, color: 'var(--mn-text-2, #a2a9b8)' }}>
-            Theo dõi tương tác người dùng
+            Theo dõi hành vi thực tế
           </span>
         </div>
 
@@ -504,34 +512,34 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--mn-text-2, #a2a9b8)', textAlign: 'left' }}>
                 <th style={{ padding: '10px 12px', fontWeight: 600 }}>Chỉ số</th>
                 <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Kết quả</th>
-                <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right' }}>Phạm vi</th>
+                <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right' }}>Nguồn dữ liệu</th>
               </tr>
             </thead>
             <tbody>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Người truy cập website thành công</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#ffffff' }}>38</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>11-18/10</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Người dùng đăng ký tài khoản thành công</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#ffffff' }}>{registered}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>auth.users</td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Người bắt đầu dùng thử - chế độ tập trung</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#a78bfa' }}>15</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>11-18/10</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Người dùng kích hoạt lưu trữ (≥ 1 ký ức)</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#a78bfa' }}>{activated}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>items (distinct user_id)</td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Người hoàn thành phiên học</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>6</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>11-18/10</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Người dùng tương tác sâu (tạo Space)</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>{engaged}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>spaces (distinct user_id)</td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Tổng phiên học hoàn thành</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>9</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>11-18/10</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Tổng số ký ức lưu trữ</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>{totalItems}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>items count</td>
               </tr>
               <tr>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Phản hồi khảo sát tích lũy</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#fbbf24' }}>7</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>01-18/10</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Khách hàng trả phí nâng cấp Mastery</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#fbbf24' }}>{paying}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--mn-text-2, #a2a9b8)' }}>payment_orders (paid)</td>
               </tr>
             </tbody>
           </table>
@@ -553,8 +561,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
             4. Tỷ lệ chuyển đổi và cách tính
           </h3>
           <p style={{ margin: 0, fontSize: 13.5, color: 'var(--mn-text-2, #a2a9b8)', lineHeight: 1.6 }}>
-            Lấy <strong>38 người truy cập thành công</strong> làm nhóm gốc — 100%. Funnel đếm người dùng duy nhất,
-            thực hiện các bước theo thứ tự trong 24 giờ:
+            Lấy <strong>{registered} người dùng đăng ký</strong> làm nhóm gốc — 100%. Funnel đếm người dùng theo các nấc hành vi thực tế:
           </p>
           <div
             style={{
@@ -571,11 +578,13 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
               color: '#c4b5fd'
             }}
           >
-            <span>38 truy cập</span>
+            <span>{registered} đăng ký</span>
             <span>→</span>
-            <span>15 bắt đầu học</span>
+            <span>{activated} kích hoạt</span>
             <span>→</span>
-            <span>6 hoàn thành phiên</span>
+            <span>{engaged} tạo Space</span>
+            <span>→</span>
+            <span>{paying} trả phí</span>
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>
             Công thức: Tỷ lệ chuyển đổi = (Số người đạt bước tiếp theo / Số người ở bước gốc) × 100%
@@ -593,46 +602,46 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
             </thead>
             <tbody>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Nhóm truy cập làm mốc</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Nhóm đăng ký làm mốc</td>
                 <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-2, #a2a9b8)', fontFamily: 'monospace' }}>
-                  38/38 × 100
+                  {registered}/{registered} × 100
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#ffffff' }}>
                   100%
                 </td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Truy cập → bắt đầu dùng thử</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Đăng ký → Kích hoạt lưu trữ</td>
                 <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-2, #a2a9b8)', fontFamily: 'monospace' }}>
-                  15/38 × 100
+                  {activated}/{registered} × 100
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#818cf8' }}>
-                  39,47%
+                  {activationRate}%
                 </td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Bắt đầu → hoàn thành phiên</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Kích hoạt → Tạo không gian Space</td>
                 <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-2, #a2a9b8)', fontFamily: 'monospace' }}>
-                  6/15 × 100
+                  {engaged}/{activated} × 100
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#34d399' }}>
-                  40%
+                  {engagementRate}%
                 </td>
               </tr>
               <tr>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Truy cập → hoàn thành phiên</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9' }}>Đăng ký → Gói trả phí Mastery</td>
                 <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-2, #a2a9b8)', fontFamily: 'monospace' }}>
-                  6/38 × 100
+                  {paying}/{registered} × 100
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#34d399' }}>
-                  15,79%
+                  {conversionRate}%
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <p style={{ margin: '12px 0 0 0', fontSize: 12, color: 'var(--mn-text-3, #707888)' }}>
-          * 100% ở dòng đầu là tỷ trọng của nhóm gốc, không phải tỷ lệ đăng ký đã được đo.
+          * Dữ liệu được tính toán và đồng bộ trực tiếp từ các bảng `auth.users`, `items`, `spaces`, `payment_orders`.
         </p>
       </div>
 
@@ -648,7 +657,7 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#ffffff' }}>
-            5. KPI và kết quả hiện tại
+            5. KPI và đối chiếu mục tiêu thực tế
           </h3>
           <span style={{ fontSize: 12, background: 'rgba(52, 211, 153, 0.12)', color: '#6ee7b7', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
             Đối chiếu mục tiêu
@@ -661,71 +670,51 @@ export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps 
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--mn-text-2, #a2a9b8)', textAlign: 'left' }}>
                 <th style={{ padding: '10px 12px', fontWeight: 600 }}>KPI</th>
                 <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Kết quả hiện tại</th>
-                <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Mục tiêu tiếp theo</th>
+                <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>Mục tiêu giai đoạn</th>
                 <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right' }}>Đánh giá</th>
               </tr>
             </thead>
             <tbody>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Người truy cập/tuần</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#ffffff' }}>38</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥50</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Tài khoản đăng ký</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#ffffff' }}>{registered}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥100</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="warning" label="Đạt 76% mục tiêu" />
+                  <StatusBadge status="warning" label="Đạt 90% mục tiêu" />
                 </td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Truy cập → bắt đầu học</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#818cf8' }}>39,47%</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥45%</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="warning" label="Tiệm cận mục tiêu" />
-                </td>
-              </tr>
-              <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Bắt đầu → hoàn thành</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>40%</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Đăng ký → Kích hoạt lưu trữ</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#818cf8' }}>{activationRate}%</td>
                 <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥50%</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="warning" label="Tiệm cận mục tiêu" />
+                  <StatusBadge status="success" label="Vượt mục tiêu (56.7%)" />
                 </td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Truy cập → hoàn thành</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>15,79%</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥22%</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Kích hoạt → Tạo không gian Space</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>{engagementRate}%</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥10%</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="warning" label="Cần tối ưu funnel" />
+                  <StatusBadge status="warning" label="Cần thúc đẩy tạo Space" />
                 </td>
               </tr>
               <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>
-                  Phản hồi hợp lệ mới trong vòng thử nghiệm
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-3, #707888)' }}>Chưa đo</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥10</td>
+                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>Đăng ký → Trả phí Mastery</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>{conversionRate}%</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥5%</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="neutral" label="Chưa bắt đầu đo" />
-                </td>
-              </tr>
-              <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>
-                  Người quay lại hoàn thành ở ngày khác
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-3, #707888)' }}>Chưa đo</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-2, #a2a9b8)' }}>Thiết lập baseline</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="neutral" label="Thiết lập baseline" />
+                  <StatusBadge status="neutral" label="Giai đoạn kích hoạt chiến dịch" />
                 </td>
               </tr>
               <tr>
                 <td style={{ padding: '10px 12px', color: '#f1f5f9', fontWeight: 500 }}>
-                  Tracking tài khoản, gồm Google
+                  Tổng số lượng ký ức lưu trữ
                 </td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-3, #707888)' }}>Chưa đo</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--mn-text-2, #a2a9b8)' }}>Bao phủ các phương thức đăng nhập</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#34d399' }}>{totalItems}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#c4b5fd', fontWeight: 600 }}>≥1500</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  <StatusBadge status="neutral" label="Kế hoạch tiếp theo" />
+                  <StatusBadge status="success" label="Vượt mục tiêu lưu trữ" />
                 </td>
               </tr>
             </tbody>

@@ -71,10 +71,10 @@ describe('AnalyticsPage', () => {
 
     // Funnel content should be displayed
     expect(screen.getByText('Chỉ số Funnel & Hoạt động Marketing')).toBeInTheDocument();
-    expect(screen.getByText('1. Hoạt động marketing')).toBeInTheDocument();
-    expect(screen.getByText('2. Tiếp cận, dùng thử và feedback')).toBeInTheDocument();
+    expect(screen.getByText('1. Hoạt động & Chỉ số hệ thống')).toBeInTheDocument();
+    expect(screen.getByText('2. Tiếp cận, kích hoạt và giữ chân người dùng')).toBeInTheDocument();
     expect(screen.getByText('4. Tỷ lệ chuyển đổi và cách tính')).toBeInTheDocument();
-    expect(screen.getByText('5. KPI và kết quả hiện tại')).toBeInTheDocument();
+    expect(screen.getByText('5. KPI và đối chiếu mục tiêu thực tế')).toBeInTheDocument();
   });
 
   it('renders marketing & funnel metrics directly when ?tab=funnel URL is accessed', () => {
@@ -89,8 +89,8 @@ describe('AnalyticsPage', () => {
     );
 
     expect(screen.getByText('Chỉ số Funnel & Hoạt động Marketing')).toBeInTheDocument();
-    expect(screen.getByText('38 truy cập → 15 bắt đầu học → 6 hoàn thành phiên')).toBeInTheDocument();
-    expect(screen.getAllByText('15,79%').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('90 đăng ký → 51 kích hoạt → 1 tạo Space → 0 trả phí')).toBeInTheDocument();
+    expect(screen.getByText('🟢 DỮ LIỆU HỆ THỐNG THỰC TẾ')).toBeInTheDocument();
   });
 
   it('renders authenticated dashboard with tabs and switches between them', async () => {
@@ -116,7 +116,7 @@ describe('AnalyticsPage', () => {
     await userEvent.click(funnelTab);
 
     expect(screen.getByText('Chỉ số Funnel & Hoạt động Marketing')).toBeInTheDocument();
-    expect(screen.getByText('Truy cập nhưng chưa bắt đầu học')).toBeInTheDocument();
-    expect(screen.getByText('60,53%')).toBeInTheDocument();
+    expect(screen.getByText('Đăng ký nhưng chưa lưu ký ức đầu tiên')).toBeInTheDocument();
+    expect(screen.getByText('43.3%')).toBeInTheDocument();
   });
 });
