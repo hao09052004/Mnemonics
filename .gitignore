@@ -25,8 +25,7 @@ apps/*/coverage/
 packages/*/coverage/
 coverage/
 
-# Knowledge regression artefacts
-quality-gates/.knowledge-regression/golden.jsonl
+# Knowledge regression artefacts (output reports are in .coverage/)
 
 # Vendor is intentionally read-only but should still be committed
 # so the offline CI can hash-check. Do NOT add to .gitignore.

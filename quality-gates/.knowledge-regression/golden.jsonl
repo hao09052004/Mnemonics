@@ -1,0 +1,100 @@
+{"id":"q-vi-exact-1","category":"vietnamese_exact","query":"Kiến trúc Microservices với Node.js","tenant":"tenant-a","expected":["doc-vi-tech-1","doc-vi-tech-11"]}
+{"id":"q-vi-exact-2","category":"vietnamese_exact","query":"Tối ưu hóa truy vấn PostgreSQL và pgvector","tenant":"tenant-a","expected":["doc-vi-tech-2","doc-vi-tech-12"]}
+{"id":"q-vi-exact-3","category":"vietnamese_exact","query":"Bảo mật ứng dụng Web chống tấn công SSRF","tenant":"tenant-a","expected":["doc-vi-tech-3","doc-vi-tech-13"]}
+{"id":"q-vi-exact-4","category":"vietnamese_exact","query":"Tích hợp cổng thanh toán PayOS","tenant":"tenant-a","expected":["doc-vi-tech-4","doc-vi-tech-14"]}
+{"id":"q-vi-exact-5","category":"vietnamese_exact","query":"Xây dựng hệ thống Second Brain quản lý tri thức","tenant":"tenant-a","expected":["doc-vi-tech-5","doc-vi-tech-15"]}
+{"id":"q-vi-exact-6","category":"vietnamese_exact","query":"Hướng dẫn cài đặt và cấu hình Supabase RLS","tenant":"tenant-a","expected":["doc-vi-tech-6","doc-vi-tech-16"]}
+{"id":"q-vi-exact-7","category":"vietnamese_exact","query":"Generic Types và Utility trong TypeScript","tenant":"tenant-a","expected":["doc-vi-tech-7","doc-vi-tech-17"]}
+{"id":"q-vi-exact-8","category":"vietnamese_exact","query":"PostgreSQL SKIP LOCKED hàng đợi công việc","tenant":"tenant-a","expected":["doc-vi-tech-8","doc-vi-tech-18"]}
+{"id":"q-vi-exact-9","category":"vietnamese_exact","query":"Reciprocal Rank Fusion kết hợp Lexical và Semantic","tenant":"tenant-a","expected":["doc-vi-tech-9","doc-vi-tech-19"]}
+{"id":"q-vi-exact-10","category":"vietnamese_exact","query":"Tối ưu hóa hiệu năng React useMemo","tenant":"tenant-a","expected":["doc-vi-tech-10","doc-vi-tech-20"]}
+{"id":"q-vi-long-1","category":"vietnamese_natural_long","query":"Làm thế nào để xây dựng hệ thống kiến trúc microservices chịu tải cao với nodejs và rabbitmq?","tenant":"tenant-a","expected":["doc-vi-tech-1","doc-vi-tech-11","doc-vi-tech-21"]}
+{"id":"q-vi-long-2","category":"vietnamese_natural_long","query":"Cách tối ưu hóa tốc độ tìm kiếm vector trong postgresql bằng chỉ mục hnsw","tenant":"tenant-a","expected":["doc-vi-tech-2","doc-vi-tech-12","doc-vi-tech-22"]}
+{"id":"q-vi-long-3","category":"vietnamese_natural_long","query":"Các biện pháp phòng chống tấn công ssrf chặn ip private và cloud metadata","tenant":"tenant-a","expected":["doc-vi-tech-3","doc-vi-tech-13","doc-vi-tech-23"]}
+{"id":"q-vi-long-4","category":"vietnamese_natural_long","query":"Xử lý webhook thanh toán payos an toàn tránh thanh toán trùng lặp bằng idempotency","tenant":"tenant-a","expected":["doc-vi-tech-4","doc-vi-tech-14","doc-vi-tech-24"]}
+{"id":"q-vi-long-5","category":"vietnamese_natural_long","query":"Phương pháp tổ chức ghi chú cá nhân theo zettelkasten và para second brain","tenant":"tenant-a","expected":["doc-vi-tech-5","doc-vi-tech-15","doc-vi-tech-25"]}
+{"id":"q-vi-long-6","category":"vietnamese_natural_long","query":"Thiết lập phân quyền bảo vệ dữ liệu người dùng đa người thuê với supabase row level security","tenant":"tenant-a","expected":["doc-vi-tech-6","doc-vi-tech-16"]}
+{"id":"q-vi-long-7","category":"vietnamese_natural_long","query":"Kỹ thuật lập trình typescript nâng cao tránh lỗi runtime khi phát triển ứng dụng","tenant":"tenant-a","expected":["doc-vi-tech-7","doc-vi-tech-17"]}
+{"id":"q-vi-long-8","category":"vietnamese_natural_long","query":"Triển khai hàng đợi xử lý ngầm đa tiến trình an toàn bằng postgresql skip locked","tenant":"tenant-a","expected":["doc-vi-tech-8","doc-vi-tech-18"]}
+{"id":"q-vi-long-9","category":"vietnamese_natural_long","query":"Thuật toán dung hợp xếp hạng nghịch đảo rrf trong hệ thống rag tìm kiếm lai","tenant":"tenant-a","expected":["doc-vi-tech-9","doc-vi-tech-19"]}
+{"id":"q-vi-long-10","category":"vietnamese_natural_long","query":"Hướng dẫn giảm số lần render lại không cần thiết trong ứng dụng react","tenant":"tenant-a","expected":["doc-vi-tech-10","doc-vi-tech-20"]}
+{"id":"q-en-exact-1","category":"english_exact","query":"Raft Consensus Algorithm","tenant":"tenant-a","expected":["doc-en-tech-1","doc-en-tech-11"]}
+{"id":"q-en-exact-2","category":"english_exact","query":"Zero-Trust Architecture mTLS","tenant":"tenant-a","expected":["doc-en-tech-2","doc-en-tech-12"]}
+{"id":"q-en-exact-3","category":"english_exact","query":"Vector Search Cosine Similarity","tenant":"tenant-a","expected":["doc-en-tech-3","doc-en-tech-13"]}
+{"id":"q-en-exact-4","category":"english_exact","query":"Kubernetes Pod Autoscaling","tenant":"tenant-a","expected":["doc-en-tech-4","doc-en-tech-14"]}
+{"id":"q-en-exact-5","category":"english_exact","query":"SSRF Attack Mitigation DNS Validation","tenant":"tenant-a","expected":["doc-en-tech-5","doc-en-tech-15"]}
+{"id":"q-en-exact-6","category":"english_exact","query":"Token Bucket Rate Limiting Algorithms","tenant":"tenant-a","expected":["doc-en-tech-6","doc-en-tech-16"]}
+{"id":"q-en-exact-7","category":"english_exact","query":"Idempotent RESTful APIs Idempotency-Key","tenant":"tenant-a","expected":["doc-en-tech-7","doc-en-tech-17"]}
+{"id":"q-en-exact-8","category":"english_exact","query":"Database Indexing Strategies B-Tree HNSW","tenant":"tenant-a","expected":["doc-en-tech-8","doc-en-tech-18"]}
+{"id":"q-en-exact-9","category":"english_exact","query":"Observability SLOs Tracking p50 p95 p99","tenant":"tenant-a","expected":["doc-en-tech-9","doc-en-tech-19"]}
+{"id":"q-en-exact-10","category":"english_exact","query":"Cross-Tenant Data Isolation Security Auditing","tenant":"tenant-a","expected":["doc-en-tech-10","doc-en-tech-20"]}
+{"id":"q-en-long-1","category":"english_natural_long","query":"How does the Raft distributed consensus protocol handle leader election during network partitions?","tenant":"tenant-a","expected":["doc-en-tech-1","doc-en-tech-11"]}
+{"id":"q-en-long-2","category":"english_natural_long","query":"Implementing zero-trust security with mutual tls verification between microservices","tenant":"tenant-a","expected":["doc-en-tech-2","doc-en-tech-12"]}
+{"id":"q-en-long-3","category":"english_natural_long","query":"Why is inner product mathematically equivalent to cosine distance for normalized vector embeddings?","tenant":"tenant-a","expected":["doc-en-tech-3","doc-en-tech-13"]}
+{"id":"q-en-long-4","category":"english_natural_long","query":"Best practices for graceful termination and connection draining in kubernetes pods","tenant":"tenant-a","expected":["doc-en-tech-4","doc-en-tech-14"]}
+{"id":"q-en-long-5","category":"english_natural_long","query":"Mitigating server side request forgery by validating resolved ip addresses against rfc1918","tenant":"tenant-a","expected":["doc-en-tech-5","doc-en-tech-15"]}
+{"id":"q-en-long-6","category":"english_natural_long","query":"Comparing sliding window counter and token bucket rate limiters for multi instance deployment","tenant":"tenant-a","expected":["doc-en-tech-6","doc-en-tech-16"]}
+{"id":"q-en-long-7","category":"english_natural_long","query":"How to ensure payments and mutating operations are idempotent using client supplied idempotency keys","tenant":"tenant-a","expected":["doc-en-tech-7","doc-en-tech-17"]}
+{"id":"q-en-long-8","category":"english_natural_long","query":"When to choose hnsw vector indexes over traditional gin inverted index for hybrid search","tenant":"tenant-a","expected":["doc-en-tech-8","doc-en-tech-18"]}
+{"id":"q-en-long-9","category":"english_natural_long","query":"Setting realistic service level objectives by monitoring 99th percentile request latencies","tenant":"tenant-a","expected":["doc-en-tech-9","doc-en-tech-19"]}
+{"id":"q-en-long-10","category":"english_natural_long","query":"Verifying multi tenant data isolation to guarantee cross user queries return zero records","tenant":"tenant-a","expected":["doc-en-tech-10","doc-en-tech-20"]}
+{"id":"q-para-1","category":"paraphrases","query":"organizing thoughts into a digital second mind","tenant":"tenant-a","expected":["doc-vi-tech-5","doc-vi-tech-15"]}
+{"id":"q-para-2","category":"paraphrases","query":"distributed state machine replication with vote quorum","tenant":"tenant-a","expected":["doc-en-tech-1","doc-en-tech-11"]}
+{"id":"q-para-3","category":"paraphrases","query":"preventing internal network exploration via external image urls","tenant":"tenant-a","expected":["doc-vi-tech-3","doc-en-tech-5"]}
+{"id":"q-para-4","category":"paraphrases","query":"avoiding duplicate customer billing on connection dropout","tenant":"tenant-a","expected":["doc-vi-tech-4","doc-en-tech-7"]}
+{"id":"q-para-5","category":"paraphrases","query":"combining keyword score and vector similarity score","tenant":"tenant-a","expected":["doc-vi-tech-9","doc-vi-tech-19"]}
+{"id":"q-para-6","category":"paraphrases","query":"speeding up nearest neighbor embedding lookup in sql","tenant":"tenant-a","expected":["doc-vi-tech-2","doc-en-tech-3"]}
+{"id":"q-para-7","category":"paraphrases","query":"ensuring tenant data never leaks to unauthorized callers","tenant":"tenant-a","expected":["doc-vi-tech-6","doc-en-tech-10"]}
+{"id":"q-para-8","category":"paraphrases","query":"throttling abusive client traffic across cluster servers","tenant":"tenant-a","expected":["doc-en-tech-6","doc-en-tech-16"]}
+{"id":"q-para-9","category":"paraphrases","query":"detecting tail latency spikes in critical production routes","tenant":"tenant-a","expected":["doc-en-tech-9","doc-en-tech-19"]}
+{"id":"q-para-10","category":"paraphrases","query":"safe async background task distribution without duplicates","tenant":"tenant-a","expected":["doc-vi-tech-8","doc-vi-tech-18"]}
+{"id":"q-syn-1","category":"synonyms","query":"cơ chế đồng thuận phân tán raft paxos","tenant":"tenant-a","expected":["doc-en-tech-1","doc-en-tech-11"]}
+{"id":"q-syn-2","category":"synonyms","query":"tinh chỉnh hiệu năng truy vấn cơ sở dữ liệu quan hệ","tenant":"tenant-a","expected":["doc-vi-tech-2","doc-vi-tech-12"]}
+{"id":"q-syn-3","category":"synonyms","query":"bảo vệ cổng thông tin khỏi lỗ hổng ssrf proxy","tenant":"tenant-a","expected":["doc-vi-tech-3","doc-en-tech-5"]}
+{"id":"q-syn-4","category":"synonyms","query":"xử lý thanh toán trực tuyến payos vn","tenant":"tenant-a","expected":["doc-vi-tech-4","doc-vi-tech-14"]}
+{"id":"q-syn-5","category":"synonyms","query":"quản trị kho lưu trữ tri thức bộ não thứ hai","tenant":"tenant-a","expected":["doc-vi-tech-5","doc-vi-tech-15"]}
+{"id":"q-syn-6","category":"synonyms","query":"kiểm soát truy cập phân quyền cấp hàng rls","tenant":"tenant-a","expected":["doc-vi-tech-6","doc-en-tech-10"]}
+{"id":"q-syn-7","category":"synonyms","query":"kiểu dữ liệu tĩnh typescript lập trình web","tenant":"tenant-a","expected":["doc-vi-tech-7","doc-vi-tech-17"]}
+{"id":"q-syn-8","category":"synonyms","query":"hàng đợi tác vụ ngầm tránh xung đột khóa hàng","tenant":"tenant-a","expected":["doc-vi-tech-8","doc-vi-tech-18"]}
+{"id":"q-syn-9","category":"synonyms","query":"hợp nhất thứ hạng tìm kiếm từ khóa và ngữ nghĩa rrf","tenant":"tenant-a","expected":["doc-vi-tech-9","doc-vi-tech-19"]}
+{"id":"q-syn-10","category":"synonyms","query":"tối ưu thời gian phản hồi giao diện người dùng frontend","tenant":"tenant-a","expected":["doc-vi-tech-10","doc-vi-tech-20"]}
+{"id":"q-typo-1","category":"typographical_errors","query":"kien truc microserives nodejs rabbitmq","tenant":"tenant-a","expected":["doc-vi-tech-1","doc-vi-tech-11"]}
+{"id":"q-typo-2","category":"typographical_errors","query":"toi uu hoa truy van postgre sql pgvectr","tenant":"tenant-a","expected":["doc-vi-tech-2","doc-vi-tech-12"]}
+{"id":"q-typo-3","category":"typographical_errors","query":"bao mat chong tan cong ssfr loopbck","tenant":"tenant-a","expected":["doc-vi-tech-3","doc-en-tech-5"]}
+{"id":"q-typo-4","category":"typographical_errors","query":"tich hop cong thanhtoan payos saas","tenant":"tenant-a","expected":["doc-vi-tech-4","doc-vi-tech-14"]}
+{"id":"q-typo-5","category":"typographical_errors","query":"second brin quan ly tri thuc ca nhan","tenant":"tenant-a","expected":["doc-vi-tech-5","doc-vi-tech-15"]}
+{"id":"q-typo-6","category":"typographical_errors","query":"supabse row level securty rls policy","tenant":"tenant-a","expected":["doc-vi-tech-6","doc-vi-tech-16"]}
+{"id":"q-typo-7","category":"typographical_errors","query":"typesscript generic types condtional","tenant":"tenant-a","expected":["doc-vi-tech-7","doc-vi-tech-17"]}
+{"id":"q-typo-8","category":"typographical_errors","query":"postgreqsl for updat skip locked job queue","tenant":"tenant-a","expected":["doc-vi-tech-8","doc-vi-tech-18"]}
+{"id":"q-typo-9","category":"typographical_errors","query":"recipocal rank fusin hybrid serch","tenant":"tenant-a","expected":["doc-vi-tech-9","doc-vi-tech-19"]}
+{"id":"q-typo-10","category":"typographical_errors","query":"reack useMemo re-render fid latency","tenant":"tenant-a","expected":["doc-vi-tech-10","doc-vi-tech-20"]}
+{"id":"q-ocr-1","category":"ocr_image","query":"Hóa đơn VAT tổng tiền thanh toán 45.000.000","tenant":"tenant-a","expected":["doc-vi-biz-1","doc-vi-biz-6"]}
+{"id":"q-ocr-2","category":"ocr_image","query":"Hợp đồng lao động nghĩa vụ bảo mật thông tin","tenant":"tenant-a","expected":["doc-vi-biz-2","doc-vi-biz-7"]}
+{"id":"q-ocr-3","category":"ocr_image","query":"Biên bản nghiệm thu bàn giao phần mềm giai đoạn 2","tenant":"tenant-a","expected":["doc-vi-biz-3","doc-vi-biz-8"]}
+{"id":"q-ocr-4","category":"ocr_image","query":"VENDOR TECH SUPPLIES GLOBAL RECEIPT TOTAL","tenant":"tenant-a","expected":["doc-ocr-1","doc-ocr-2"]}
+{"id":"q-ocr-5","category":"ocr_image","query":"TRANSACTION CODE TX-1005 STATUS APPROVED","tenant":"tenant-a","expected":["doc-ocr-6"]}
+{"id":"q-ocr-6","category":"ocr_image","query":"Hóa đơn điện tử mẫu số 01GTKT0/001","tenant":"tenant-a","expected":["doc-vi-biz-1","doc-vi-biz-6"]}
+{"id":"q-ocr-7","category":"ocr_image","query":"Điều khoản bảo mật NDA sở hữu trí tuệ","tenant":"tenant-a","expected":["doc-vi-biz-2","doc-vi-biz-7"]}
+{"id":"q-ocr-8","category":"ocr_image","query":"Nghiệm thu triển khai tính năng tìm kiếm lai","tenant":"tenant-a","expected":["doc-vi-biz-3","doc-vi-biz-8"]}
+{"id":"q-ocr-9","category":"ocr_image","query":"Scanned Receipt Whiteboard mobile capture","tenant":"tenant-a","expected":["doc-ocr-1","doc-ocr-2","doc-ocr-3"]}
+{"id":"q-ocr-10","category":"ocr_image","query":"Phần mềm Mnemonics bảng điều khiển quản trị","tenant":"tenant-a","expected":["doc-vi-biz-3","doc-vi-biz-8"]}
+{"id":"q-pdf-1","category":"pdf_chunks","query":"Annual Filing Report Section 1 zero-trust","tenant":"tenant-a","expected":["doc-pdf-chunk-1"]}
+{"id":"q-pdf-2","category":"pdf_chunks","query":"Clause B 99.9% service uptime enterprise accounts","tenant":"tenant-a","expected":["doc-pdf-chunk-2","doc-pdf-chunk-3"]}
+{"id":"q-pdf-3","category":"pdf_chunks","query":"Article 5.4 strict network boundaries","tenant":"tenant-a","expected":["doc-pdf-chunk-5"]}
+{"id":"q-pdf-4","category":"pdf_chunks","query":"Article 8.4 Clause B enterprise commitments","tenant":"tenant-a","expected":["doc-pdf-chunk-8"]}
+{"id":"q-pdf-5","category":"pdf_chunks","query":"Comprehensive Annual Filing Report Section 10","tenant":"tenant-a","expected":["doc-pdf-chunk-10"]}
+{"id":"q-pdf-6","category":"pdf_chunks","query":"Article 12.4 Clause B uptime SLA","tenant":"tenant-a","expected":["doc-pdf-chunk-12"]}
+{"id":"q-pdf-7","category":"pdf_chunks","query":"Annual Filing Report Section 15 compliance","tenant":"tenant-a","expected":["doc-pdf-chunk-15"]}
+{"id":"q-pdf-8","category":"pdf_chunks","query":"Article 18.4 Clause B network security","tenant":"tenant-a","expected":["doc-pdf-chunk-18"]}
+{"id":"q-pdf-9","category":"pdf_chunks","query":"Comprehensive Annual Filing Report Section 20","tenant":"tenant-a","expected":["doc-pdf-chunk-20"]}
+{"id":"q-pdf-10","category":"pdf_chunks","query":"zero-trust network boundaries 99.9% service uptime","tenant":"tenant-a","expected":["doc-pdf-chunk-1","doc-pdf-chunk-2"]}
+{"id":"q-iso-1","category":"cross_tenant_isolation","query":"Confidential Internal Strategy for Tenant B","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-2","category":"cross_tenant_isolation","query":"Secret project code ZEPHYR-1","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-3","category":"cross_tenant_isolation","query":"Strictly confidential notes belonging exclusively to tenant-b","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-4","category":"cross_tenant_isolation","query":"ZEPHYR-5 secret roadmap","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-5","category":"cross_tenant_isolation","query":"Tenant B private organizational files","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-6","category":"cross_tenant_isolation","query":"project code ZEPHYR-10","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-7","category":"cross_tenant_isolation","query":"tenant-b confidential strategy 15","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-8","category":"cross_tenant_isolation","query":"ZEPHYR-18 exclusive document","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-9","category":"cross_tenant_isolation","query":"secret project zephyr tenant-b","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
+{"id":"q-iso-10","category":"cross_tenant_isolation","query":"tenant-b private internal memos","tenant":"tenant-a","tenant_other":"tenant-b","expected":[]}
