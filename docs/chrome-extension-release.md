@@ -100,7 +100,7 @@ pnpm extension:package:test
 2. Pay the one-time $5 developer fee (if you haven't already).
 3. Click **New Item** and upload `dist/mnemonics-chrome-extension.zip`.
 4. Fill in the listing form. Listing assets you should have ready:
-   - **Name**: "Mnemonics — Quick Capture"
+   - **Name**: "Mnemonics — AI Smart Bookmark"
    - **Summary** (≤ 132 chars): one-sentence value prop.
    - **Description** (≤ 16 000 chars): full feature list, screenshots,
      privacy summary, and a link to the privacy policy.

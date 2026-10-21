@@ -11,7 +11,7 @@ describe('Mnemonics new extension structure & dashboard', () => {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.name).toBe('Mnemonics — Quick Capture');
+    expect(manifest.name).toBe('Mnemonics — AI Smart Bookmark');
     expect(manifest.action.default_popup).toBe('mnemonics-extension.html');
     expect(manifest.background.service_worker).toBe('background.js');
     expect(existsSync(join(EXTENSION_ROOT, manifest.action.default_popup))).toBe(true);

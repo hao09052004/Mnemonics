@@ -97,7 +97,7 @@ unzip -p dist/mnemonics-edge-extension.zip manifest.json | grep connect-src
 3. Upload `dist/mnemonics-edge-extension.zip`.
 4. Fill in the listing form. The Edge Add-ons fields are very
    similar to Chrome's:
-   - **Name**: "Mnemonics — Quick Capture"
+   - **Name**: "Mnemonics — AI Smart Bookmark"
    - **Short description** (≤ 132 chars)
    - **Long description** (full feature list + privacy link)
    - **Category**: Productivity
@@ -114,7 +114,7 @@ unzip -p dist/mnemonics-edge-extension.zip manifest.json | grep connect-src
 
 The Edge Add-ons listing should mirror the Chrome Web Store listing:
 
-- **Name**: "Mnemonics — Quick Capture" (must match the
+- **Name**: "Mnemonics — AI Smart Bookmark" (must match the
   `manifest.json` `name` field)
 - **Description** language: English (or whichever locale you
   release first)
