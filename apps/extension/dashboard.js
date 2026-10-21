@@ -16,6 +16,13 @@ if (typeof mnemonicsSavedThisMonth !== 'function') {
   };
 }
 
+var MNEMONICS_API = 'https://mnemonics-api.onrender.com';
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get('mnemonics_api_url', function(r) {
+    if (r && r.mnemonics_api_url) MNEMONICS_API = r.mnemonics_api_url;
+  });
+}
+
 // ===== DATA =====
 // Người dùng mới bắt đầu với kho trống
 const SAMPLE_ITEMS = [];
@@ -204,13 +211,15 @@ function loadAuthState(cb) {
   getStorageValue('mnemonics_session', null, function(session) {
     if (session && session.user && session.user.email) {
       currentUser = session.user;
+      updateAuthUI();
+      if (cb) cb();
     } else {
       getStorageValue('mnemonics_current_user', null, function(user) {
         currentUser = user && user.email ? user : null;
+        updateAuthUI();
+        if (cb) cb();
       });
     }
-    updateAuthUI();
-    if (cb) cb();
   });
 }
 
@@ -1126,12 +1135,6 @@ function refreshDashboardItems() {
 }
 
 // ===== SEMANTIC SEARCH (backend) =====
-var MNEMONICS_API = 'https://mnemonics-api.onrender.com';
-if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-  chrome.storage.local.get('mnemonics_api_url', function(r) {
-    if (r && r.mnemonics_api_url) MNEMONICS_API = r.mnemonics_api_url;
-  });
-}
 
 let semanticState = { query: '', scores: null };   // scores: { itemId: điểm liên quan }
 let semanticClientKey = null;
