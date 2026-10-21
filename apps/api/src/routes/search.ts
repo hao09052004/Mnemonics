@@ -190,13 +190,13 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
       // explicit values win.
       const parsedQuery = q ? parseQuery(q) : null;
       const merged: SearchRequest = parsedQuery
-        ? applyQueryParser({ q, filters, limit, offset }, parsedQuery)
-        : { q, filters, limit, offset };
+        ? applyQueryParser({ q, filters, limit, offset, mode }, parsedQuery)
+        : { q, filters, limit, offset, mode };
       const result = await runSearch({ pool, embeddings }, req.userId!, merged);
       // Emit a single analytics event per search call. We record
       // the mode + the filter shape but never the query text
       // (privacy contract — see migration 031).
-      const searchMode = (merged.filters && (merged.filters as { mode?: string }).mode) || 'lexical';
+      const searchMode = mode ?? 'hybrid';
       if (req.userId) {
         const { emitAnalyticsEvent } = await import('../analytics.js');
         emitAnalyticsEvent(pool, {
@@ -204,7 +204,8 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
           eventName: searchMode === 'semantic' ? 'semantic_search_performed' : 'search_performed',
           metadata: {
             hasFilters: Boolean(merged.filters),
-            hitCount: result.total
+            hitCount: result.total,
+            mode: searchMode
           }
         });
       }
@@ -243,7 +244,8 @@ export function createSearchRouter(deps: SearchRouterDeps): Application {
         res.status(400).json({ error: { code: 'MISSING_QUERY', message: 'q parameter is required' } });
         return;
       }
-      (req.body as Record<string, unknown>) = { q, limit: 20, offset: 0 };
+      const mode = typeof req.query.mode === 'string' ? req.query.mode : undefined;
+      (req.body as Record<string, unknown>) = { q, limit: 20, offset: 0, ...(mode ? { mode } : {}) };
       await handleSearch(req, res, next);
     } catch (error) {
       next(error);

@@ -50,6 +50,25 @@ export type AuthedRequest = Request & {
   userPermissions?: ReadonlySet<string>;
 };
 
+export interface UserAuthContext {
+  role: UserRole;
+  permissions: ReadonlySet<string>;
+  isSuspended: boolean;
+}
+
+/** Check whether a user profile is suspended by admin. */
+export async function isUserSuspended(pool: Pool, userId: string): Promise<boolean> {
+  try {
+    const r = await pool.query<{ is_suspended: boolean | null }>(
+      'SELECT is_suspended FROM profiles WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+    return Boolean(r.rows[0]?.is_suspended);
+  } catch {
+    return false;
+  }
+}
+
 /** Read the canonical role from `profiles`. Falls back to `'user'`. */
 export async function getUserRole(pool: Pool, userId: string): Promise<UserRole> {
   const r = await pool.query<{ role: UserRole }>(
@@ -72,19 +91,45 @@ export async function getPermissionsForRole(
   return new Set(r.rows.map((x) => x.permission));
 }
 
-/** Return the role and permission set in one DB round-trip (preferred). */
+/** Return the role, permission set, and suspension status in one or two DB queries. */
 export async function resolveAuthContext(
   pool: Pool,
   userId: string
-): Promise<{ role: UserRole; permissions: ReadonlySet<string> }> {
-  const role = await getUserRole(pool, userId);
+): Promise<UserAuthContext> {
+  const roleRes = await pool.query<{ role: UserRole }>(
+    'SELECT role FROM profiles WHERE id = $1 LIMIT 1',
+    [userId]
+  );
+  const role: UserRole = roleRes.rows[0]?.role === 'admin' ? 'admin' : 'user';
+
+  let isSuspended = false;
+  try {
+    const suspRes = await pool.query<{ is_suspended: boolean | null }>(
+      'SELECT is_suspended FROM profiles WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+    isSuspended = Boolean(suspRes.rows[0]?.is_suspended);
+  } catch {
+    // Graceful fallback if is_suspended column is not yet present on profiles table
+    isSuspended = false;
+  }
+
   const permissions = await getPermissionsForRole(pool, role);
-  return { role, permissions };
+  return { role, permissions, isSuspended };
 }
 
 function unauth(response: Response) {
   response.status(401).json({
     error: { code: 'UNAUTHORIZED', message: 'Xác thực không hợp lệ' }
+  });
+}
+
+function suspended(response: Response) {
+  response.status(403).json({
+    error: {
+      code: 'ACCOUNT_SUSPENDED',
+      message: 'Tài khoản đã bị tạm khóa bởi quản trị viên'
+    }
   });
 }
 
@@ -116,6 +161,10 @@ export function requireAuth(opts: { pool: Pool; supabase: SupabaseClient }) {
     req.user = data.user;
     try {
       const ctx = await resolveAuthContext(opts.pool, data.user.id);
+      if (ctx.isSuspended) {
+        suspended(res);
+        return;
+      }
       req.userRole = ctx.role;
       req.userPermissions = ctx.permissions;
     } catch (e) {

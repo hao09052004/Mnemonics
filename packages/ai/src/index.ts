@@ -88,7 +88,8 @@ export {
   UserAiQuota,
   getDefaultUserAiQuota,
   setDefaultUserAiQuota,
-  type UserAiQuotaOptions
+  type UserAiQuotaOptions,
+  type QuotaQueryPool
 } from "./user-quota.js";
 
 export {

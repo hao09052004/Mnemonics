@@ -59,4 +59,40 @@ describe("UserAiQuota", () => {
     q.reset("u1");
     expect(q.count("u1")).toBe(0);
   });
+
+  it("recordAtomic increments via SQL pool and enforces cap atomically", async () => {
+    let storedCount = 0;
+    const pool = {
+      query: async (sql: string, params: any[] = []) => {
+        if (sql.includes("INSERT INTO user_ai_quotas")) {
+          storedCount += 1;
+          return { rows: [{ usage_count: storedCount }], rowCount: 1 };
+        }
+        if (sql.includes("SELECT usage_count FROM user_ai_quotas")) {
+          return { rows: [{ usage_count: storedCount }], rowCount: 1 };
+        }
+        if (sql.includes("DELETE FROM user_ai_quotas")) {
+          storedCount = 0;
+          return { rows: [], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+    };
+
+    const q = new UserAiQuota({ dailyLimit: 2, now: () => now, pool });
+    expect(await q.countAtomic("u1")).toBe(0);
+    expect(await q.wouldAllowAtomic("u1")).toBe(true);
+
+    await q.recordAtomic("u1", "embedding");
+    expect(await q.countAtomic("u1")).toBe(1);
+
+    await q.recordAtomic("u1", "embedding");
+    expect(await q.countAtomic("u1")).toBe(2);
+
+    // 3rd call exceeds cap
+    await expect(q.recordAtomic("u1", "embedding")).rejects.toThrowError(/daily AI quota/);
+
+    await q.resetAtomic("u1");
+    expect(await q.countAtomic("u1")).toBe(0);
+  });
 });

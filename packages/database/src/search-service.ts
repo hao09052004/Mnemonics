@@ -83,11 +83,14 @@ export interface SearchFilters {
   structured?: SearchFiltersStructured;
 }
 
+export type SearchMode = 'lexical' | 'semantic' | 'hybrid';
+
 export interface SearchRequest {
   q?: string;
   filters?: SearchFilters;
   limit?: number;
   offset?: number;
+  mode?: SearchMode;
 }
 
 export interface SearchHit {
@@ -313,52 +316,83 @@ export async function runSearch(
   const limit = Math.min(Math.max(request.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const offset = Math.max(request.offset ?? 0, 0);
 
-  // Embed the query ONCE. Both the item-level semantic leg and
-  // the chunk-level semantic leg need it; previously each leg
-  // embedded independently, doubling the provider cost and
-  // doubling the daily-quota burn. The cache key includes the
-  // model so a future multi-model deployment does not reuse an
-  // incompatible vector.
-  const queryModel = deps.embeddings?.info ? String(deps.embeddings.info().model ?? '') : '';
-  const sharedQueryVector = await resolveQueryEmbedding(
-    deps.embeddings,
-    q,
-    queryModel
-  );
+  const mode: SearchMode = request.mode ?? 'hybrid';
 
-  // Surface the lexical-only degradation so an operator inspecting
-  // logs sees the same warning the embed handler emits. The smoke
-  // test does not assert on this; the message is operational, not
-  // contract.
-  if (q && sharedQueryVector === null && deps.embeddings?.info) {
-    const providerName = deps.embeddings.info().name ?? "unknown";
-    if (providerName === "noop" || providerName.endsWith("+noop")) {
-      console.warn(
-        `[search-service] query embedding provider is '${providerName}'; ` +
-          `search will run lexical-only. Set GEMINI_API_KEY ` +
-          `to restore semantic + chunk recall.`
-      );
+  // Embed the query ONLY when needed (semantic or hybrid mode).
+  // In lexical mode, we skip resolving the query embedding completely
+  // to avoid unnecessary Gemini API calls, quota burn, and latency.
+  let sharedQueryVector: number[] | null = null;
+  if (mode !== 'lexical') {
+    const queryModel = deps.embeddings?.info ? String(deps.embeddings.info().model ?? '') : '';
+    sharedQueryVector = await resolveQueryEmbedding(
+      deps.embeddings,
+      q,
+      queryModel
+    );
+
+    // Surface the lexical-only degradation so an operator inspecting
+    // logs sees the same warning the embed handler emits.
+    if (q && sharedQueryVector === null && deps.embeddings?.info) {
+      const providerName = deps.embeddings.info().name ?? "unknown";
+      if (providerName === "noop" || providerName.endsWith("+noop")) {
+        console.warn(
+          `[search-service] query embedding provider is '${providerName}'; ` +
+            `search will run lexical-only. Set GEMINI_API_KEY ` +
+            `to restore semantic + chunk recall.`
+        );
+      }
     }
   }
 
-  const [lexResults, semResults, chunkResults, structResults] = await Promise.all([
-    runLexicalSearch(deps.pool, userId, q, filters),
-    runSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
-    runChunkSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
-    runStructuredSearch(deps.pool, userId, filters)
-  ]);
+  let lexResults: RankedRow[] = [];
+  let semResults: RankedRow[] = [];
+  let chunkResults: RankedRow[] = [];
+  let structResults: RankedRow[] = [];
 
-  // M3 — four-leg RRF. The structured leg carries its own
-  // weight (`STRUCT_WEIGHT = 0.5`); an empty leg contributes no
-  // candidates but does not change the existing two-leg
-  // ranking for items that did not match a classification.
-  const fused = reciprocalRankFusion(
-    [
-      { rows: lexResults, weight: LEX_WEIGHT },
-      { rows: [...semResults, ...chunkResults], weight: SEM_WEIGHT },
-      { rows: structResults, weight: STRUCT_WEIGHT }
-    ]
-  );
+  if (mode === 'lexical') {
+    [lexResults, structResults] = await Promise.all([
+      runLexicalSearch(deps.pool, userId, q, filters),
+      runStructuredSearch(deps.pool, userId, filters)
+    ]);
+  } else if (mode === 'semantic') {
+    if (sharedQueryVector !== null) {
+      [semResults, chunkResults, structResults] = await Promise.all([
+        runSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
+        runChunkSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
+        runStructuredSearch(deps.pool, userId, filters)
+      ]);
+    } else {
+      // Graceful degradation when query embedding fails in semantic mode
+      [lexResults, structResults] = await Promise.all([
+        runLexicalSearch(deps.pool, userId, q, filters),
+        runStructuredSearch(deps.pool, userId, filters)
+      ]);
+    }
+  } else {
+    // Hybrid mode: combine lexical, semantic, chunk, and structured
+    [lexResults, semResults, chunkResults, structResults] = await Promise.all([
+      runLexicalSearch(deps.pool, userId, q, filters),
+      runSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
+      runChunkSemanticSearch(deps.pool, userId, q, filters, sharedQueryVector),
+      runStructuredSearch(deps.pool, userId, filters)
+    ]);
+  }
+
+  // Four-leg RRF. An empty leg contributes no candidates but does not
+  // distort ranking of other matching legs.
+  const rrfInputs: Array<{ rows: RankedRow[]; weight: number }> = [];
+  if (lexResults.length > 0) {
+    rrfInputs.push({ rows: lexResults, weight: LEX_WEIGHT });
+  }
+  const semanticCandidates = [...semResults, ...chunkResults];
+  if (semanticCandidates.length > 0) {
+    rrfInputs.push({ rows: semanticCandidates, weight: SEM_WEIGHT });
+  }
+  if (structResults.length > 0) {
+    rrfInputs.push({ rows: structResults, weight: STRUCT_WEIGHT });
+  }
+
+  const fused = rrfInputs.length > 0 ? reciprocalRankFusion(rrfInputs) : [];
 
   // M5 re-rank gate. Default OFF. When ON, the RRF-fused hit list
   // is re-ranked with a second-pass cosine against the query

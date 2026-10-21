@@ -430,10 +430,90 @@ describe('JobQueue', () => {
         await queue.processOnce();
       }
       expect(processed.length).toBe(3);
-      // All jobs must end in 'completed' (not stuck 'processing').
       for (const j of pendingJobs) {
         expect(j.status).toBe('completed');
       }
+    });
+
+    it('auto-completes a job if the handler finishes without explicitly calling markCompleted', async () => {
+      let status = 'pending';
+      const dbJob = {
+        id: 'job-auto-complete',
+        type: 'tag',
+        item_id: 'item-auto',
+        user_id: 'user-auto',
+        payload: {},
+        status: 'pending',
+        attempts: 0,
+        max_attempts: 3,
+        error: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        completed_at: null
+      };
+
+      const pool = {
+        query: async (sql: string) => {
+          if (sql.includes("WHERE status = 'pending'")) {
+            return { rows: status === 'pending' ? [dbJob] : [], rowCount: status === 'pending' ? 1 : 0 };
+          }
+          if (sql.includes("SET status = 'processing'")) {
+            status = 'processing';
+            dbJob.status = 'processing';
+            return { rows: [dbJob], rowCount: 1 };
+          }
+          if (sql.includes("SET status = 'completed'")) {
+            status = 'completed';
+            dbJob.status = 'completed';
+            return { rows: [dbJob], rowCount: 1 };
+          }
+          if (sql.includes('SELECT * FROM jobs WHERE id = $1')) {
+            return { rows: [dbJob], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+      } as any;
+
+      const autoQueue = new JobQueue(pool);
+      // Handler does useful work but forgets to call markCompleted
+      autoQueue.registerHandler('tag', async () => {
+        // no markCompleted called
+      });
+
+      await autoQueue.processOnce();
+      expect(status).toBe('completed');
+      expect(dbJob.status).toBe('completed');
+      await autoQueue.stop();
+    });
+
+    it('returns queue observability metrics', async () => {
+      const pool = {
+        query: async (sql: string) => {
+          if (sql.includes('COUNT(*) FILTER')) {
+            return {
+              rows: [{
+                pending: '3',
+                processing: '1',
+                failed: '2',
+                completed: '15',
+                oldest_pending_age: '45'
+              }],
+              rowCount: 1
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        }
+      } as any;
+
+      const metricsQueue = new JobQueue(pool);
+      const metrics = await metricsQueue.getMetrics();
+
+      expect(metrics.pendingCount).toBe(3);
+      expect(metrics.processingCount).toBe(1);
+      expect(metrics.failedCount).toBe(2);
+      expect(metrics.completedCount).toBe(15);
+      expect(metrics.oldestPendingAgeSeconds).toBe(45);
+      await metricsQueue.stop();
     });
   });
 });

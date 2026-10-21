@@ -295,7 +295,26 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         response.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Xác thực không hợp lệ', requestId: request.id } });
         return;
       }
-      response.json({ data: { user: toAuthUserDto(result.data.user) } });
+      const userDto = toAuthUserDto(result.data.user);
+      const permissions = userDto.role === 'admin'
+        ? [
+            'dashboard.user.read',
+            'billing.self.read',
+            'billing.self.checkout',
+            'analytics.self.read',
+            'admin.analytics.read',
+            'admin.users.read',
+            'admin.users.manage',
+            'admin.payments.read',
+            'admin.payments.review',
+            'admin.subscriptions.read',
+            'admin.subscriptions.manage',
+            'admin.system.read',
+            'admin.audit.read',
+            'admin.roles.manage'
+          ]
+        : ['dashboard.user.read', 'billing.self.read', 'billing.self.checkout', 'analytics.self.read'];
+      response.json({ data: { user: { ...userDto, permissions } } });
     } catch (error) { next(error); }
   });
 

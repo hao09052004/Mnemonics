@@ -154,4 +154,32 @@ describe('search route', () => {
     expect(response.body.hits).toHaveLength(1);
   });
 
+  it('skips query embedding when mode is lexical', async () => {
+    const pool = createPoolMock();
+    const embedMock = vi.fn().mockResolvedValue([0.1, 0.2, 0.3]);
+    const mockEmbeddings = {
+      info: () => ({ name: 'mock-gemini', model: 'gemini-embedding-001', dimensions: 3 }),
+      embedOne: embedMock,
+      embed: vi.fn()
+    };
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api/v1', createSearchRouter({
+      pool,
+      supabase: createSupabaseMock(),
+      embeddings: mockEmbeddings as any
+    }));
+
+    const response = await request(app)
+      .post('/api/v1/search')
+      .set('Authorization', 'Bearer test-token')
+      .send({
+        q: 'kubernetes networking',
+        mode: 'lexical'
+      });
+
+    expect(response.status).toBe(200);
+    expect(embedMock).not.toHaveBeenCalled();
+  });
 });

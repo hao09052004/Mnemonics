@@ -40,8 +40,9 @@ export function AdminLayout({ api, children }: AdminLayoutProps) {
     (async () => {
       try {
         const me = await api.me(session.accessToken);
-        const perms: string[] = (me.data as any).user?.permissions ?? [];
-        const isAdmin = perms.some((p) => p.startsWith('admin.'));
+        const user = (me.data as any).user;
+        const perms: string[] = user?.permissions ?? [];
+        const isAdmin = user?.role === 'admin' || perms.some((p: string) => p.startsWith('admin.'));
         if (!isAdmin) {
           setError('Bạn không có quyền truy cập khu vực quản trị.');
           setTimeout(() => navigate('/app'), 1500);

@@ -136,4 +136,33 @@ describe('rateLimit', () => {
       expect(res.status).not.toHaveBeenCalled();
     });
   });
+
+  it('sets Retry-After header when 429 is triggered', () => {
+    const limiter = rateLimit({ windowMs: 60_000, maxRequests: 1 });
+    const req = { ip: '192.168.1.1' } as any;
+    const res = { setHeader: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+    const next = vi.fn();
+
+    limiter(req, res, next);
+    limiter(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(res.setHeader).toHaveBeenCalledWith('Retry-After', expect.any(String));
+  });
+
+  it('isolates authenticated users even behind the same NAT IP', () => {
+    const limiter = rateLimit({ windowMs: 60_000, maxRequests: 1 });
+    const res = { setHeader: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() } as any;
+    const next = vi.fn();
+
+    const user1Req = { ip: '10.0.0.1', user: { id: 'usr-1' } } as any;
+    const user2Req = { ip: '10.0.0.1', user: { id: 'usr-2' } } as any;
+
+    limiter(user1Req, res, next);
+    limiter(user2Req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(2);
+    expect(res.status).not.toHaveBeenCalled();
+  });
 });
+

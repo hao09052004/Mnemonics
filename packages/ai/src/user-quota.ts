@@ -32,15 +32,21 @@ function utcDateKey(d: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+export interface QuotaQueryPool {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount?: number }>;
+}
+
 export interface UserAiQuotaOptions {
   /** Per-user daily soft cap. Default 100. */
   dailyLimit?: number;
   /** Injectable clock for tests. */
   now?: () => Date;
+  /** Optional shared PostgreSQL pool for multi-instance atomic quota */
+  pool?: QuotaQueryPool;
 }
 
 /**
- * Thread-safe (Node single-thread) per-user daily counter.
+ * Thread-safe (Node single-thread) and multi-instance atomic per-user daily counter.
  *
  * `record()` is the entry point used by the provider layer: it
  * increments the counter and throws if the limit is exceeded. The
@@ -50,12 +56,14 @@ export interface UserAiQuotaOptions {
 export class UserAiQuota {
   private readonly dailyLimit: number;
   private readonly now: () => Date;
+  private readonly pool?: QuotaQueryPool;
   /** `${userId}|${utcDate}` → count. */
   private readonly counts = new Map<string, { day: string; n: number }>();
 
   constructor(opts: UserAiQuotaOptions = {}) {
     this.dailyLimit = Math.max(1, opts.dailyLimit ?? 100);
     this.now = opts.now ?? ((): Date => new Date());
+    this.pool = opts.pool;
   }
 
   /**
@@ -113,11 +121,86 @@ export class UserAiQuota {
   }
 
   /**
+   * Multi-instance safe atomic quota check & increment using PostgreSQL.
+   * Runs an atomic INSERT ... ON CONFLICT DO UPDATE returning usage_count.
+   * Throws non-retryable ProviderError if usage_count > dailyLimit.
+   */
+  async recordAtomic(userId: string, task: string): Promise<void> {
+    if (!this.pool) {
+      this.record(userId, task);
+      return;
+    }
+    const today = utcDateKey(this.now());
+    try {
+      const res = await this.pool.query(
+        `INSERT INTO user_ai_quotas (user_id, date_key, usage_count, updated_at)
+         VALUES ($1, $2, 1, NOW())
+         ON CONFLICT (user_id, date_key)
+         DO UPDATE SET
+           usage_count = user_ai_quotas.usage_count + 1,
+           updated_at = NOW()
+         RETURNING usage_count`,
+        [userId, today]
+      );
+      const count = Number.parseInt(res.rows[0]?.usage_count ?? '1', 10);
+      if (count > this.dailyLimit) {
+        throw new ProviderError({
+          message: `User ${userId} reached the daily AI quota (${this.dailyLimit}) on task '${task}'. The memory is preserved; the AI enrichment is skipped and the item becomes 'ready' with whatever enrichment already completed.`,
+          code: "RATE_LIMITED",
+          provider: "user-quota",
+          retryable: false
+        });
+      }
+    } catch (err: unknown) {
+      if (err instanceof ProviderError) throw err;
+      // Fall back to in-memory record if table is unavailable
+      this.record(userId, task);
+    }
+  }
+
+  /**
+   * Multi-instance atomic count query.
+   */
+  async countAtomic(userId: string): Promise<number> {
+    if (!this.pool) return this.count(userId);
+    const today = utcDateKey(this.now());
+    try {
+      const res = await this.pool.query(
+        `SELECT usage_count FROM user_ai_quotas WHERE user_id = $1 AND date_key = $2`,
+        [userId, today]
+      );
+      if (!res.rows || res.rows.length === 0) return 0;
+      return Number.parseInt(res.rows[0].usage_count ?? '0', 10);
+    } catch {
+      return this.count(userId);
+    }
+  }
+
+  async wouldAllowAtomic(userId: string): Promise<boolean> {
+    const c = await this.countAtomic(userId);
+    return c < this.dailyLimit;
+  }
+
+  /**
    * Reset the counter for a user. Intended for tests and for an
    * operator override after a manual quota bump.
    */
   reset(userId: string): void {
     this.counts.delete(userId);
+  }
+
+  async resetAtomic(userId: string): Promise<void> {
+    this.reset(userId);
+    if (!this.pool) return;
+    const today = utcDateKey(this.now());
+    try {
+      await this.pool.query(
+        `DELETE FROM user_ai_quotas WHERE user_id = $1 AND date_key = $2`,
+        [userId, today]
+      );
+    } catch {
+      // ignore
+    }
   }
 }
 

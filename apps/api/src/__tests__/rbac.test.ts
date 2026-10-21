@@ -25,13 +25,19 @@ interface FakeUser {
   app_metadata: { role?: 'user' | 'admin' };
 }
 
-function makePool(profile: { id: string; role: 'user' | 'admin' } | null, permissions: string[]): Pool {
+function makePool(
+  profile: { id: string; role: 'user' | 'admin'; is_suspended?: boolean } | null,
+  permissions: string[]
+): Pool {
   // Tiny stand-in. `pg.Pool`'s public surface is `query(text, params)`.
   const pool = {
     query: vi.fn(async (text: string, params: unknown[]) => {
       if (/FROM\s+profiles\s+WHERE\s+id\s*=\s*\$1/i.test(text)) {
         if (!profile) return { rows: [], rowCount: 0 };
-        return { rows: [{ role: profile.role }], rowCount: 1 };
+        return {
+          rows: [{ role: profile.role, is_suspended: profile.is_suspended ?? false }],
+          rowCount: 1
+        };
       }
       if (/FROM\s+role_permissions\s+WHERE\s+role\s*=\s*\$1/i.test(text)) {
         return { rows: permissions.map((permission) => ({ permission })), rowCount: permissions.length };
@@ -139,5 +145,25 @@ describe('rbac middleware (mocked pool + supabase)', () => {
     const app = buildApp({ pool, supabase, perm: 'admin.audit.read' });
     const res = await request(app).get('/protected').set('authorization', 'Bearer fake-jwt');
     expect(res.status).toBe(403);
+  });
+
+  it('rejects a suspended user with 403 ACCOUNT_SUSPENDED', async () => {
+    const user: FakeUser = { id: '00000000-0000-4000-8000-000000000005', email: 'suspended@example.com', app_metadata: { role: 'user' } };
+    const pool = makePool({ id: user.id, role: 'user', is_suspended: true }, ['dashboard.user.read']);
+    const supabase = makeSupabase(user);
+    const app = buildApp({ pool, supabase, perm: 'dashboard.user.read' });
+    const res = await request(app).get('/protected').set('authorization', 'Bearer fake-jwt');
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ACCOUNT_SUSPENDED');
+  });
+
+  it('rejects a suspended admin with 403 ACCOUNT_SUSPENDED', async () => {
+    const user: FakeUser = { id: '00000000-0000-4000-8000-000000000006', email: 'admin-suspended@example.com', app_metadata: { role: 'admin' } };
+    const pool = makePool({ id: user.id, role: 'admin', is_suspended: true }, ['admin.system.read']);
+    const supabase = makeSupabase(user);
+    const app = buildApp({ pool, supabase, perm: 'admin.system.read' });
+    const res = await request(app).get('/protected').set('authorization', 'Bearer fake-jwt');
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ACCOUNT_SUSPENDED');
   });
 });

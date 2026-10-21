@@ -470,6 +470,7 @@ export {
   MAX_LIMIT,
   STRUCT_WEIGHT,
   DETECTED_TYPES,
+  type SearchMode,
   type SearchRequest,
   type SearchFilters,
   type SearchFiltersStructured,

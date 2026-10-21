@@ -81,8 +81,16 @@ export function requireSupabaseAuthWithPool(opts: { pool: Pool; supabase: Supaba
     request.userId = data.user.id;
     request.user = data.user;
     try {
-      request.userRole = await getUserRole(opts.pool, data.user.id);
-      request.userPermissions = await getPermissionsForRole(opts.pool, request.userRole);
+      const { resolveAuthContext } = await import('./rbac.js');
+      const ctx = await resolveAuthContext(opts.pool, data.user.id);
+      if (ctx.isSuspended) {
+        response.status(403).json({
+          error: { code: 'ACCOUNT_SUSPENDED', message: 'Tài khoản đã bị tạm khóa bởi quản trị viên', requestId: request.id }
+        });
+        return;
+      }
+      request.userRole = ctx.role;
+      request.userPermissions = ctx.permissions;
     } catch (e) {
       console.error('[auth] role resolution failed', e);
       unauthorized(request, response);

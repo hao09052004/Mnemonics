@@ -79,6 +79,19 @@ function createPipelinePool() {
         return { rows: [job], rowCount: 1 };
       }
 
+      if (sql.includes('WITH next_jobs AS')) {
+        const limit = Number(params[0]);
+        const candidates = jobs
+          .filter(job => job.status === 'pending' && job.attempts < job.max_attempts)
+          .slice(0, limit);
+        for (const job of candidates) {
+          job.status = 'processing';
+          job.attempts += 1;
+          job.updated_at = now();
+        }
+        return { rows: candidates, rowCount: candidates.length };
+      }
+
       if (sql.includes('SELECT * FROM jobs') && sql.includes('status = \'pending\'')) {
         const limit = Number(params[0]);
         return { rows: jobs.filter(job => job.status === 'pending' && job.attempts < job.max_attempts).slice(0, limit), rowCount: 1 };

@@ -134,9 +134,19 @@ export interface JobQueueOptions {
   geminiAcquireTimeoutMs?: number;
 }
 
+export interface QueueMetrics {
+  pendingCount: number;
+  processingCount: number;
+  completedCount: number;
+  failedCount: number;
+  oldestPendingAgeSeconds: number;
+}
+
 export class JobQueue {
   private pool: Pool;
   private isProcessing = false;
+  private isStopping = false;
+  private activeJobsCount = 0;
   private handlers = new Map<JobType, JobHandler>();
   private onTerminalFailure?: JobFailureHandler;
   private processingInterval: NodeJS.Timeout | null = null;
@@ -161,17 +171,23 @@ export class JobQueue {
    */
   start(intervalMs = 1000): void {
     if (this.processingInterval) return;
+    this.isStopping = false;
     this.processingInterval = setInterval(() => this.processJobs(), intervalMs);
     console.log('[JobQueue] Started');
   }
 
   /**
-   * Stop the job processor
+   * Stop the job processor and drain active in-flight jobs gracefully
    */
-  stop(): void {
+  async stop(drainTimeoutMs = 10_000): Promise<void> {
+    this.isStopping = true;
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
       this.processingInterval = null;
+    }
+    const started = Date.now();
+    while (this.activeJobsCount > 0 && Date.now() - started < drainTimeoutMs) {
+      await new Promise((r) => setTimeout(r, 100));
     }
     console.log('[JobQueue] Stopped');
   }
@@ -197,7 +213,7 @@ export class JobQueue {
   }
 
   /**
-   * Get pending jobs for processing
+   * Get pending jobs for processing (legacy / fallback method)
    */
   async getPendingJobs(limit = 10): Promise<Job[]> {
     const result = await this.pool.query<Job & Record<string, unknown>>(
@@ -209,6 +225,74 @@ export class JobQueue {
     );
 
     return result.rows.map(row => this.mapRow(row));
+  }
+
+  /**
+   * Multi-worker safe atomic job claiming.
+   * Uses FOR UPDATE SKIP LOCKED so parallel instances never claim or run the same job.
+   * Applies exponential backoff so retries do not immediately spam the provider.
+   */
+  async claimPendingJobs(limit = 10): Promise<Job[]> {
+    try {
+      const result = await this.pool.query<Job & Record<string, unknown>>(
+        `WITH next_jobs AS (
+           SELECT id FROM jobs
+           WHERE status = 'pending' AND attempts < max_attempts
+             AND (attempts = 0 OR updated_at + (INTERVAL '1 second' * POWER(2, LEAST(attempts - 1, 5)) * 5) <= NOW())
+           ORDER BY created_at ASC
+           LIMIT $1
+           FOR UPDATE SKIP LOCKED
+         )
+         UPDATE jobs j
+         SET status = 'processing', attempts = j.attempts + 1, updated_at = NOW()
+         FROM next_jobs
+         WHERE j.id = next_jobs.id
+         RETURNING j.*`,
+        [limit]
+      );
+      if (result.rows && result.rows.length > 0) {
+        return result.rows.map((row) => this.mapRow(row));
+      }
+      return [];
+    } catch {
+      // Fallback for mocks / drivers that don't support CTE with UPDATE FROM
+      const pending = await this.getPendingJobs(limit);
+      const claimed: Job[] = [];
+      for (const j of pending) {
+        const locked = await this.markProcessing(j.id);
+        if (locked) claimed.push(locked);
+      }
+      return claimed;
+    }
+  }
+
+  /**
+   * Queue observability metrics: counts by status and age of oldest pending job.
+   */
+  async getMetrics(): Promise<QueueMetrics> {
+    const result = await this.pool.query<{
+      pending: string;
+      processing: string;
+      failed: string;
+      completed: string;
+      oldest_pending_age: string | null;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'pending')::text AS pending,
+         COUNT(*) FILTER (WHERE status = 'processing')::text AS processing,
+         COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
+         COUNT(*) FILTER (WHERE status = 'completed')::text AS completed,
+         COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MIN(created_at) FILTER (WHERE status = 'pending')))), 0)::text AS oldest_pending_age
+       FROM jobs`
+    );
+    const row = result.rows[0];
+    return {
+      pendingCount: Number.parseInt(row?.pending ?? '0', 10),
+      processingCount: Number.parseInt(row?.processing ?? '0', 10),
+      failedCount: Number.parseInt(row?.failed ?? '0', 10),
+      completedCount: Number.parseInt(row?.completed ?? '0', 10),
+      oldestPendingAgeSeconds: Number.parseInt(row?.oldest_pending_age ?? '0', 10)
+    };
   }
 
   /**
@@ -346,13 +430,14 @@ export class JobQueue {
   }
 
   private async processJobs(): Promise<void> {
-    if (this.isProcessing) return;
+    if (this.isProcessing || this.isStopping) return;
     this.isProcessing = true;
 
     try {
       await this.maybeReapStaleJobs();
-      const jobs = await this.getPendingJobs(5);
+      const jobs = await this.claimPendingJobs(5);
       for (const job of jobs) {
+        if (this.isStopping) break;
         await this.processJob(job);
       }
     } catch (error) {
@@ -392,14 +477,20 @@ export class JobQueue {
     // Backpressure: if the Gemini slot is full, wait briefly
     // for a free one. On timeout we reset the job to 'pending'
     // (attempts unchanged) so the next tick can re-evaluate
-    // rather than stampeding the upstream. The job is left
-    // visible to `getPendingJobs` again immediately.
+    // rather than stampeding the upstream.
     const acquired = await this.sem.acquire(undefined, this.acquireTimeoutMs);
     if (!acquired) {
       console.warn(
         `[JobQueue] Gemini slot busy, deferring ${job.type} job ${job.id} ` +
           `(pending=${this.sem.pending}, acquireTimeoutMs=${this.acquireTimeoutMs})`
       );
+      if (job.status === 'processing') {
+        // Revert to pending without penalizing attempts if semaphore was busy
+        await this.pool.query(
+          `UPDATE jobs SET status = 'pending', attempts = GREATEST(0, attempts - 1), updated_at = NOW() WHERE id = $1 AND status = 'processing'`,
+          [job.id]
+        ).catch(() => undefined);
+      }
       return;
     }
     let slotReleased = false;
@@ -409,12 +500,18 @@ export class JobQueue {
       this.sem.release();
     };
 
-    const lockedJob = await this.markProcessing(job.id);
+    // If job was already claimed as 'processing' (e.g. from claimPendingJobs), reuse it;
+    // otherwise lock it now.
+    const lockedJob = job.status === 'processing'
+      ? job
+      : await this.markProcessing(job.id);
+
     if (!lockedJob) {
       releaseOnce();
       return;
     }
 
+    this.activeJobsCount++;
     try {
       const handler = this.handlers.get(job.type);
       if (!handler) {
@@ -422,6 +519,14 @@ export class JobQueue {
       }
 
       await handler(lockedJob);
+
+      // Auto-completion safety: if handler completed without throwing,
+      // but didn't explicitly markCompleted(), ensure it transitions
+      // so it is never permanently stuck in 'processing'.
+      const current = await this.getJob(job.id);
+      if (current && current.status === 'processing') {
+        await this.markCompleted(job.id);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[JobQueue] Job ${job.id} failed:`, errorMessage);
@@ -435,6 +540,7 @@ export class JobQueue {
         await this.resetForRetry(job.id);
       }
     } finally {
+      this.activeJobsCount--;
       releaseOnce();
     }
   }

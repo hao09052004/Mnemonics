@@ -192,4 +192,26 @@ app.use('/', monitoringRouter);
 // Start queue processor
 queue.start();
 
-app.listen(port, () => console.log(`Mnemonics API listening on port ${port}`));
+const server = app.listen(port, () => console.log(`Mnemonics API listening on port ${port}`));
+
+const handleShutdown = async (signal: string) => {
+  console.log(`[server] Received ${signal}, starting graceful shutdown...`);
+  try {
+    await queue.stop(10000);
+  } catch (err) {
+    console.error('[server] Error stopping queue:', err);
+  }
+  server.close(async () => {
+    console.log('[server] HTTP server closed');
+    try {
+      await pool.end();
+      console.log('[server] Database pool closed');
+    } catch (err) {
+      console.error('[server] Error closing pool:', err);
+    }
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));

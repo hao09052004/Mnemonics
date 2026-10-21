@@ -514,24 +514,92 @@ export function createAdminAnalyticsRouter(deps: AdminAnalyticsDeps): Router {
         dbStatus = 'error';
       }
       try {
-        const queue = await deps.pool.query<{ pending: string; processing: string; failed: string; succeeded: string }>(
+        const queue = await deps.pool.query<{
+          pending: string;
+          processing: string;
+          failed: string;
+          completed: string;
+          oldest_pending_age: string | null;
+        }>(
           `SELECT
               COUNT(*) FILTER (WHERE status = 'pending')::text AS pending,
               COUNT(*) FILTER (WHERE status = 'processing')::text AS processing,
               COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
-              COUNT(*) FILTER (WHERE status = 'succeeded')::text AS succeeded
+              COUNT(*) FILTER (WHERE status = 'completed')::text AS completed,
+              COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MIN(created_at) FILTER (WHERE status = 'pending')))), 0)::text AS oldest_pending_age
              FROM jobs`
         );
-        const timings = (deps.getRequestTimings?.() ?? []).slice(0, 50);
+        const qRow = queue.rows[0];
+        const pendingCount = Number.parseInt(qRow?.pending ?? '0', 10);
+        const oldestAge = Number.parseInt(qRow?.oldest_pending_age ?? '0', 10);
+
+        let aiStats = {
+          total24h: 0,
+          failed24h: 0,
+          rateLimited24h: 0,
+          failureRate: 0,
+          avgLatencyMs: 0
+        };
+        try {
+          const aiQuery = await deps.pool.query<{
+            total: string;
+            failed: string;
+            rate_limited: string;
+            avg_latency: string | null;
+          }>(
+            `SELECT
+               COUNT(*)::text AS total,
+               COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
+               COUNT(*) FILTER (WHERE status = 'rate_limited')::text AS rate_limited,
+               ROUND(AVG(latency_ms))::text AS avg_latency
+             FROM ai_usage_events
+             WHERE created_at >= NOW() - INTERVAL '24 hours'`
+          );
+          const aiRow = aiQuery.rows[0];
+          const total = Number.parseInt(aiRow?.total ?? '0', 10);
+          const failed = Number.parseInt(aiRow?.failed ?? '0', 10);
+          const rateLimited = Number.parseInt(aiRow?.rate_limited ?? '0', 10);
+          aiStats = {
+            total24h: total,
+            failed24h: failed,
+            rateLimited24h: rateLimited,
+            failureRate: total > 0 ? failed / total : 0,
+            avgLatencyMs: Number.parseInt(aiRow?.avg_latency ?? '0', 10)
+          };
+        } catch {
+          // Table may not exist yet in dev/test environment
+        }
+
+        const rawTimings = deps.getRequestTimings?.() ?? [];
+        const timings = rawTimings.slice(0, 50);
+        const durations = rawTimings.map((t: any) => typeof t === 'number' ? t : (t?.durationMs ?? t?.duration ?? 0)).sort((a: number, b: number) => a - b);
+        const latencyPercentiles = {
+          p50: durations.length > 0 ? durations[Math.floor(durations.length * 0.5)] : 0,
+          p95: durations.length > 0 ? durations[Math.floor(durations.length * 0.95)] : 0,
+          p99: durations.length > 0 ? durations[Math.floor(durations.length * 0.99)] : 0
+        };
+
+        let systemState: 'healthy' | 'degraded' | 'unavailable' = 'healthy';
+        if (dbStatus !== 'ok') {
+          systemState = 'unavailable';
+        } else if (oldestAge > 600 || aiStats.failureRate > 0.2) {
+          systemState = 'degraded';
+        }
+
         res.json({
           data: {
             database: dbStatus,
+            systemState,
             queue: {
-              pending: Number.parseInt(queue.rows[0].pending, 10),
-              processing: Number.parseInt(queue.rows[0].processing, 10),
-              failed: Number.parseInt(queue.rows[0].failed, 10),
-              succeeded: Number.parseInt(queue.rows[0].succeeded, 10)
+              pending: pendingCount,
+              processing: Number.parseInt(qRow?.processing ?? '0', 10),
+              failed: Number.parseInt(qRow?.failed ?? '0', 10),
+              completed: Number.parseInt(qRow?.completed ?? '0', 10),
+              succeeded: Number.parseInt(qRow?.completed ?? '0', 10),
+              oldestPendingAgeSeconds: oldestAge
             },
+            ai: aiStats,
+            latencyPercentiles,
             requestTimings: timings,
             uptimeSeconds: Math.floor(process.uptime())
           }
