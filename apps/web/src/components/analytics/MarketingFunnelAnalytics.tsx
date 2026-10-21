@@ -1,6 +1,54 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { ApiClient } from '../../lib/api-client';
+import { productConfig } from '../../config/product';
 
-export function MarketingFunnelAnalytics() {
+interface MarketingFunnelAnalyticsProps {
+  api?: ApiClient;
+}
+
+export function MarketingFunnelAnalytics({ api }: MarketingFunnelAnalyticsProps = {}) {
+  const [realData, setRealData] = useState<{
+    registered: number;
+    activated: number;
+    engaged: number;
+    paying: number;
+    totalItems: number;
+    activationRate: number;
+    engagementRate: number;
+    conversionRate: number;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      const client = api || new ApiClient(productConfig.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''));
+      const session = client.loadStoredSession();
+      if (!session?.accessToken) return;
+
+      client.adminAnalyticsOverview(session.accessToken).then((res) => {
+        if (res?.data?.funnel) {
+          setRealData(res.data.funnel);
+        }
+      }).catch(() => {});
+    } catch (e) {}
+  }, [api]);
+
+  const isReal = Boolean(realData);
+  const registered = realData?.registered ?? 38;
+  const activated = realData?.activated ?? 15;
+  const engaged = realData?.engaged ?? 6;
+  const paying = realData?.paying ?? 0;
+  const totalItems = realData?.totalItems ?? 204;
+
+  const activationRate = isReal ? (realData?.activationRate ?? 0) : 39.47;
+  const engagementRate = isReal ? (realData?.engagementRate ?? 0) : 40.0;
+  const conversionRate = isReal ? (realData?.conversionRate ?? 0) : 15.79;
+
+  const dropOff1 = Math.max(0, registered - activated);
+  const dropOff1Rate = registered > 0 ? Number(((dropOff1 / registered) * 100).toFixed(1)) : 0;
+
+  const dropOff2 = Math.max(0, activated - engaged);
+  const dropOff2Rate = activated > 0 ? Number(((dropOff2 / activated) * 100).toFixed(1)) : 0;
+
   return (
     <div className="marketing-funnel-analytics" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Top Header Card */}
@@ -26,25 +74,26 @@ export function MarketingFunnelAnalytics() {
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.8px',
-                background: 'rgba(124, 92, 252, 0.35)',
-                color: '#e0d7fe',
+                background: isReal ? 'rgba(52, 211, 153, 0.2)' : 'rgba(124, 92, 252, 0.35)',
+                color: isReal ? '#6ee7b7' : '#e0d7fe',
                 padding: '4px 10px',
                 borderRadius: 20,
-                border: '1px solid rgba(124, 92, 252, 0.6)'
+                border: isReal ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(124, 92, 252, 0.6)'
               }}
             >
-              Báo cáo hiệu suất
+              {isReal ? '🟢 Dữ liệu hệ thống thực tế' : 'Báo cáo hiệu suất'}
             </span>
             <span style={{ fontSize: 13, color: '#9da5b5', fontWeight: 500 }}>
-              Phạm vi: 11-18/10
+              {isReal ? `Tổng hợp: ${registered} tài khoản • ${totalItems} ký ức` : 'Phạm vi: 11-18/10'}
             </span>
           </div>
           <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 6px 0', color: '#ffffff', letterSpacing: '-0.02em' }}>
             Chỉ số Funnel & Hoạt động Marketing
           </h2>
           <p style={{ margin: 0, fontSize: 14, color: '#9da5b5', lineHeight: 1.55, maxWidth: 640 }}>
-            Phân tích hành vi từ nhóm 38 người truy cập website làm mốc gốc: tỷ lệ chuyển đổi, điểm rơi
-            trong phễu trải nghiệm học tập trung và bảng đối chiếu KPI mục tiêu.
+            {isReal
+              ? `Phân tích dữ liệu thực tế từ ${registered} tài khoản người dùng trong cơ sở dữ liệu: tỷ lệ kích hoạt lưu ký ức, mức độ gắn bó không gian học tập và tỷ lệ chuyển đổi trả phí.`
+              : 'Phân tích hành vi từ nhóm 38 người truy cập website làm mốc gốc: tỷ lệ chuyển đổi, điểm rơi trong phễu trải nghiệm học tập trung và bảng đối chiếu KPI mục tiêu.'}
           </p>
         </div>
 
@@ -61,12 +110,12 @@ export function MarketingFunnelAnalytics() {
             boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)'
           }}
         >
-          <span style={{ fontSize: 12, color: '#9da5b5', fontWeight: 500 }}>Toàn bộ phễu</span>
+          <span style={{ fontSize: 12, color: '#9da5b5', fontWeight: 500 }}>Tỷ lệ chuyển đổi</span>
           <span style={{ fontSize: 28, fontWeight: 800, color: '#34d399', letterSpacing: '-0.5px' }}>
-            15,79%
+            {conversionRate}%
           </span>
           <span style={{ fontSize: 11.5, color: '#9da5b5' }}>
-            Truy cập → Hoàn thành
+            {isReal ? 'Đăng ký → Trả phí' : 'Truy cập → Hoàn thành'}
           </span>
         </div>
       </div>
@@ -80,38 +129,38 @@ export function MarketingFunnelAnalytics() {
         }}
       >
         <MetricCard
-          label="Truy cập website"
-          value="38"
-          sub="Nhóm mốc gốc (11-18/10)"
+          label={isReal ? 'Người dùng đăng ký' : 'Truy cập website'}
+          value={String(registered)}
+          sub={isReal ? 'Tài khoản thật trong database' : 'Nhóm mốc gốc (11-18/10)'}
           badge="100%"
           badgeColor="#7457e8"
         />
         <MetricCard
-          label="Lượt xem trang"
-          value="204"
-          sub="~5,37 lượt / người"
+          label={isReal ? 'Tổng ký ức lưu trữ' : 'Lượt xem trang'}
+          value={String(totalItems)}
+          sub={isReal ? 'Ghi chú, link, ảnh thực tế' : '~5,37 lượt / người'}
           badge="Tương tác"
           badgeColor="#3b82f6"
         />
         <MetricCard
-          label="Bắt đầu tập trung"
-          value="15"
-          sub="Dùng thử tính năng học"
-          badge="39,47%"
+          label={isReal ? 'Đã kích hoạt lưu trữ' : 'Bắt đầu tập trung'}
+          value={String(activated)}
+          sub={isReal ? 'Đã lưu ≥ 1 ký ức' : 'Dùng thử tính năng học'}
+          badge={`${activationRate}%`}
           badgeColor="#8b5cf6"
         />
         <MetricCard
-          label="Hoàn thành phiên"
-          value="6"
-          sub="9 tổng phiên hoàn thành"
-          badge="40,00%"
+          label={isReal ? 'Người dùng tạo Space' : 'Hoàn thành phiên'}
+          value={String(engaged)}
+          sub={isReal ? 'Tổ chức không gian tri thức' : '9 tổng phiên hoàn thành'}
+          badge={`${engagementRate}%`}
           badgeColor="#10b981"
         />
         <MetricCard
-          label="Phản hồi Google Forms"
-          value="7"
-          sub="Tích lũy từ 01-18/10"
-          badge="Khảo sát"
+          label={isReal ? 'Gói trả phí Mastery' : 'Phản hồi Google Forms'}
+          value={String(paying)}
+          sub={isReal ? 'Tài khoản Pro/Mastery' : 'Tích lũy từ 01-18/10'}
+          badge={isReal ? `${conversionRate}%` : 'Khảo sát'}
           badgeColor="#f59e0b"
         />
       </div>
@@ -128,10 +177,12 @@ export function MarketingFunnelAnalytics() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: '#ffffff' }}>
-            Sơ đồ dòng chảy Funnel (Cửa sổ đo 24 giờ)
+            Sơ đồ dòng chảy Funnel ({isReal ? 'Dữ liệu người dùng thực tế' : 'Cửa sổ đo 24 giờ'})
           </h3>
           <span style={{ fontSize: 12.5, color: 'var(--mn-text-2, #a2a9b8)' }}>
-            38 truy cập → 15 bắt đầu học → 6 hoàn thành phiên
+            {isReal
+              ? `${registered} đăng ký → ${activated} kích hoạt → ${engaged} tạo Space → ${paying} trả phí`
+              : '38 truy cập → 15 bắt đầu học → 6 hoàn thành phiên'}
           </span>
         </div>
 
@@ -163,11 +214,11 @@ export function MarketingFunnelAnalytics() {
                   1
                 </span>
                 <strong style={{ fontSize: 15, color: '#ffffff' }}>
-                  Người truy cập website thành công (Nhóm mốc)
+                  {isReal ? 'Tài khoản người dùng đăng ký (Mốc gốc)' : 'Người truy cập website thành công (Nhóm mốc)'}
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>38</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>{registered}</span>
                 <span style={{ fontSize: 12, color: '#a78bfa' }}>(100%)</span>
               </div>
             </div>
@@ -196,7 +247,7 @@ export function MarketingFunnelAnalytics() {
               color: '#fca5a5'
             }}
           >
-            <span>🔻 Điểm rơi 1: <strong>23 người</strong> chưa bắt đầu học</span>
+            <span>🔻 Điểm rơi 1: <strong>{dropOff1} người</strong> {isReal ? 'chưa lưu ký ức đầu tiên' : 'chưa bắt đầu học'}</span>
             <span
               style={{
                 background: 'rgba(239, 68, 68, 0.15)',
@@ -206,7 +257,7 @@ export function MarketingFunnelAnalytics() {
                 fontWeight: 600
               }}
             >
-              60,53% rơi rụng
+              {dropOff1Rate}% rơi rụng
             </span>
           </div>
 
@@ -237,12 +288,12 @@ export function MarketingFunnelAnalytics() {
                   2
                 </span>
                 <strong style={{ fontSize: 15, color: '#ffffff' }}>
-                  Người bắt đầu dùng thử - chế độ tập trung
+                  {isReal ? 'Người dùng kích hoạt (Đã lưu ít nhất 1 ký ức)' : 'Người bắt đầu dùng thử - chế độ tập trung'}
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>15</span>
-                <span style={{ fontSize: 12, color: '#818cf8' }}>(39,47% so với mốc gốc)</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>{activated}</span>
+                <span style={{ fontSize: 12, color: '#818cf8' }}>({activationRate}% so với mốc gốc)</span>
               </div>
             </div>
             <div
@@ -253,7 +304,7 @@ export function MarketingFunnelAnalytics() {
                 overflow: 'hidden'
               }}
             >
-              <div style={{ width: '39.47%', height: '100%', background: '#6366f1', borderRadius: 4 }} />
+              <div style={{ width: `${Math.min(100, Math.max(5, activationRate))}%`, height: '100%', background: '#6366f1', borderRadius: 4 }} />
             </div>
           </div>
 
@@ -270,7 +321,7 @@ export function MarketingFunnelAnalytics() {
               color: '#fca5a5'
             }}
           >
-            <span>🔻 Điểm rơi 2: <strong>9 người</strong> chưa hoàn thành trong cửa sổ đo</span>
+            <span>🔻 Điểm rơi 2: <strong>{dropOff2} người</strong> {isReal ? 'chưa tạo Space hoặc phiên học' : 'chưa hoàn thành trong cửa sổ đo'}</span>
             <span
               style={{
                 background: 'rgba(239, 68, 68, 0.15)',
@@ -280,7 +331,7 @@ export function MarketingFunnelAnalytics() {
                 fontWeight: 600
               }}
             >
-              60,00% rơi rụng
+              {dropOff2Rate}% rơi rụng
             </span>
           </div>
 
@@ -311,13 +362,13 @@ export function MarketingFunnelAnalytics() {
                   3
                 </span>
                 <strong style={{ fontSize: 15, color: '#ffffff' }}>
-                  Người hoàn thành phiên học (9 tổng phiên)
+                  {isReal ? 'Người dùng tương tác sâu (Tạo không gian Space)' : 'Người hoàn thành phiên học (9 tổng phiên)'}
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>6</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: '#ffffff' }}>{engaged}</span>
                 <span style={{ fontSize: 12, color: '#6ee7b7' }}>
-                  (40% từ bước 2 • 15,79% toàn phễu)
+                  ({isReal ? `${engagementRate}% từ bước 2` : '40% từ bước 2 • 15,79% toàn phễu'})
                 </span>
               </div>
             </div>
@@ -329,7 +380,7 @@ export function MarketingFunnelAnalytics() {
                 overflow: 'hidden'
               }}
             >
-              <div style={{ width: '15.79%', height: '100%', background: '#10b981', borderRadius: 4 }} />
+              <div style={{ width: `${Math.min(100, Math.max(5, (engaged / Math.max(1, registered)) * 100))}%`, height: '100%', background: '#10b981', borderRadius: 4 }} />
             </div>
           </div>
         </div>

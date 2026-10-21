@@ -152,7 +152,7 @@ export function AnalyticsPage({ api }: Props) {
                 Đăng nhập tài khoản →
               </button>
             </div>
-            <MarketingFunnelAnalytics />
+            <MarketingFunnelAnalytics api={api} />
           </div>
         ) : (
           <div className="admin-card" style={{ padding: '3rem 2rem', borderRadius: 16, textAlign: 'center' }}>
@@ -268,7 +268,7 @@ export function AnalyticsPage({ api }: Props) {
         </div>
 
         {currentTab === 'funnel' ? (
-          <MarketingFunnelAnalytics />
+          <MarketingFunnelAnalytics api={api} />
         ) : loading ? (
           <p className="admin-empty">Đang tải phân tích…</p>
         ) : error ? (

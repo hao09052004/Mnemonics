@@ -126,6 +126,16 @@ interface AdminOverviewResponse {
       successRate: number | null;
       semanticSearch30d: number;
     };
+    funnel?: {
+      registered: number;
+      activated: number;
+      engaged: number;
+      paying: number;
+      totalItems: number;
+      activationRate: number;
+      engagementRate: number;
+      conversionRate: number;
+    };
   };
 }
 

@@ -109,7 +109,7 @@ export function AppRouter({ api }: AppRouterProps) {
           element={
             <AdminLayout api={api}>
               <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-                <MarketingFunnelAnalytics />
+                <MarketingFunnelAnalytics api={api} />
               </div>
             </AdminLayout>
           }

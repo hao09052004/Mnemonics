@@ -137,6 +137,22 @@ export function createAdminAnalyticsRouter(deps: AdminAnalyticsDeps): Router {
           captures.total === 0
             ? null
             : captures.success / Math.max(1, captures.total);
+
+        const activatedCount = await safeCount(`SELECT COUNT(DISTINCT user_id)::text AS n FROM items`);
+        const engagedCount = await safeCount(`SELECT COUNT(DISTINCT user_id)::text AS n FROM spaces`);
+        const payingCount = await safeCount(`SELECT COUNT(DISTINCT user_id)::text AS n FROM payment_orders WHERE status = 'paid'`);
+
+        const funnel = {
+          registered: users.total,
+          activated: activatedCount,
+          engaged: engagedCount,
+          paying: payingCount,
+          totalItems: captures.total,
+          activationRate: users.total > 0 ? Number(((activatedCount / users.total) * 100).toFixed(1)) : 0,
+          engagementRate: activatedCount > 0 ? Number(((engagedCount / activatedCount) * 100).toFixed(1)) : 0,
+          conversionRate: users.total > 0 ? Number(((payingCount / users.total) * 100).toFixed(1)) : 0
+        };
+
         res.json({
           data: {
             users,
@@ -146,7 +162,8 @@ export function createAdminAnalyticsRouter(deps: AdminAnalyticsDeps): Router {
               captures30d: captures.period,
               successRate,
               semanticSearch30d: semantic
-            }
+            },
+            funnel
           }
         });
       } catch (e) {
