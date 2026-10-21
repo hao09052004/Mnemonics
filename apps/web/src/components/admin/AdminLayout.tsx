@@ -19,7 +19,8 @@ interface AdminLayoutProps {
 
 const SECTIONS: Array<{ to: string; label: string; perm: string }> = [
   { to: '/admin', label: 'Tổng quan', perm: 'admin.analytics.read' },
-  { to: '/admin/users', label: 'Người dùng', perm: 'admin.users.read' },
+  { to: '/admin/funnel', label: 'Chỉ số Marketing', perm: 'admin.analytics.read' },
+  { to: '/admin/users', label: 'Người dùng & Duyệt gói', perm: 'admin.users.read' },
   { to: '/admin/payments', label: 'Đơn hàng', perm: 'admin.payments.read' },
   { to: '/admin/audit-logs', label: 'Nhật ký', perm: 'admin.audit.read' }
 ];

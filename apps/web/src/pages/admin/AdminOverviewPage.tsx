@@ -9,6 +9,7 @@
  * Numbers are real database metrics. No mock values.
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiClient, type Session, type AdminOverviewResponse } from '../../lib/api-client';
 
 interface Props { api: ApiClient }
@@ -43,8 +44,20 @@ export function AdminOverviewPage({ api }: Props) {
 
   return (
     <>
-      <h1 className="admin-page-title">Tổng quan</h1>
-      <p className="admin-page-subtitle">Số liệu thật từ cơ sở dữ liệu — không phải số liệu mẫu.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+        <div>
+          <h1 className="admin-page-title" style={{ margin: 0 }}>Tổng quan hệ thống</h1>
+          <p className="admin-page-subtitle" style={{ margin: '0.25rem 0 0' }}>Số liệu thật từ cơ sở dữ liệu — không phải số liệu mẫu.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <Link to="/admin/funnel" className="admin-button" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            📊 Phễu Marketing & Chiến dịch
+          </Link>
+          <Link to="/admin/users" className="admin-button admin-button--secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            👥 Duyệt & Nâng cấp tài khoản
+          </Link>
+        </div>
+      </div>
       <section className="admin-grid">
         <Kpi label="Tổng người dùng" value={data.users.total} foot={`+${data.users.newToday} hôm nay`} />
         <Kpi label="Đăng ký mới (30d)" value={data.users.new30d} />

@@ -912,6 +912,27 @@ export class ApiClient {
       { method: 'POST', accessToken, body: { suspend, reason } }
     );
   }
+  async adminUpdateUserPlan(
+    userId: string,
+    planId: 'memory' | 'mastery-monthly' | 'mastery-yearly',
+    accessToken: string,
+    reason?: string
+  ): Promise<{ data: { ok: true; plan_id: string; valid_until: string | null } }> {
+    return this.request<{ data: { ok: true; plan_id: string; valid_until: string | null } }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/plan`,
+      { method: 'POST', accessToken, body: { plan_id: planId, reason } }
+    );
+  }
+  async adminDeleteUser(
+    userId: string,
+    accessToken: string,
+    reason?: string
+  ): Promise<{ data: { ok: true } }> {
+    return this.request<{ data: { ok: true } }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}`,
+      { method: 'DELETE', accessToken, body: { reason } }
+    );
+  }
   async adminListPayments(
     accessToken: string,
     opts: { status?: string; limit?: number; offset?: number } = {}

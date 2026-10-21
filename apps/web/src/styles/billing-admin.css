@@ -361,6 +361,46 @@
 .admin-button--secondary:hover {
   background: #e2e2e2;
 }
+.admin-button--danger {
+  background: #dc2626;
+  color: #fff;
+}
+.admin-button--danger:hover {
+  background: #b91c1c;
+}
+.admin-button--success {
+  background: #16a34a;
+  color: #fff;
+}
+.admin-button--success:hover {
+  background: #15803d;
+}
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.admin-modal-card {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  padding: 1.75rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid #ececec;
+}
+[data-theme='dark'] .admin-modal-card {
+  background: var(--surface, #161923);
+  border-color: var(--border, rgba(255, 255, 255, 0.12));
+  color: var(--text, #f4f5f8);
+}
+
 .admin-empty {
   color: #888;
   text-align: center;

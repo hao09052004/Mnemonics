@@ -2702,6 +2702,11 @@ document.addEventListener('DOMContentLoaded', function() {
   var navPricing = document.getElementById('nav-pricing');
   if (navPricing) navPricing.addEventListener('click', function() { showPage('pricing'); });
 
+  var navAnalytics = document.getElementById('nav-analytics');
+  if (navAnalytics) navAnalytics.addEventListener('click', function() {
+    openUrlInNewTab('https://mnemonics-one.vercel.app/app/analytics?tab=funnel');
+  });
+
   var btnLogin = document.getElementById('btn-login');
   if (btnLogin) btnLogin.addEventListener('click', function() { showPage('login'); });
 
@@ -2757,6 +2762,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var sidebarReminders = document.getElementById('sidebar-reminders');
   if (sidebarReminders) sidebarReminders.addEventListener('click', function() { showPage('reminders'); });
+
+  var sidebarAnalytics = document.getElementById('sidebar-analytics');
+  if (sidebarAnalytics) sidebarAnalytics.addEventListener('click', function() {
+    openUrlInNewTab('https://mnemonics-one.vercel.app/app/analytics?tab=funnel');
+  });
 
   var sidebarSettings = document.getElementById('sidebar-settings');
   if (sidebarSettings) sidebarSettings.addEventListener('click', function() { showPage('settings'); });

@@ -257,6 +257,13 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.tabs.create({ url: url });
   });
 
+  var openAnalytics = document.getElementById('open-analytics');
+  if (openAnalytics) {
+    openAnalytics.addEventListener('click', function() {
+      chrome.tabs.create({ url: 'https://mnemonics-one.vercel.app/app/analytics?tab=funnel' });
+    });
+  }
+
   document.getElementById('btn-more').addEventListener('click', resetForm);
   document.getElementById('btn-done').addEventListener('click', function() { window.close(); });
   document.getElementById('save-btn').addEventListener('click', saveCapture);

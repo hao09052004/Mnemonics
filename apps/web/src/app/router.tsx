@@ -27,6 +27,7 @@ import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 import { AdminPaymentsPage } from '../pages/admin/AdminPaymentsPage';
 import { AdminAuditLogsPage } from '../pages/admin/AdminAuditLogsPage';
+import { MarketingFunnelAnalytics } from '../components/analytics/MarketingFunnelAnalytics';
 
 import { ScrollToHash } from '../components/common/ScrollToHash';
 
@@ -100,6 +101,20 @@ export function AppRouter({ api }: AppRouterProps) {
           element={
             <AdminLayout api={api}>
               <AdminOverviewPage api={api} />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/funnel"
+          element={
+            <AdminLayout api={api}>
+              <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+                <h1 className="admin-page-title">Chỉ số Marketing & Phễu chuyển đổi</h1>
+                <p className="admin-page-subtitle">
+                  Theo dõi hoạt động marketing, chiến dịch Facebook Ads, tỷ lệ kích hoạt và mức độ hoàn thành nhiệm vụ.
+                </p>
+                <MarketingFunnelAnalytics />
+              </div>
             </AdminLayout>
           }
         />

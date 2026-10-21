@@ -72,6 +72,20 @@ const suspendSchema = z
   })
   .strict();
 
+const planUpdateSchema = z
+  .object({
+    plan_id: z.enum(['memory', 'mastery-monthly', 'mastery-yearly']),
+    duration_days: z.number().int().positive().max(3650).optional(),
+    reason: z.string().trim().max(500).optional()
+  })
+  .strict();
+
+const deleteUserSchema = z
+  .object({
+    reason: z.string().trim().max(500).optional()
+  })
+  .strict();
+
 const reconcileSchema = z
   .object({
     amount_vnd: z.number().int().positive(),
@@ -239,6 +253,114 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       } catch (e) {
         console.error('[admin] suspend failed', e);
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Không thể cập nhật trạng thái' } });
+      }
+    }
+  );
+
+  router.post(
+    '/users/:id/plan',
+    auth,
+    requirePermission('admin.users.manage'),
+    async (req: AuthedRequest, res: Response) => {
+      const id = String(req.params.id);
+      const parsed = planUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: { code: 'INVALID_PAYLOAD', message: 'Gói nâng cấp không hợp lệ' } });
+        return;
+      }
+      try {
+        const { plan_id, duration_days, reason } = parsed.data;
+        let validUntil: Date | null = null;
+        if (plan_id === 'mastery-monthly') {
+          const days = duration_days ?? 30;
+          validUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+        } else if (plan_id === 'mastery-yearly') {
+          const days = duration_days ?? 365;
+          validUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+        }
+
+        await applyEntitlement(deps.pool, {
+          userId: id,
+          planId: plan_id,
+          validUntil,
+          source: 'admin_adjust',
+          note: reason || `Admin adjusted plan to ${plan_id}`
+        });
+
+        // Audit log
+        await deps.pool.query(
+          `INSERT INTO role_audit_log
+             (actor_user_id, target_user_id, old_role, new_role, reason)
+           SELECT $1, $2, p.role, p.role, $3
+             FROM profiles p WHERE p.id = $2`,
+          [req.userId, id, `plan_change: ${plan_id} (${reason || 'admin adjust'})`]
+        );
+
+        res.json({ data: { ok: true, plan_id, valid_until: validUntil?.toISOString() ?? null } });
+      } catch (e: any) {
+        console.error('[admin] plan update failed', e);
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: e?.message || 'Không thể cập nhật gói người dùng' } });
+      }
+    }
+  );
+
+  router.delete(
+    '/users/:id',
+    auth,
+    requirePermission('admin.users.manage'),
+    async (req: AuthedRequest, res: Response) => {
+      const id = String(req.params.id);
+      const parsed = deleteUserSchema.safeParse(req.body || {});
+      const reason = (parsed.success && parsed.data.reason) ? parsed.data.reason : 'admin delete';
+
+      // Self-delete guard
+      if (req.userId === id) {
+        res.status(400).json({ error: { code: 'CANNOT_DELETE_SELF', message: 'Không thể tự xóa tài khoản quản trị của chính mình' } });
+        return;
+      }
+
+      try {
+        // Last-admin guard
+        const target = await deps.pool.query<{ role: 'user' | 'admin' }>(
+          `SELECT role FROM profiles WHERE id = $1`,
+          [id]
+        );
+        if (target.rowCount && target.rows[0].role === 'admin') {
+          const adminCount = await deps.pool.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count FROM profiles WHERE role = 'admin'`
+          );
+          if (Number.parseInt(adminCount.rows[0].count, 10) <= 1) {
+            res.status(409).json({ error: { code: 'LAST_ADMIN_PROTECTED', message: 'Không thể xóa quản trị viên cuối cùng' } });
+            return;
+          }
+        }
+
+        // Clean up database records
+        await deps.pool.query('DELETE FROM items WHERE user_id = $1', [id]).catch(() => undefined);
+        await deps.pool.query('DELETE FROM spaces WHERE user_id = $1', [id]).catch(() => undefined);
+        await deps.pool.query('DELETE FROM user_subscriptions WHERE user_id = $1', [id]).catch(() => undefined);
+        await deps.pool.query('DELETE FROM user_entitlements WHERE user_id = $1', [id]).catch(() => undefined);
+        await deps.pool.query('DELETE FROM payment_orders WHERE user_id = $1', [id]).catch(() => undefined);
+        await deps.pool.query('DELETE FROM profiles WHERE id = $1', [id]).catch(() => undefined);
+
+        // Delete from Supabase Auth if service client is available
+        if (deps.supabase?.auth?.admin?.deleteUser) {
+          await deps.supabase.auth.admin.deleteUser(id).catch((err) => {
+            console.warn('[admin] supabase deleteUser error:', err);
+          });
+        }
+
+        // Audit log
+        await deps.pool.query(
+          `INSERT INTO role_audit_log (actor_user_id, target_user_id, old_role, new_role, reason)
+           VALUES ($1, $2, 'user', 'none', $3)`,
+          [req.userId, id, `delete_user: ${reason}`]
+        ).catch(() => undefined);
+
+        res.json({ data: { ok: true } });
+      } catch (e: any) {
+        console.error('[admin] delete user failed', e);
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: e?.message || 'Không thể xóa người dùng' } });
       }
     }
   );
