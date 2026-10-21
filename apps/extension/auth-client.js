@@ -14,7 +14,7 @@
  * the file uses explicit `.js` extensions and `var` where convenient.
  */
 
-const DEFAULT_BASE_URL = 'http://localhost:4000';
+const DEFAULT_BASE_URL = 'https://mnemonics-api.onrender.com';
 
 export class AuthError extends Error {
   constructor(code, message, requestId) {

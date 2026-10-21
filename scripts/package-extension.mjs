@@ -63,11 +63,11 @@ const EXCLUDE_FILES = new Set([
 const TEST_SUFFIX = /\.test\.(js|ts|mjs|cjs)$/;
 
 function apiUrl() {
-  return process.env.MNEMONICS_API_URL || 'http://localhost:4000';
+  return process.env.MNEMONICS_API_URL || 'https://mnemonics-api.onrender.com';
 }
 
 function webUrl() {
-  return process.env.MNEMONICS_WEB_URL || '';
+  return process.env.MNEMONICS_WEB_URL || 'https://mnemonics-one.vercel.app';
 }
 
 /**
