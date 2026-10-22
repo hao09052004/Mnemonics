@@ -107,8 +107,12 @@ export function createSupabaseUsers(client: SupabaseClient, serviceClient?: Supa
             // ignore — we'll fall through to createUser.
           }
 
-          if (target && !target.email_confirmed_at) {
-            const update = await serviceClient.auth.admin.updateUserById(target.id, { email_confirm: true });
+          if (target) {
+            const update = await serviceClient.auth.admin.updateUserById(target.id, {
+              password,
+              email_confirm: true,
+              user_metadata: name ? { name } : undefined
+            });
             if (update.error) {
               return { data: { user: null, session: null }, error: { message: update.error.message } };
             }
